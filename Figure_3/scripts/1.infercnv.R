@@ -2,16 +2,17 @@
 
 args = commandArgs(trailingOnly=TRUE)
 
-project_name <- "identify_epithelial"
-subproject_name <- "brca_mini_atlas_131019"
-numcores <- 7
+project_name <- "thesis"
+subproject_name <- "Figure_3"
+numcores <- 10
 sample_name <- args[1]
 subset_data <- as.logical(args[2])
 include_t_cells <- as.logical(args[3])
-#sample_name <- "CID4461"
+
+#sample_name <- "CID4386"
 #subset_data <- FALSE
 #include_t_cells <- TRUE
-
+#analysis_mode <- "samples"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -24,6 +25,7 @@ lib_loc <- "/share/ScratchGeneral/jamtor/R/3.5dev/"
 library(cluster, lib.loc = lib_loc)
 library(Seurat)
 library(infercnv, lib.loc=lib_loc)
+library(HiddenMarkov, lib.loc=lib_loc)
 library(RColorBrewer)
 library(ComplexHeatmap, lib.loc=lib_loc)
 library(circlize, lib.loc = lib_loc)
@@ -34,32 +36,30 @@ library(fpc, lib.loc = lib_loc)
 library(dplyr)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
-project_dir <- paste0(home_dir, "projects/single_cell/", 
+project_dir <- paste0(home_dir, "projects/", 
   project_name, "/", subproject_name, "/")
 ref_dir <- paste0(project_dir, "refs/")
 func_dir <- paste0(project_dir, "scripts/functions/")
 results_dir <- seurat_path <- paste0(project_dir, "results/")
 in_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
   sample_name, "/")
-setwd(in_dir)
 
 if (include_t_cells) {
-  out_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
-    sample_name, "/")
+  out_path <- paste0(results_dir, "infercnv/t_cells_included/")
+  out_dir <- paste0(out_path, sample_name, "/")
 } else {
-  out_dir <- paste0(results_dir, "infercnv/t_cells_excluded/", 
-    sample_name, "/")
+  out_path <- paste0(results_dir, "infercnv/t_cells_excluded/")
+  out_dir <- paste0(out_path, sample_name, "/")
 }
 
-input_dir <- paste0(out_dir, "/input_files/")
+input_dir <- paste0(out_dir, "input_files/")
 system(paste0("mkdir -p ", input_dir))
-plot_dir <- paste0(out_dir, "/plots/")
+plot_dir <- paste0(out_dir, "plots/")
 system(paste0("mkdir -p ", plot_dir))
-table_dir <- paste0(out_dir, "/tables/")
+table_dir <- paste0(out_dir, "tables/")
 system(paste0("mkdir -p ", table_dir))
-integrated_dir <- paste0("/share/ScratchGeneral/sunwu/projects/", 
-  "MINI_ATLAS_PROJECT/Jun2019/04_reclustering_analysis/",
-  "run06_v1.2.1/output/Epithelial/02_Rdata/")
+
+setwd(out_path)
 
 print(paste0("Sample directory = ", in_dir))
 print(paste0("Reference directory = ", ref_dir))
@@ -79,12 +79,16 @@ prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"
 
 
 ################################################################################
-### 1. Generate input matrix and metadata files ###
+### 1a. Generate input matrix and metadata files for primary sample ###
 ################################################################################
 
 # load seurat object:
 seurat_10X <- readRDS(paste0(in_dir, "03_seurat_object_processed.Rdata"))
-Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
+#if (!is.null(seurat_10X@meta.data$PC_A_res.1)) {
+  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
+#} else if (!is.null(seurat_10X@meta.data$PC_A_res.0.8)) {
+#  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.0.8
+#}
 
 # create raw matrix input file and subset if necessary:
 count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
@@ -127,14 +131,6 @@ if (!file.exists(paste0(plot_dir, "metrics_by_epithelial_cluster.png"))) {
   dev.off()
 }
 
-# remove cluster information for epithelial cells:
-infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)] <- 
-gsub("_[0-9].*$", "", 
-  infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)])
-# remove CAFs from analysis:
-infercnv_metadata$metadata <- infercnv_metadata$metadata[
-  grep("CAF", infercnv_metadata$metadata$cell_type, invert=T),
-]
 # if necessary, remove T cells from analysis:
 if (!include_t_cells) {
   infercnv_metadata$metadata <- infercnv_metadata$metadata[
@@ -145,6 +141,10 @@ if (!include_t_cells) {
 infercnv_metadata$metadata$cell_type[
   grep("pithelial", infercnv_metadata$metadata$cell_type, invert=T)
 ] <- "Stromal"
+# collapse all epithelial cells into 'epithelial' cell type:
+infercnv_metadata$metadata$cell_type[
+  grep("pithelial", infercnv_metadata$metadata$cell_type)
+] <- "Epithelial"
 
 # if no epithelial clusters present, abort:
 if (length(epithelial_clusters) < 1) {
@@ -199,11 +199,10 @@ if (length(epithelial_clusters) < 1) {
       infercnv::run(
         initial_infercnv_object,
         num_threads=numcores-1,
-        out_dir=out_dir,
+        out_dir=sample_name,
         cutoff=0.1,
         window_length=101,
         max_centered_threshold=3,
-        cluster_by_groups=F,
         plot_steps=F,
         denoise=T,
         sd_amplifier=1.3,

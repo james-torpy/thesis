@@ -1,32 +1,47 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
-subproject_name <- "Figure_3"
+subproject_name <- "brca_mini_atlas_131019"
 
-#args = commandArgs(trailingOnly=TRUE)
-#include_t_cells <- as.logical(args[1])
-#subset_data <- as.logical(args[2])
-#subset_samples <- as.logical(args[3])
-#na_colour <- args[4]
-#include_normals <- as.logical(args[5])
+args = commandArgs(trailingOnly=TRUE)
+include_t_cells <- as.logical(args[1])
+subset_data <- as.logical(args[2])
+subset_samples <- as.logical(args[3])
+na_colour <- args[4]
+include_normals <- as.logical(args[5])
 
-include_t_cells <- T
-subset_data <- F
-subset_samples <- F
-na_colour <- "white"
-include_normals <- T
+#include_t_cells <- T
+#subset_data <- F
+#subset_samples <- F
+#na_colour <- "white"
+#include_normals <- T
 
-#sample_names <- c("CID4386", "CID43862", "CID43863")
-sample_names <- c("CID45171", "CID45172")
-samples_string <- paste(sample_names, collapse="_")
-
-heatmap_prefix <- paste0(samples_string,
-  "_combined_infercnv_", na_colour, "_missing_values_heatmap"
+heatmap_prefix <- paste0(
+  "combined_infercnv_", na_colour, "_missing_values_heatmap"
 )
 
 if (include_normals) {
-  heatmap_prefix <- paste0(heatmap_prefix, "_normals_included")
+  heatmap_prefix <- paste0(heatmap_prefix, "_normals_included"
 }
 
+if (subset_samples) {
+
+  # determine order of samples by subtype:
+  luminal <- c("CID3941")
+  HER2 <- c("CID3586")
+  TNBC <- c("CID44041")
+  metaplastic <- c("CID4513")
+  sample_names <- c(luminal, HER2, TNBC, metaplastic)
+
+} else {
+  # determine order of samples by subtype:
+  luminal <- c("CID3941", "CID3948", "CID4067", "CID4290A", "CID4461", "CID4463", 
+    "CID4465", "CID4471", "CID4530N", "CID4535")
+  HER2 <- c("CID3586", "CID3921", "CID3963", "CID4066", "CID45171")
+  TNBC <- c("CID44041", "CID4495", "CID44971", "CID44991", "CID4515")
+  metaplastic <- c("CID4513", "CID4523")
+  sample_names <- c(luminal, HER2, TNBC, metaplastic)
+
+}
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample names = ", sample_names))
@@ -45,9 +60,9 @@ library(reshape2)
 library(ggplot2)
 library(dplyr)
 
-project_name <- "thesis"
+project_name <- "identify_epithelial"
 home_dir <- "/share/ScratchGeneral/jamtor/"
-project_dir <- paste0(home_dir, "projects/", project_name, "/",
+project_dir <- paste0(home_dir, "projects/single_cell/", project_name, "/",
   subproject_name, "/")
 ref_dir <- paste0(project_dir, "refs/")
 func_dir <- paste0(project_dir, "scripts/functions/")
@@ -55,12 +70,10 @@ results_dir <- paste0(project_dir, "results/")
 
 if (include_t_cells) {
   in_path <- paste0(results_dir, "infercnv/t_cells_included/")
-  out_dir <- paste0(results_dir, "infercnv/t_cells_included/combined_infercnv/",
-    samples_string, "/")
+  out_dir <- paste0(results_dir, "infercnv/t_cells_included/combined_infercnv/")
 } else {
   in_path <- paste0(results_dir, "infercnv/t_cells_excluded/")
-  out_dir <- paste0(results_dir, "infercnv/t_cells_excluded/combined_infercnv/",
-    samples_string, "/")
+  out_dir <- paste0(results_dir, "infercnv/t_cells_excluded/combined_infercnv/")
 }
 
 if (subset_data & subset_samples) {
@@ -85,6 +98,9 @@ print(paste0("R function directory = ", func_dir))
 print(paste0("Output directory = ", out_dir))
 print(paste0("R object directory = ", Robject_dir))
 print(paste0("Plot directory = ", plot_dir))
+
+print("Running InferCNV identify normals pipeline on: ")
+print(sample_names)
 
 
 ################################################################################
@@ -118,7 +134,7 @@ if (!file.exists(paste0(Robject_dir, "initial_combined_heatmap.Rdata")) |
     )
     heatmap_metadata <- subset(heatmap_metadata, 
       select = c(cell_ids, cell_type, nUMI, nGene, CNA_value, cor.estimate, 
-        cor.p.value, sc50))
+        cor.p.value, normal_cell_call, sc50))
 
     print(paste0(
     "Are heatmap_metadata rownames in the same order as heatmap_df?? ",
@@ -199,24 +215,24 @@ if (!file.exists(paste0(Robject_dir, "initial_combined_heatmap.Rdata")) |
   
   # if necessary, remove all but cancer cells from group_heatmap_df and 
   # group_metadata_df:
-#  if (!include_normals) {
-#    print("Removing normal epithelial cells from heatmap_df and heatmap_metadata...")
-#    print(paste0("No. of group_heatmap_df rows before removing normals = ", 
-#      nrow(group_heatmap_df)))
-#    cancer_ids <- rownames(group_heatmap_metadata)[
-#      group_heatmap_metadata$normal_cell_call == "cancer"
-#    ]
-#    print(paste0("No. of cancer cells = ", length(cancer_ids)))
-#    group_heatmap_df <- group_heatmap_df[cancer_ids,]
-#    group_heatmap_metadata <- group_heatmap_metadata[cancer_ids,]
-#    print(paste0("No. of group_heatmap_df rows after removing normals = ", 
-#      nrow(group_heatmap_df)))
-#    
-#    print(paste0(
-#      "Are heatmap_metadata rownames still in the same order as heatmap_df?? ",
-#      identical(rownames(group_heatmap_df), rownames(group_heatmap_metadata))
-#    ))
-#  }
+  if (!include_normals) {
+    print("Removing normal epithelial cells from heatmap_df and heatmap_metadata...")
+    print(paste0("No. of group_heatmap_df rows before removing normals = ", 
+      nrow(group_heatmap_df)))
+    cancer_ids <- rownames(group_heatmap_metadata)[
+      group_heatmap_metadata$normal_cell_call == "cancer"
+    ]
+    print(paste0("No. of cancer cells = ", length(cancer_ids)))
+    group_heatmap_df <- group_heatmap_df[cancer_ids,]
+    group_heatmap_metadata <- group_heatmap_metadata[cancer_ids,]
+    print(paste0("No. of group_heatmap_df rows after removing normals = ", 
+      nrow(group_heatmap_df)))
+    
+    print(paste0(
+      "Are heatmap_metadata rownames still in the same order as heatmap_df?? ",
+      identical(rownames(group_heatmap_df), rownames(group_heatmap_metadata))
+    ))
+  }
 
   # split heatmap by sample and remove any samples with <2 cells:
   sample_rownames <- split(
@@ -257,6 +273,27 @@ if (!file.exists(paste0(Robject_dir, "initial_combined_heatmap.Rdata")) |
   # add sample and subtype columns to heatmap_metadata:
   group_heatmap_metadata$sample <- gsub(
     "_.*$", "", group_heatmap_metadata$cell_id
+  )
+  group_heatmap_metadata$subtype <- NA
+  group_heatmap_metadata$subtype[
+    group_heatmap_metadata$sample %in% luminal
+  ] <- "luminal"
+  group_heatmap_metadata$subtype[
+    group_heatmap_metadata$sample %in% HER2
+  ] <- "HER2"
+  group_heatmap_metadata$subtype[
+    group_heatmap_metadata$sample %in% TNBC
+  ] <- "TNBC"
+  group_heatmap_metadata$subtype[
+    group_heatmap_metadata$sample %in% metaplastic
+  ] <- "metaplastic"
+  
+  # reorder group_annotations_df by subtype and apply to group_heatmap_df:
+  group_heatmap_metadata <- rbind(
+    group_heatmap_metadata[group_heatmap_metadata$subtype=="luminal",],
+    group_heatmap_metadata[group_heatmap_metadata$subtype=="HER2",],
+    group_heatmap_metadata[group_heatmap_metadata$subtype=="TNBC",],
+    group_heatmap_metadata[group_heatmap_metadata$subtype=="metaplastic",]
   )
   
   group_heatmap_df <- group_heatmap_df[rownames(group_heatmap_metadata),]
@@ -301,10 +338,22 @@ col_palette2 <- c(extra_colours, "#b2182b", "#85929E",
   "#DBB335", "#5AA050", "#807DBA", "#1A6000", "#F16913", "#FD8D3C", "#DEEBF7", 
   "#7F2704", "#DADAEB", "#FC9272", "#BCBDDC")
 
-# create sample column for group_heatmap_metadata:
-group_heatmap_metadata$sample <- gsub(
-  "_.*$", "",
-  group_heatmap_metadata$cell_ids,
+# order group_heatmap_metadata first by subtype then sample:
+group_heatmap_metadata_split <- split(
+  group_heatmap_metadata, group_heatmap_metadata$subtype
+)
+group_heatmap_metadata_split <- list(
+  luminal=group_heatmap_metadata_split$luminal,
+  HER2=group_heatmap_metadata_split$HER2,
+  TNBC=group_heatmap_metadata_split$TNBC,
+  metaplastic=group_heatmap_metadata_split$metaplastic
+)
+ordered_group_heatmap_metadata_split <- lapply(group_heatmap_metadata_split, function(x) {
+  return(x[order(x$sample),])
+})
+group_heatmap_metadata <- do.call("rbind", ordered_group_heatmap_metadata_split)
+rownames(group_heatmap_metadata) <- gsub(
+  "^.*\\.", "", rownames(group_heatmap_metadata)
 )
 
 saveRDS(
@@ -316,6 +365,28 @@ saveRDS(
 group_heatmap_df <- group_heatmap_df[rownames(group_heatmap_metadata),]
 print(paste0("Are group_heatmap_df and group_metadata_df rownames identical? ",
   identical(rownames(group_heatmap_df), rownames(group_heatmap_metadata))))
+
+# create subtype annotation:
+subtype_annotation_df <- subset(group_heatmap_metadata, select = subtype)
+subtype_annotation_df$subtype <- factor(subtype_annotation_df$subtype, 
+  levels = c("luminal", "HER2", "TNBC", "metaplastic"))
+print(paste0("Are subtype_annotation_df and group_heatmap_df rownames identical? ",
+  identical(rownames(group_heatmap_df), rownames(subtype_annotation_df))))
+# determine colours and create annotation:
+cluster_number <- length(unique(subtype_annotation_df$subtype))
+cluster_cols <- col_palette[1:cluster_number]
+subtype_annotation <- Heatmap(
+  subtype_annotation_df, 
+  col = cluster_cols, 
+  name = "subtype_annotation", 
+  width = unit(4, "mm"), 
+  show_row_names = F, show_column_names = F,
+  heatmap_legend_param = list(
+      title = "Clinical \nsubtype", title_gp = gpar(fontsize = 20, fontface = "bold"), 
+      labels_gp = gpar(fontsize = 20), 
+      at = as.character(levels(subtype_annotation_df$subtype))
+  )
+)
 
 # create sample annotation:
 sample_annotation_df <- subset(group_heatmap_metadata, select = sample)
@@ -343,6 +414,69 @@ sample_annotation <- Heatmap(
 ################################################################################
 ### 3b. Create heatmap row annotations ###
 ################################################################################
+
+# create sc50 annotation:
+sc50_annotation_df <- subset(group_heatmap_metadata, select = sc50)
+sc50_annotation_df$sc50<- factor(sc50_annotation_df$sc50, 
+  levels = c("LumA_SC50", "LumB_SC50", "Her2_SC50", "Basal_SC50"))
+print(paste0("Are sc50_annotation_df and group_heatmap_df rownames identical? ",
+  identical(rownames(group_heatmap_df), rownames(sc50_annotation_df))))
+
+# determine colours and create annotation:
+cluster_number <- length(
+  unique(
+    sc50_annotation_df$sc50[!is.na(sc50_annotation_df$sc50)]
+  )
+)
+cluster_cols <- col_palette[10:(10+cluster_number)]
+sc50_annotation <- Heatmap(
+  sc50_annotation_df, 
+  col = cluster_cols, 
+  name = "sc50_annotation",
+  na_col = "#74add1", 
+  width = unit(4, "mm"), 
+  show_row_names = F, show_column_names = F,
+  heatmap_legend_param = list(
+      title = "SC50 call", title_gp = gpar(fontsize = 20, fontface = "bold"), 
+      labels_gp = gpar(fontsize = 20), 
+      at = as.character(levels(sc50_annotation_df$sc50))
+  )
+)
+
+# create normal call annotation if needed:
+if (include_normals) {
+  normal_call_annot_df <- subset(group_heatmap_metadata, select = normal_cell_call)
+  normal_call_annot_df$normal_cell_call <- gsub(
+    "normal", "Normal", normal_call_annot_df$normal_cell_call
+  )
+  normal_call_annot_df$normal_cell_call <- gsub(
+    "unassigned", "Unassigned", normal_call_annot_df$normal_cell_call
+  )
+  normal_call_annot_df$normal_cell_call <- gsub(
+    "cancer", "Cancer", normal_call_annot_df$normal_cell_call
+  )
+  ######
+  normal_call_annot_df$normal_cell_call[
+    grep("CID3586", rownames(normal_call_annot_df))
+  ] <- gsub(
+  	"Normal", "Unassigned",
+  	normal_call_annot_df$normal_cell_call[
+      grep("CID3586", rownames(normal_call_annot_df))
+    ]
+  )
+  ######
+  normal_call_annot_df$normal_cell_call <- factor(normal_call_annot_df$normal_cell_call, 
+  levels = c("Normal", "Unassigned", "Cancer"))
+  normal_call_annotation <- Heatmap(normal_call_annot_df, 
+    col = c("Unassigned" = "#E7E4D3", "Normal" = "#1B7837", "Cancer" = "#E7298A"), 
+    name = "normal_call_annotation", width = unit(6, "mm"), 
+    show_row_names = F, show_column_names = F, 
+    show_heatmap_legend = F,
+    heatmap_legend_param = list(
+      at = as.character(levels(normal_call_annot_df$normal_cell_call))
+    )
+  )
+}
 
 # create QC annotations:
 nUMI_annotation <- rowAnnotation(
@@ -396,23 +530,23 @@ CNA_value_annotation@name <- "CNA_value"
 chr_data <- fetch_chromosome_boundaries(group_heatmap_df, ref_dir)
 saveRDS(chr_data, paste0(Robject_dir, "chromosome_data.Rdata"))
 
-## create PAM50 annotations:
-#PAM50_subtypes <- c("LumA", "LumB", "Her2", "Basal", "Normal")
-#METABRIC_CNV_frequencies <- read.table(paste0(ref_dir, 
-#  "infercnv_metabric_cnv.txt"), header=T, as.is=T, fill=T)
-#for ( i in 1:length(PAM50_subtypes) ) {
-#    print(paste0("Generating ", PAM50_subtypes[i], " CNV plot..."))
-#    if (i==1) {
-#      metabric_plots <- 
-#        list(create_PAM50_CNV_annotation(group_heatmap_df, METABRIC_CNV_frequencies, 
-#        PAM50_subtypes[i], chr_data$ends, chr_data$lengths))
-#    } else {
-#      metabric_plots[[i]] <- 
-#        create_PAM50_CNV_annotation(group_heatmap_df, METABRIC_CNV_frequencies, 
-#        PAM50_subtypes[i], chr_data$ends, chr_data$lengths)
-#    }
-#}
-#names(metabric_plots) <- PAM50_subtypes
+# create PAM50 annotations:
+PAM50_subtypes <- c("LumA", "LumB", "Her2", "Basal", "Normal")
+METABRIC_CNV_frequencies <- read.table(paste0(ref_dir, 
+  "infercnv_metabric_cnv.txt"), header=T, as.is=T, fill=T)
+for ( i in 1:length(PAM50_subtypes) ) {
+    print(paste0("Generating ", PAM50_subtypes[i], " CNV plot..."))
+    if (i==1) {
+      metabric_plots <- 
+        list(create_PAM50_CNV_annotation(group_heatmap_df, METABRIC_CNV_frequencies, 
+        PAM50_subtypes[i], chr_data$ends, chr_data$lengths))
+    } else {
+      metabric_plots[[i]] <- 
+        create_PAM50_CNV_annotation(group_heatmap_df, METABRIC_CNV_frequencies, 
+        PAM50_subtypes[i], chr_data$ends, chr_data$lengths)
+    }
+}
+names(metabric_plots) <- PAM50_subtypes
 
 ## create heatmap annotation for gain and loss-associated genes, collated by Niantao
 ## read in CNV_genes
@@ -505,14 +639,14 @@ if (length(spl_groups) > 1) {
   hlines <- c(length(spl_groups[[1]])/length(group_heatmap_metadata$sample))
 }
 
-#if (include_normals) {
-#  ht_list <- subtype_annotation + sample_annotation + sc50_annotation + 
-#    final_heatmap + normal_call_annotation + CNA_value_annotation + 
-#    nUMI_annotation + nGene_annotation
-#} else {
-  ht_list <- sample_annotation +
+if (include_normals) {
+  ht_list <- subtype_annotation + sample_annotation + sc50_annotation + 
+    final_heatmap + normal_call_annotation + CNA_value_annotation + 
+    nUMI_annotation + nGene_annotation
+} else {
+  ht_list <- subtype_annotation + sample_annotation + sc50_annotation + 
     final_heatmap + CNA_value_annotation + nUMI_annotation + nGene_annotation
-#}
+}
 
 annotated_heatmap <- grid.grabExpr(
   draw(ht_list, gap = unit(3, "mm"), heatmap_legend_side = "left")
@@ -528,12 +662,12 @@ x_coord <- longest_cluster_name*0.0037
 ### 5. Plot heatmap and annotations ###
 ################################################################################
 
-#if (include_normals) {
-#  pdf(paste0(plot_dir, heatmap_prefix, "_rescaled_with_normals.pdf"), height = 21, 
-#    width = 20)
-#} else {
+if (include_normals) {
+  pdf(paste0(plot_dir, heatmap_prefix, "_rescaled_with_normals.pdf"), height = 21, 
+    width = 20)
+} else {
   pdf(paste0(plot_dir, heatmap_prefix, "_rescaled.pdf"), height = 21, width = 20)
-#}
+}
 grid.newpage()
 
   pushViewport(viewport(x = 0, y = 0.3, 
@@ -560,35 +694,35 @@ grid.newpage()
   pushViewport(viewport(x=x_coord + 0.937, y=0.24, width = 0.1, height = 0.1, just = "bottom"))
     grid.text("nGene", rot=65, gp=gpar(fontsize=20))
   popViewport()
-#  # plot Normal subtype CNV frequencies:
-#  pushViewport(viewport(x = x_coord+0.0708, y = 0.058,
-#                        width = 0.8+0.019, height = 0.05, just = c("left", "top")))
-#  grid.draw(metabric_plots[[5]])
-#  popViewport()
-#  
-#  # plot Basal subtype CNV frequencies:
-#  pushViewport(viewport(x = x_coord+0.0748, y = 0.107,
-#                        width = 0.8+0.014, height = 0.05, just = c("left", "top")))
-#  grid.draw(metabric_plots[[4]])
-#  popViewport()
-#  
-#  # plot Her2 subtype CNV frequencies:
-#  pushViewport(viewport(x = x_coord+0.0768, y = 0.156, 
-#                        width = 0.8+0.012, height = 0.05, just = c("left", "top")))
-#  grid.draw(metabric_plots[[3]])
-#  popViewport()
-#  
-#  # plot LumB subtype CNV frequencies:
-#  pushViewport(viewport(x = x_coord+0.075, y = 0.205, 
-#                        width = 0.8+0.015, height = 0.05, just = c("left", "top")))
-#  grid.draw(metabric_plots[[2]])
-#  popViewport()
-#  
-#  # plot LumA subtype CNV frequencies:
-#  pushViewport(viewport(x = x_coord+0.0748, y = 0.254, 
-#                        width = 0.8+0.015, height = 0.05, just = c("left", "top")))
-#  grid.draw(metabric_plots[[1]])
-#  popViewport()
+  # plot Normal subtype CNV frequencies:
+  pushViewport(viewport(x = x_coord+0.0708, y = 0.058,
+                        width = 0.8+0.019, height = 0.05, just = c("left", "top")))
+  grid.draw(metabric_plots[[5]])
+  popViewport()
+  
+  # plot Basal subtype CNV frequencies:
+  pushViewport(viewport(x = x_coord+0.0748, y = 0.107,
+                        width = 0.8+0.014, height = 0.05, just = c("left", "top")))
+  grid.draw(metabric_plots[[4]])
+  popViewport()
+  
+  # plot Her2 subtype CNV frequencies:
+  pushViewport(viewport(x = x_coord+0.0768, y = 0.156, 
+                        width = 0.8+0.012, height = 0.05, just = c("left", "top")))
+  grid.draw(metabric_plots[[3]])
+  popViewport()
+  
+  # plot LumB subtype CNV frequencies:
+  pushViewport(viewport(x = x_coord+0.075, y = 0.205, 
+                        width = 0.8+0.015, height = 0.05, just = c("left", "top")))
+  grid.draw(metabric_plots[[2]])
+  popViewport()
+  
+  # plot LumA subtype CNV frequencies:
+  pushViewport(viewport(x = x_coord+0.0748, y = 0.254, 
+                        width = 0.8+0.015, height = 0.05, just = c("left", "top")))
+  grid.draw(metabric_plots[[1]])
+  popViewport()
     
 dev.off()
 

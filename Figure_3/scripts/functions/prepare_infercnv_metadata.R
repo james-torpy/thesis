@@ -28,25 +28,25 @@ prepare_infercnv_metadata <- function(seurat_object, subset_data = FALSE, count_
       nrow(temp_metadata)))
 
     if (for_infercnv) {
-      # label cells in clusters of < 2 cells as 'outliers' as these will break InferCNV:
+      # label cells in clusters of < 3 cells as 'outliers' as these will break InferCNV:
       temp_metadata$cell_type <- as.character(temp_metadata$cell_type)
       cluster_list <- split(temp_metadata, temp_metadata$cell_type)
       metadata_outliers_labelled <- do.call(
         "rbind", lapply(cluster_list, function(x) {
-          if (nrow(x) < 2) {
+          if (nrow(x) < 3) {
             x$cell_type <- gsub("_[0-9].*$", "_outlier", x$cell_type)
           }
           return(x)
         })
       )
   
-      # remove outlier cell types with <2 cells:
+      # remove outlier cell types with < 3 cells:
       cluster_list2 <- split(metadata_outliers_labelled, 
         metadata_outliers_labelled$cell_type)
       i=1
       metadata_final <- do.call(
         "rbind", lapply(cluster_list2, function(x) {
-          if (nrow(x) < 2) {
+          if (nrow(x) < 3) {
             print(paste0(cluster_list[[i]]$cell_type[1], 
               " removed as contained <2 cells"))
             i <<- i+1
