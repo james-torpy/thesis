@@ -1,0 +1,41 @@
+samples:
+  CID3586: raw_files/seurat_object/CID3586/03_seurat_object_processed.Rdata
+  CID3921: raw_files/seurat_object/CID3921/03_seurat_object_processed.Rdata
+  CID3941: raw_files/seurat_object/CID3941/03_seurat_object_processed.Rdata
+  CID3948: raw_files/seurat_object/CID3948/03_seurat_object_processed.Rdata
+  CID3963: raw_files/seurat_object/CID3963/03_seurat_object_processed.Rdata
+  CID4066: raw_files/seurat_object/CID4066/03_seurat_object_processed.Rdata
+  CID4067: raw_files/seurat_object/CID4067/03_seurat_object_processed.Rdata
+  CID4290A: raw_files/seurat_object/CID4290A/03_seurat_object_processed.Rdata
+  CID4386: raw_files/seurat_object/CID4386/03_seurat_object_processed.Rdata
+  CID43862: raw_files/seurat_object/CID43862/03_seurat_object_processed.Rdata
+  CID43863: raw_files/seurat_object/CID43863/03_seurat_object_processed.Rdata
+  CID4398: raw_files/seurat_object/CID4398/03_seurat_object_processed.Rdata
+  CID44041: raw_files/seurat_object/CID44041/03_seurat_object_processed.Rdata
+  CID44042: raw_files/seurat_object/CID44042/03_seurat_object_processed.Rdata
+  CID4461: raw_files/seurat_object/CID4461/03_seurat_object_processed.Rdata
+  CID4463: raw_files/seurat_object/CID4463/03_seurat_object_processed.Rdata
+  CID4465: raw_files/seurat_object/CID4465/03_seurat_object_processed.Rdata
+  CID4471: raw_files/seurat_object/CID4471/03_seurat_object_processed.Rdata
+  CID4495: raw_files/seurat_object/CID4495/03_seurat_object_processed.Rdata
+  CID44971: raw_files/seurat_object/CID44971/03_seurat_object_processed.Rdata
+  CID44971CHUNKS2: raw_files/seurat_object/CID44971CHUNKS2/03_seurat_object_processed.Rdata
+  CID44972: raw_files/seurat_object/CID44972/03_seurat_object_processed.Rdata
+  CID44972CELLSUS: raw_files/seurat_object/CID44972CELLSUS/03_seurat_object_processed.Rdata
+  CID44991: raw_files/seurat_object/CID44991/03_seurat_object_processed.Rdata
+  CID44992: raw_files/seurat_object/CID44992/03_seurat_object_processed.Rdata
+  CID4513: raw_files/seurat_object/CID4513/03_seurat_object_processed.Rdata
+  CID4515: raw_files/seurat_object/CID4515/03_seurat_object_processed.Rdata
+  CID45171: raw_files/seurat_object/CID45171/03_seurat_object_processed.Rdata
+  CID45172: raw_files/seurat_object/CID45172/03_seurat_object_processed.Rdata
+  CID4523: raw_files/seurat_object/CID4523/03_seurat_object_processed.Rdata
+  CID4530: raw_files/seurat_object/CID4530/03_seurat_object_processed.Rdata
+  CID4530N: raw_files/seurat_object/CID4530N/03_seurat_object_processed.Rdata
+  CID4535: raw_files/seurat_object/CID4535/03_seurat_object_processed.Rdata
+include_t_cells: TRUE
+cancer_x_threshold_sd_multiplier: 2
+cancer_y_threshold_sd_multiplier: 1.5
+normal_x_threshold_sd_multiplier: 1
+normal_y_threshold_sd_multiplier: 1.25
+analysis_mode: samples
+reclustered_group_annotation: TRUE
