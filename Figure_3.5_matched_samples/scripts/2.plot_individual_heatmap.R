@@ -7,67 +7,54 @@
 # SNP array CNVs
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.8_normal_identification"
+subproject_name <- "Figure_3.5"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
 include_t_cells <- as.logical(args[2])
-cancer_x_threshold_sd_multiplier <- as.numeric(args[3])
-cancer_y_threshold_sd_multiplier <- as.numeric(args[4])
-normal_x_threshold_sd_multiplier <- as.numeric(args[5])
-normal_y_threshold_sd_multiplier <- as.numeric(args[6])
-reclustered_group_annotation <- as.logical(args[7])
-epithelial_markers <- args[8]
-print(epithelial_markers)
-epithelial_markers <- strsplit(epithelial_markers, split="_")[[1]]
-print("Check epithelial markers:")
-print(epithelial_markers)
+cancer_x_threshold_sd_multiplier <- args[3]
+cancer_y_threshold_sd_multiplier <- args[4]
+normal_x_threshold_sd_multiplier <- args[5]
+normal_y_threshold_sd_multiplier <- args[6]
+reclustered_group_annotation <- args[7]
 
-#sample_name <- "CID4386"
+
+#sample_name <- "CID45172"
 #include_t_cells <- TRUE
 #cancer_x_threshold_sd_multiplier <- 2
 #cancer_y_threshold_sd_multiplier <- 1.5
 #normal_x_threshold_sd_multiplier <- 1
 #normal_y_threshold_sd_multiplier <- 1.25
 #reclustered_group_annotation <- TRUE
-#epithelial_markers <- c("KRT14", "MKI67", "ESR1", "ELF5", "CCND1")
 
 # distinguish samples with 1 and > 1 clusters:
 mono_samples <- c("CID3586", "CID3921", "CID3941", "CID3948", "CID4067", 
-  "CID4290A", "CID4461", "CID4495", "CID4515", "CID4523", "CID4530", 
-  "CID4535", "CID44041", "CID44042", "CID44991", "CID45171", "CID4513", 
-  "CID4398", "CID44992",
-  "CID44971CHUNKS2")
+  "CID4290A", "CID4461", "CID4495", "CID4515", "CID4523", "CID4535", 
+  "CID44041", "CID44991", "CID45171", "CID4513", "CID4398", "CID4386", 
+  "CID43862", "CID44972", "CID44992", "CID45172")
 multi_samples <- c("CID3963", "CID4066", "CID4463", "CID4465", 
   "CID4471", "CID4530N", "CID44971")
-mets <- c("CID4386", "CID43862", "CID43863", "CID44972", 
-  "CID44972CELLSUS", "CID45172", "CID44042")
+mets <- c("CID4386", "CID43862", "CID43863", "CID44972", "CID45172")
 
-## specify samples to protect from epithelial cell removal:
-#no_removal <- c("CID4386", "CID43862", "CID44042", "CID4398")
-
-# specify manual cutoffs for normal calling:
-manual_x_cutoffs <- c(0.12)
-names(manual_x_cutoffs) <- c("CID4463")
-manual_y_cutoffs <- c(0.25)
-names(manual_y_cutoffs) <- c("CID4463")
+# specify samples to protect from epithelial cell removal:
+no_removal <- c("CID4386", "CID43862")
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
 print(paste0("T-cells included?", as.character(include_t_cells)))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.5dev/"
-library(cowplot)
 library(cluster, lib.loc = lib_loc)
 library(Seurat)
 library(RColorBrewer)
 library(ComplexHeatmap, lib.loc=lib_loc)
 library(circlize, lib.loc = lib_loc)
 library(reshape2)
+library(ggplot2)
 library(scales, lib.loc = lib_loc)
 library(fpc, lib.loc = lib_loc)
 library(dplyr)
 library(naturalsort, lib.loc = lib_loc)
-library(viridis)
+library(cowplot)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", 
@@ -161,7 +148,7 @@ if (!file.exists(paste0(Robject_dir, "/1b.initial_epithelial_metadata.Rdata"))) 
 
 
 ################################################################################
-### 2. Add QC metadata ###
+### 2. Add annotation metadata ###
 ################################################################################
 
 if (!file.exists(paste0(Robject_dir, 
@@ -204,7 +191,7 @@ if (!file.exists(paste0(Robject_dir,
     "2b.epithelial_metadata_with_cell_type_and_QC.Rdata")
   )
 } else {
-  epithelial_heatmap <- readRDS(
+   epithelial_heatmap <- readRDS(
     paste0(Robject_dir, 
     "2a.epithelial_heatmap_with_cell_type_and_QC.Rdata")
   )
@@ -218,11 +205,6 @@ if (!file.exists(paste0(Robject_dir,
   ))
 }
 
-
-################################################################################
-### 3. Add CNA and cancer correlation metadata ###
-################################################################################
-
 if (!file.exists(paste0(Robject_dir, 
   "3b.epithelial_metadata_with_cell_type_QC_CNA_and_correlation_values.Rdata"))) {
   
@@ -231,6 +213,8 @@ if (!file.exists(paste0(Robject_dir,
   # scale infercnv values to -1:1, square values and take the mean:
   scaled_df <- as.data.frame(rescale(as.matrix(epithelial_heatmap), c(-1,1)))
   CNA_values <- apply(scaled_df, 1, function(y) {
+    #y[is.na(y)] <- 0
+    #scaled_y <- rescale(y, c(-1, 1))
     return(mean(y^2))
   })
   CNA_value_df <- data.frame(
@@ -242,7 +226,6 @@ if (!file.exists(paste0(Robject_dir,
     "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
     identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
   ))
-
   # determine correlation with top 5% cancer values and add to epithelial_metadata:
   print(paste0(
     "Determining correlation with top 5% cancer values and adding to epithelial ", 
@@ -277,27 +260,16 @@ if (!file.exists(paste0(Robject_dir,
     "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
     identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
   ))
-
-  # create density plot of correlation values:
-  correlation_density_plot <- density(epithelial_metadata$cor.estimate, bw="SJ")
-  pdf(paste0(plot_dir, "cancer_correlation_density_plot.pdf"))
-    plot(correlation_density_plot, main=NA, xlab = "Corr. with top 5% cancer")
-  dev.off()
-  png(paste0(plot_dir, "cancer_correlation_density_plot.png"))
-    plot(correlation_density_plot, main=NA, xlab = "Corr. with top 5% cancer")
-  dev.off()
-  
-  saveRDS(
-    epithelial_heatmap, paste0(Robject_dir, 
-    "3a.epithelial_heatmap_with_cell_type_QC_CNA_and_correlation_values.Rdata")
-  )
   saveRDS(
     epithelial_metadata, paste0(Robject_dir, 
+    "3a.epithelial_heatmap_with_cell_type_QC_CNA_and_correlation_values.Rdata")
+  )
+  saveRDS(
+    epithelial_heatmap, paste0(Robject_dir, 
     "3b.epithelial_metadata_with_cell_type_QC_CNA_and_correlation_values.Rdata")
   )
 
 } else {
-
   epithelial_heatmap <- readRDS(
     paste0(Robject_dir, 
     "3a.epithelial_heatmap_with_cell_type_QC_CNA_and_correlation_values.Rdata")
@@ -310,149 +282,111 @@ if (!file.exists(paste0(Robject_dir,
     "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
     identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
   ))
-
-}
-
-if (!file.exists(paste0(plot_dir, "CNA_density_plot.pdf"))) {
-
-  # create density plot of CNA values:
-  CNA_density_plot <- density(epithelial_metadata$CNA_value, bw="SJ")
-  pdf(paste0(plot_dir, "CNA_density_plot.pdf"))
-    plot(CNA_density_plot, main=NA, xlab = "CNA value")
-  dev.off()
-  png(paste0(plot_dir, "CNA_density_plot.png"))
-    plot(CNA_density_plot, main=NA, xlab = "CNA value")
-  dev.off()
-
-}
-
-if (!file.exists(paste0(plot_dir, "CNV_density_plot.pdf"))) {
-
-  # create and check normality from density plots for average CNV vector:
-  CNV_average <- apply(epithelial_heatmap, 2, mean)
-  
-  CNV_density_plot <- density(CNV_average, bw="SJ")
-  pdf(paste0(plot_dir, "average_CNV_density_plot.pdf"))
-    plot(CNV_density_plot, main=NA, xlab = "CNV values")
-  dev.off()
-  png(paste0(plot_dir, "average_CNV_density_plot.png"))
-    plot(CNV_density_plot, main=NA, xlab = "CNV values")
-  dev.off()
-
 }
 
 
 ################################################################################
-### 4. Remove clusters without enough epithelial cells ###
+### 3. Remove clusters without enough epithelial cells ###
 ################################################################################
 
-if (!file.exists(paste0(Robject_dir, 
-  "4b.epithelial_metadata_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata"))) {
-  print("Removing non-epithelial cluster cells from heatmap and metadata dfs...")
-  
-  if (!exists("seurat_10X")) {
-    seurat_10X <- readRDS(
-      paste0(seurat_dir, "03_seurat_object_processed.Rdata")
-    )
-  }
-  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
-  cluster_ids <- as.character(unique(epithelial_metadata$cell_type))
-  for (l in 1:length(cluster_ids)) {
-    # fetch garnett calls for cluster id no:
-    simple_id <- gsub("^.*_", "", cluster_ids[l])
-    garnett_calls <- table(
-      seurat_10X@meta.data$garnett_call_ext_major[
-        Idents(seurat_10X) == simple_id
-      ]
-    )
-    # if 1.5x or more non-epithelial than epithelial cells, add to remove list:
-    non_epithelial <- garnett_calls[grep("pithelial", names(garnett_calls), 
-      invert=T)]
-    epithelial <- garnett_calls[grep("pithelial", names(garnett_calls))]
-    if (any(non_epithelial > (1.5*epithelial))) {
-      if (!exists("remove_clusters")) {
-        remove_clusters <- c(cluster_ids[l])
-      } else {
-        remove_clusters <- c(remove_clusters, cluster_ids[l])
+if (!(sample_name %in% no_removal)) {
+  if (!file.exists(paste0(Robject_dir, 
+    "4b.epithelial_metadata_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata"))) {
+    print("Removing non-epithelial cluster cells from heatmap and metadata dfs...")
+    
+    if (!exists("seurat_10X")) {
+      seurat_10X <- readRDS(
+        paste0(seurat_dir, "03_seurat_object_processed.Rdata")
+      )
+    }
+    Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
+    cluster_ids <- as.character(unique(epithelial_metadata$cell_type))
+    for (l in 1:length(cluster_ids)) {
+      # fetch garnett calls for cluster id no:
+      simple_id <- gsub("^.*_", "", cluster_ids[l])
+      garnett_calls <- table(
+        seurat_10X@meta.data$garnett_call_ext_major[
+          Idents(seurat_10X) == simple_id
+        ]
+      )
+      # if 1.5x or more non-epithelial than epithelial cells, add to remove list:
+      non_epithelial <- garnett_calls[grep("pithelial", names(garnett_calls), 
+        invert=T)]
+      epithelial <- garnett_calls[grep("pithelial", names(garnett_calls))]
+      if (any(non_epithelial > (1.5*epithelial))) {
+        if (!exists("remove_clusters")) {
+          remove_clusters <- c(cluster_ids[l])
+        } else {
+          remove_clusters <- c(remove_clusters, cluster_ids[l])
+        }
       }
     }
-  }
-
-  # remove cells attributed to clusters to be removed:
-  if (exists("remove_clusters")) {
-    remove_cells <- epithelial_metadata$cell_ids[
-      epithelial_metadata$cell_type %in% remove_clusters
-    ]
-    print(paste0("No. epithelial cells to be removed = ", length(remove_cells)))
-    print(paste0("No. rows in epithelial metadata df before removing ",
-      "non-epithelial cluster cells = ", nrow(epithelial_metadata)))
-    epithelial_metadata <- epithelial_metadata[
-      !(epithelial_metadata$cell_ids %in% remove_cells),
-    ]
-    print(paste0("No. rows in epithelial metadata df after removing ",
-    "non-epithelial cluster cells = ", nrow(epithelial_metadata)))
   
-    epithelial_heatmap <- epithelial_heatmap[!(rownames(epithelial_heatmap) %in% remove_cells),]
-    print(paste0(
-      "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
-      identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
-    ))
+    # remove cells attributed to clusters to be removed:
+    if (exists("remove_clusters")) {
+      remove_cells <- epithelial_metadata$cell_ids[
+        epithelial_metadata$cell_type %in% remove_clusters
+      ]
+      print(paste0("No. epithelial cells to be removed = ", length(remove_cells)))
+      print(paste0("No. rows in epithelial metadata df before removing ",
+        "non-epithelial cluster cells = ", nrow(epithelial_metadata)))
+      epithelial_metadata <- epithelial_metadata[
+        !(epithelial_metadata$cell_ids %in% remove_cells),
+      ]
+      print(paste0("No. rows in epithelial metadata df after removing ",
+      "non-epithelial cluster cells = ", nrow(epithelial_metadata)))
+    
+      epithelial_heatmap <- epithelial_heatmap[!(rownames(epithelial_heatmap) %in% remove_cells),]
+      print(paste0(
+        "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
+        identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
+      ))
+    } else {
+      print(paste0(
+        "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
+        identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
+      ))
+    }
+    saveRDS(epithelial_heatmap,  paste0(Robject_dir, 
+      "4a.epithelial_heatmap_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata"))
+    saveRDS(epithelial_metadata,  paste0(Robject_dir, 
+      "4b.epithelial_metadata_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata"))
   } else {
+    epithelial_heatmap <- readRDS(
+      paste0(Robject_dir, 
+      "4a.epithelial_heatmap_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata")
+    )
+    epithelial_metadata <- readRDS(
+      paste0(Robject_dir, 
+      "4b.epithelial_metadata_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata")
+    )
     print(paste0(
-      "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
+      "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
       identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
     ))
   }
-  saveRDS(epithelial_heatmap,  paste0(Robject_dir, 
-    "4a.epithelial_heatmap_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata"))
-  saveRDS(epithelial_metadata,  paste0(Robject_dir, 
-    "4b.epithelial_metadata_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata"))
-
-} else {
-
-  epithelial_heatmap <- readRDS(
-    paste0(Robject_dir, 
-    "4a.epithelial_heatmap_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata")
-  )
-  epithelial_metadata <- readRDS(
-    paste0(Robject_dir, 
-    "4b.epithelial_metadata_filtered_with_cell_type_QC_CNA_and_correlation_values.Rdata")
-  )
-  print(paste0(
-    "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
-    identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
-  ))
-}
-
-if (nrow(epithelial_metadata) < 20) {
-  epithelial_heatmap <- readRDS(
-    paste0(Robject_dir, 
-    "3a.epithelial_heatmap_with_cell_type_QC_CNA_and_correlation_values.Rdata")
-  )
-  epithelial_metadata <- readRDS(
-    paste0(Robject_dir, 
-    "3b.epithelial_metadata_with_cell_type_QC_CNA_and_correlation_values.Rdata")
-  )
 }
 
 
 ################################################################################
-### 5a. Call normals and add to epithelial_metadata ###
+### 4a. Call normals and add to epithelial_metadata ###
 ################################################################################
 
 if (!(sample_name %in% mets)) {
   # create and add normal cell annotations:
   if (!file.exists(paste0(Robject_dir, 
     "5b.epithelial_metadata_with_cell_type_QC_CNA_correlation_and_", 
-    "normal_call_values.Rdata")) | !file.exists(paste0(plot_dir, 
-    "normal_call_quad_plot_mean_of_scaled_squares.pdf")) | !file.exists(
-    paste0(plot_dir, epithelial_markers[1], "_expression_quad_plot.png"))) {
-   
+    "normal_call_values.Rdata"))) {
     print(paste0(
       "Determing normal epithelial cells and adding to epithelial ",
       "metadata df..."
     ))
-
+    # create density plot of infercnv values:
+    density_plot <- density(epithelial_metadata$CNA_value, bw="SJ")
+    pdf(paste0(plot_dir, "CNA_density_plot.pdf"))
+      plot(density_plot, main=NA, xlab = "Infercnv value")
+    dev.off()
+  
     # prepare df for quad plots:
     quad_df <- data.frame(
       row.names = rownames(epithelial_metadata),
@@ -463,8 +397,8 @@ if (!(sample_name %in% mets)) {
     p <- ggplot(epithelial_metadata, 
                     aes(x=CNA_value, y=cor.estimate))
     p <- p + geom_point()
-    p <- p + xlab("CNA value")
-    p <- p + ylab("Corr. with top 5% cancer")
+    p <- p + xlab("Infercnv level")
+    p <- p + ylab("Corr. with top 5% cancer (p<0.05)")
     p <- p + theme(legend.title = element_blank())
     png(paste0(plot_dir, 
         "initial_quad_plot_mean_of_scaled_squares.png"), 
@@ -494,14 +428,6 @@ if (!(sample_name %in% mets)) {
       } else if (length(normal_outliers) < length(cancer_outliers)) {
         x_int <- round(x_int2, 3)
         y_int <- round(y_int2, 3)
-      }
-
-      # manually adjust thresholds if necessary:
-      if (sample_name %in% names(manual_x_cutoffs)) {
-      	x_int <- manual_x_cutoffs[sample_name]
-      }
-      if (sample_name %in% names(manual_y_cutoffs)) {
-      	y_int <- manual_y_cutoffs[sample_name]
       }
   
       # define normal and cancer cells:
@@ -544,8 +470,8 @@ if (!(sample_name %in% mets)) {
         p <- p + geom_point()
         p <- p + scale_color_manual(values=c("black", "#74add1"), 
                                       labels=c("Cancer", "Normal"))
-        p <- p + xlab("CNA value")
-        p <- p + ylab("Corr. with top 5% cancer")
+        p <- p + xlab("Infercnv level")
+        p <- p + ylab("Corr. with top 5% cancer (p<0.05)")
         p <- p + theme(legend.title = element_blank())
         p <- p + geom_vline(xintercept = x_int)
         p <- p + geom_hline(yintercept = y_int)
@@ -566,14 +492,10 @@ if (!(sample_name %in% mets)) {
         width = 450, height = 270)
         print(p)
       dev.off()
-      p
-      ggsave(paste0(plot_dir, "normal_call_quad_plot_mean_of_scaled_squares.pdf"),
-        width = 18, height = 13, units = c("cm"))
-      dev.off()
   
   
     ################################################################################
-    ### 5b. Call normals and add to epithelial_metadata ###
+    ### 4b. Call normals and add to epithelial_metadata ###
     ################################################################################
   
     } else if (sample_name %in% multi_samples) {
@@ -621,15 +543,7 @@ if (!(sample_name %in% mets)) {
         cor_mean <- mean(first_cancer_df$cor.estimate)
         cor_std_dev <- sd(first_cancer_df$cor.estimate)
         y_int <- round(cor_mean - (cancer_y_threshold_sd_multiplier*cor_std_dev), 3)
-  		
-  		# manually adjust thresholds if necessary:
-        if (sample_name %in% names(manual_x_cutoffs)) {
-        	x_int <- manual_x_cutoffs[sample_name]
-        }
-        if (sample_name %in% names(manual_y_cutoffs)) {
-        	y_int <- manual_y_cutoffs[sample_name]
-        }
-
+  
         # define normal and cancer cells:
         epithelial_metadata$normal_cell_call <- "cancer"
         epithelial_metadata$normal_cell_call[
@@ -648,8 +562,8 @@ if (!(sample_name %in% mets)) {
         p <- p + geom_point()
         p <- p + scale_color_manual(values=c("black", "#74add1", "#b2182b"), 
                                       labels=c("Cancer", "Normal", "Unassigned"))
-        p <- p + xlab("CNA value")
-        p <- p + ylab("Corr. with top 5% cancer")
+        p <- p + xlab("Infercnv level")
+        p <- p + ylab("Corr. with top 5% cancer (p<0.05)")
         p <- p + theme(legend.title = element_blank())
         p <- p + geom_vline(xintercept = x_int)
         p <- p + geom_hline(yintercept = y_int)
@@ -660,10 +574,8 @@ if (!(sample_name %in% mets)) {
             print(quad_plot)
         dev.off()
         quad_plot
-        ggsave(paste0(plot_dir, "normal_call_quad_plot_mean_of_scaled_squares.pdf"),
-        width = 18, height = 13, units = c("cm"))
+        ggsave(paste0(plot_dir, "normal_call_quad_plot_mean_of_scaled_squares.pdf"))
         dev.off()
-
         # create quad plot with clusters marked:
         p <- ggplot(epithelial_metadata, 
           aes(x=CNA_value, y=cor.estimate, color=as.factor(cluster)))
@@ -681,18 +593,14 @@ if (!(sample_name %in% mets)) {
           print(quad_plot_clusters)
         dev.off()
         quad_plot_clusters
-        ggsave(paste0(plot_dir, "normal_call_quad_plot_mean_of_scaled_squares_clusters.pdf"),
-        width = 18, height = 13, units = c("cm"))
+        ggsave(paste0(plot_dir, "normal_call_quad_plot_mean_of_scaled_squares_clusters.pdf"))
         dev.off()
-
       } else {
-
         print(
           paste0(
             "Sample ", sample_name, " needs to be recorded as mono-cluster and script rerun!"
           )
         )
-
       }
     }
     print(paste0(
@@ -706,88 +614,7 @@ if (!(sample_name %in% mets)) {
     saveRDS(epithelial_metadata, paste0(Robject_dir, 
       "5b.epithelial_metadata_with_cell_type_QC_CNA_correlation_and_", 
       "normal_call_values.Rdata"))
-
-
-    ################################################################################
-    ### 5c. Plot epithelial marker expression on quad plot ###
-    ################################################################################
-    
-    if (!exists("seurat_10X")) {
-      seurat_10X <- readRDS(
-        paste0(seurat_dir, "03_seurat_object_processed.Rdata")
-      )
-      Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
-    }
-
-    # fetch count_df for epithelial cells and all genes:
-    count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
-    count_df <- count_df[
-      , colnames(count_df) %in% epithelial_metadata$cell_ids
-    ]
-    
-    # create quad plot for each marker:
-    marker_expression_dfs <- lapply(epithelial_markers, function(x) {
-
-      if (x %in% rownames(count_df)) {
-
-      	print(paste0("Generating quad plot for marker ", x, "..."))
-
-        marker_expression_df <- data.frame(cell_ids = epithelial_metadata$cell_ids,
-            Expression = as.numeric(count_df[x,]), 
-            marker = x)
   
-        # add CNA and correlation values:
-        marker_expression_df <- merge(
-          marker_expression_df, 
-          subset(epithelial_metadata, select = c(cell_ids, CNA_value, cor.estimate)),
-          by = "cell_ids"
-        )
-  
-        # order by expression, low -> high:
-        marker_expression_df <- marker_expression_df[order(marker_expression_df$Expression),]
-  
-        # create quad plot:
-        p <- ggplot(marker_expression_df, aes(x=CNA_value, y=cor.estimate))
-        p <- p + geom_point(aes(colour = Expression))
-        p <- p + scale_colour_gradientn(colours = rev(viridis(10)))
-        p <- p + xlab("CNA value")
-        p <- p + ylab("Corr. with top 5% cancer")
-        p <- p + theme(
-          legend.title = element_blank(),
-          text = element_text(size = 18),
-          axis.text = element_text(size=18),
-          axis.title = element_text(size=24),
-          legend.text = element_text(size=18),
-          legend.spacing.y = unit(2, "mm"),
-          legend.key.width = unit(0.6, "cm"),
-          legend.key.height = unit(1.5, "cm")
-        )
-        p <- p + geom_vline(xintercept = x_int)
-        p <- p + geom_hline(yintercept = y_int)
-  
-  
-        png(paste0(plot_dir, x, "_expression_quad_plot.png"), width = 18, height = 13,
-          units = c("cm"), res = 300)
-          print(p)
-        dev.off()
-        p
-        ggsave(paste0(plot_dir, x, "_expression_quad_plot.pdf"), width = 18, height = 13, 
-          units = c("cm"))
-        dev.off()
-  
-        return(marker_expression_df)
-
-      } else {
-
-      	print(paste0("No counts for ", x, ", skipping..."))
-
-      	return(NULL)
-
-      }
-      
-    })
-    names(marker_expression_dfs) <- epithelial_markers
-
   } else {
     epithelial_heatmap <- readRDS(paste0(Robject_dir, 
       "5a.epithelial_heatmap_with_cell_type_QC_CNA_correlation_and_", 
@@ -804,12 +631,10 @@ if (!(sample_name %in% mets)) {
 
 
 ################################################################################
-### 6. Add sc50 calls to metadata ###
+### 5. Add sc50 calls to metadata ###
 ################################################################################
 
-if (!file.exists(paste0(Robject_dir, 
-  "6b.epithelial_metadata_with_cell_type_QC_CNA_correlation_normal_call", 
-  "_and_sc50_values.Rdata"))) {
+if (!file.exists(paste0(Robject_dir, "6b.epithelial_metadata_final.Rdata"))) {
   print(paste0(
     "Adding sc50 calls to epithelial metadata df..."
   ))
@@ -847,16 +672,20 @@ if (!file.exists(paste0(Robject_dir,
   ))
 
   saveRDS(epithelial_heatmap, paste0(Robject_dir, 
-    "6a.epithelial_heatmap_with_cell_type_QC_CNA_correlation_normal_call_and_sc50_values.Rdata"))
+    "6a.epithelial_heatmap_with_cell_type_QC_CNA_correlation_normal_call", 
+    "_and_sc50_values.Rdata"))
   saveRDS(epithelial_metadata, paste0(Robject_dir, 
-    "6b.epithelial_metadata_with_cell_type_QC_CNA_correlation_normal_call_and_sc50_values.Rdata"))
+    "6b.epithelial_metadata_with_cell_type_QC_CNA_correlation_normal_call", 
+    "_and_sc50_values.Rdata"))
 
 } else {
 
   epithelial_heatmap <- readRDS(paste0(Robject_dir, 
-    "6a.epithelial_heatmap_with_cell_type_QC_CNA_correlation_normal_call_and_sc50_values.Rdata"))
+    "6a.epithelial_heatmap_with_cell_type_QC_CNA_correlation_normal_call", 
+    "_and_sc50_values.Rdata"))
   epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "6b.epithelial_metadata_with_cell_type_QC_CNA_correlation_normal_call_and_sc50_values.Rdata"))
+    "6b.epithelial_metadata_with_cell_type_QC_CNA_correlation_normal_call", 
+    "_and_sc50_values.Rdata"))
   print(paste0(
       "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
       identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
@@ -866,16 +695,14 @@ if (!file.exists(paste0(Robject_dir,
 
 
 ################################################################################
-### 7. Add reclustered epithelial cluster annotations ###
+### 6. Add reclustered epithelial cluster annotations ###
 ################################################################################
 
 if (!file.exists(paste0(Robject_dir, "7b.epithelial_metadata_final.Rdata"))) {
-  
   if (file.exists(paste0(reclustered_epithelial_dir, "seurat.rds"))) {
-    print(paste0(
+      print(paste0(
       "Adding reclustered epithelial cluster annotations to epithelial metadata df..."
     ))
-
     seurat_reclustered <- readRDS(paste0(reclustered_epithelial_dir, "seurat.rds"))
     Idents(seurat_reclustered) <- seurat_reclustered@meta.data$SUBSET_D_res.0.8
     reclustered_cluster_ids <- Idents(seurat_reclustered)[rownames(epithelial_metadata)]
@@ -888,18 +715,25 @@ if (!file.exists(paste0(Robject_dir, "7b.epithelial_metadata_final.Rdata"))) {
       reclustered_groups_df$reclustered_cell_type
     )
     colnames(epithelial_metadata)[ncol(epithelial_metadata)] <- "reclustered_cell_type"
-
+    
     print(paste0(
       "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
       identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
     ))
+    
+    saveRDS(epithelial_heatmap, paste0(Robject_dir, 
+      "7a.epithelial_heatmap_final.Rdata"))
+    saveRDS(epithelial_metadata, paste0(Robject_dir, 
+      "7b.epithelial_metadata_final.Rdata"))
+
+  } else {
+
+    saveRDS(epithelial_heatmap, paste0(Robject_dir, 
+      "7a.epithelial_heatmap_final.Rdata"))
+    saveRDS(epithelial_metadata, paste0(Robject_dir, 
+      "7b.epithelial_metadata_final.Rdata"))
 
   }
-  
-  saveRDS(epithelial_heatmap, paste0(Robject_dir, 
-    "7a.epithelial_heatmap_final.Rdata"))
-  saveRDS(epithelial_metadata, paste0(Robject_dir, 
-    "7b.epithelial_metadata_final.Rdata"))
 
 } else {
 
@@ -916,40 +750,15 @@ if (!file.exists(paste0(Robject_dir, "7b.epithelial_metadata_final.Rdata"))) {
 
 
 ################################################################################
-### 8. Order heatmap, metadata ###
-################################################################################
-
-if ("normal_cell_call" %in% colnames(epithelial_metadata)) {
-  # reorder cells starting with normals, unassigned and ending with cancer:
-  epithelial_metadata <- epithelial_metadata
-  epithelial_metadata_split <- split(epithelial_metadata, 
-    epithelial_metadata$normal_cell_call)
-  epithelial_metadata <- do.call("rbind",
-    list(
-      epithelial_metadata_split$normal,
-      epithelial_metadata_split$unassigned,
-      epithelial_metadata_split$cancer
-    )
-  )
-  epithelial_heatmap <- epithelial_heatmap[rownames(epithelial_metadata),]
-  print(paste0(
-    "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
-    identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
-  ))
-}
-
-
-################################################################################
-### 9. Create heatmap annotations  ###
+### 7. Order heatmap, metadata and create heatmap annotations ###
 ################################################################################
 
 # create group annotation:
-if ("reclustered_cell_type" %in% colnames(epithelial_metadata)) {
- 
+if (reclustered_group_annotation & !(sample_name %in% mets)) {
+
   # define group annotation colours:
   extra_colours <- c(brewer.pal(12, "Set3"), brewer.pal(12, "Paired"))
-  col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3")[1], 
-    brewer.pal(12, "Set3")[3:12], brewer.pal(8, "Accent"), 
+  col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3"), brewer.pal(8, "Accent"),
     "#660200", "#918940", "black", "#9ECAE1", "#3F007D", "#67000D", "#FDD0A2", "#08519C",
     "#DBB335", "#5AA050", "#807DBA", "#1A6000", "#F16913", "#FD8D3C", "#DEEBF7", 
     "#7F2704", "#DADAEB", "#FC9272", "#BCBDDC", extra_colours, "#b2182b", "#85929E", 
@@ -968,7 +777,7 @@ if ("reclustered_cell_type" %in% colnames(epithelial_metadata)) {
     width = unit(4, "mm"), 
     show_row_names = F, show_column_names = F,
     heatmap_legend_param = list(
-      title = "Epithelial\ncluster", title_gp = gpar(fontsize = 18, fontface = "bold", lineheight = 2), 
+      title = "Cluster", title_gp = gpar(fontsize = 18, fontface = "bold", lineheight = 2), 
       labels_gp = gpar(fontsize = 18, lineheight = 4), 
       at = as.character(levels(group_annotation_df$reclustered_cell_type))
     )
@@ -978,8 +787,7 @@ if ("reclustered_cell_type" %in% colnames(epithelial_metadata)) {
 
   # define group annotation colours:
   extra_colours <- c(brewer.pal(12, "Set3"), brewer.pal(12, "Paired"))
-  col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3")[1], 
-    brewer.pal(12, "Set3")[3:12], brewer.pal(8, "Accent"), 
+  col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3"), brewer.pal(8, "Accent"),
     "#660200", "#918940", "black", "#9ECAE1", "#3F007D", "#67000D", "#FDD0A2", "#08519C",
     "#DBB335", "#5AA050", "#807DBA", "#1A6000", "#F16913", "#FD8D3C", "#DEEBF7", 
     "#7F2704", "#DADAEB", "#FC9272", "#BCBDDC", extra_colours, "#b2182b", "#85929E", 
@@ -998,9 +806,9 @@ if ("reclustered_cell_type" %in% colnames(epithelial_metadata)) {
     width = unit(4, "mm"), 
     show_row_names = F, show_column_names = F,
     heatmap_legend_param = list(
-      title = "Cluster", title_gp = gpar(fontsize = 12, fontface = "bold"), 
-      labels_gp = gpar(fontsize = 12), 
-      at = as.character(levels(group_annotation_df$cell_type))
+      title = "Cluster", title_gp = gpar(fontsize = 18, fontface = "bold", lineheight = 2), 
+      labels_gp = gpar(fontsize = 18, lineheight = 4), 
+      at = as.character(levels(group_annotation_df$reclustered_cell_type))
     )
   )
 }
@@ -1019,7 +827,6 @@ CNA_value_annotation <- rowAnnotation(
   )
 )
 CNA_value_annotation@name <- "CNA_value"
-
 # create QC annotations:
 nUMI_annotation <- rowAnnotation(
   correlation_annotation = anno_barplot(
@@ -1034,7 +841,6 @@ nUMI_annotation <- rowAnnotation(
   )
 )
 nUMI_annotation@name <- "nUMI"
-
 nGene_annotation <- rowAnnotation(
   correlation_annotation = anno_barplot(
     epithelial_metadata$nGene, name = "nGene",
@@ -1049,7 +855,7 @@ nGene_annotation <- rowAnnotation(
 )
 nGene_annotation@name <- "nGene"
 
-if ("normal_cell_call" %in% colnames(epithelial_metadata)) {
+if (!(sample_name %in% mets)) {
   # create normal call annotation:
   normal_call_annot_df <- subset(epithelial_metadata, select = normal_cell_call)
   normal_call_annotation <- Heatmap(normal_call_annot_df, 
@@ -1081,7 +887,7 @@ if (any(colnames(all_array_CNVs) %in% sample_name)) {
 
 
 ################################################################################
-### 10. Generate heatmap ###
+### 8. Generate heatmap ###
 ################################################################################
 
 # fetch chromosome boundary co-ordinates:
@@ -1110,13 +916,13 @@ final_heatmap <- Heatmap(
   show_row_names = F, show_column_names = T,
   column_names_gp = gpar(col = "white"),
   show_row_dend = F,
-  heatmap_legend_param = list(title = "CNV value", color_bar = "continuous", 
+  heatmap_legend_param = list(title = "Modified\nexpression", color_bar = "continuous", 
     grid_height = unit(1.5, "cm"), grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
     title_gp = gpar(fontsize = 18, fontface = "bold"), labels_gp = gpar(fontsize = 12)),
   use_raster = T, raster_device = c("png")
 )
 
-if ("normal_cell_call" %in% colnames(epithelial_metadata)) {
+if (!(sample_name %in% mets)) {
   ht_list <- group_annotation + final_heatmap + normal_call_annotation + 
     CNA_value_annotation + nUMI_annotation + nGene_annotation
 } else {
@@ -1128,66 +934,68 @@ annotated_heatmap <- grid.grabExpr(
   draw(ht_list, gap = unit(6, "mm"), heatmap_legend_side = "left")
 )
 
-
-################################################################################
-### 10. Plot heatmap ###
-################################################################################
-
 # determine where starting co-ordinates for heatmap are based upon longest cluster name
 # (0.00604 units per character):
 longest_cluster_name <- max(nchar(unique(as.character(epithelial_metadata$cell_type))))
 x_coord <- longest_cluster_name*0.0037
 
 # plot final annotated heatmap:
-if ("normal_cell_call" %in% colnames(epithelial_metadata)) {
-  pdf(paste0(plot_dir, "infercnv_plot.pdf"), 
-    height = 13, width = 18)   
+if (!(sample_name %in% mets)) {
+  if (reclustered_group_annotation) {
+    pdf(paste0(plot_dir, "infercnv_plot_reclustered_annotation.pdf"), 
+      height = 13, width = 18)   
+  } else {
+    pdf(paste0(plot_dir, "infercnv_plot.pdf"), 
+      height = 13, width = 18)   
+  }  
 
   grid.newpage()
-  pushViewport(viewport(x = 0.005, y = 0.065, width = 0.99, height = 0.78, 
-  	just = c("left", "bottom")))
-      grid.draw(annotated_heatmap)
-      decorate_heatmap_body("hm", {
-        for ( e in 1:length(chr_data$end_pos) ) {
+    pushViewport(viewport(x = 0.005, y = 0.065, width = 0.99, height = 0.78, 
+    	just = c("left", "bottom")))
+        grid.draw(annotated_heatmap)
+        decorate_heatmap_body("hm", {
+          for ( e in 1:length(chr_data$end_pos) ) {
           grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
-        	  gp = gpar(lwd = 1, col = "#383838"))
+          	gp = gpar(lwd = 1, col = "#383838"))
           grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
             unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
-        }
-      })
-    popViewport()
-
-    if (exists("grid_array_heatmap")) {
-    	pushViewport(viewport(x = x_coord + 0.847, y = 0.86, 
-     	  width = 0.7649, height = 0.13, just = c("right", "bottom")))
-      grid.draw(grid_array_heatmap)
+          }
+        })
       popViewport()
-    }
 
-    pushViewport(viewport(x=x_coord + 0.855, y=0.008, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("normal call", rot=65, gp = gpar(fontsize = 18))
-    popViewport()
-    pushViewport(viewport(x=x_coord + 0.878, y=0.008, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("CNA value", rot=65, gp = gpar(fontsize = 18))
-    popViewport()
-    pushViewport(viewport(x=x_coord + 0.91, y=0.015, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("nUMI", rot=65, gp = gpar(fontsize = 18))
-    popViewport()
-    pushViewport(viewport(x=x_coord + 0.93, y=0.015, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("nGene", rot=65, gp = gpar(fontsize = 18))
-    popViewport()
+      pushViewport(viewport(x=x_coord-0.05, y=0.98, width = 0.1, height = 0.1, 
+        just = "bottom"))
+        grid.text(as.character(sample_name), gp = gpar(fontsize = 14))
+      popViewport()
+      if (exists("grid_array_heatmap")) {
+      	pushViewport(viewport(x = x_coord + 0.845, y = 0.86, 
+       	  width = 0.8657, height = 0.13, just = c("right", "bottom")))
+        grid.draw(grid_array_heatmap)
+        popViewport()
+      }
+  
+      pushViewport(viewport(x=x_coord + 0.87, y=0.025, width = 0.1, height = 0.1, 
+        just = "bottom"))
+        grid.text("normal call", rot=65)
+      popViewport()
+      pushViewport(viewport(x=x_coord + 0.888, y=0.025, width = 0.1, height = 0.1, 
+        just = "bottom"))
+        grid.text("CNA value", rot=65)
+      popViewport()
+      pushViewport(viewport(x=x_coord + 0.912, y=0.03, width = 0.1, height = 0.1, 
+        just = "bottom"))
+        grid.text("nUMI", rot=65)
+      popViewport()
+      pushViewport(viewport(x=x_coord + 0.926, y=0.03, width = 0.1, height = 0.1, 
+        just = "bottom"))
+        grid.text("nGene", rot=65)
+      popViewport()
       
   dev.off()
-
 
 } else {
 
   pdf(paste0(plot_dir, "infercnv_plot.pdf"), height = 13, width = 18)   
-    
     grid.newpage()
     pushViewport(viewport(x = 0.005, y = 0.065, width = 0.99, height = 0.78, 
       just = c("left", "bottom")))
@@ -1197,38 +1005,35 @@ if ("normal_cell_call" %in% colnames(epithelial_metadata)) {
           grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
             gp = gpar(lwd = 1, col = "#383838"))
           grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
+              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
         }
       })
     popViewport()
-
     pushViewport(viewport(x=x_coord-0.05, y=0.98, width = 0.1, height = 0.1, 
       just = "bottom"))
       grid.text(as.character(sample_name), gp = gpar(fontsize = 14))
     popViewport()
-
     if (exists("grid_array_heatmap")) {
-      pushViewport(viewport(x = x_coord + 0.847, y = 0.86, 
+      pushViewport(viewport(x = x_coord + 0.845, y = 0.86, 
         width = 0.8657, height = 0.13, just = c("right", "bottom")))
       grid.draw(grid_array_heatmap)
       popViewport()
     }
 
-    pushViewport(viewport(x=x_coord + 0.878, y=0.025, width = 0.1, height = 0.1, 
+    pushViewport(viewport(x=x_coord + 0.875, y=0.025, width = 0.1, height = 0.1, 
       just = "bottom"))
       grid.text("CNA", rot=65)
     popViewport()
-    pushViewport(viewport(x=x_coord + 0.895, y=0.025, width = 0.1, height = 0.1, 
+    pushViewport(viewport(x=x_coord + 0.892, y=0.025, width = 0.1, height = 0.1, 
       just = "bottom"))
       grid.text("nUMI", rot=65)
     popViewport()
-    pushViewport(viewport(x=x_coord + 0.92, y=0.025, width = 0.1, height = 0.1, 
+    pushViewport(viewport(x=x_coord + 0.917, y=0.025, width = 0.1, height = 0.1, 
       just = "bottom"))
       grid.text("nGene", rot=65)
     popViewport()
       
   dev.off()
-
 }
 
 print(paste0("Heatmap created, output in ", plot_dir))
@@ -1237,116 +1042,8 @@ print(paste0("Heatmap created, output in ", plot_dir))
 write.table(epithelial_metadata, paste0(table_dir, "epithelial_metadata.txt"), 
   sep="\t", quote=F, row.names=F, col.name=T)
 
-
-################################################################################
-### 11. Create tSNEs and UMAPs ###
-################################################################################
-
-# define plot colours:
-col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3")[1], 
-    brewer.pal(12, "Set3")[3:12], brewer.pal(8, "Accent"), 
-    "#660200", "#918940", "black", "#9ECAE1", "#3F007D", "#67000D", "#FDD0A2", "#08519C",
-    "#DBB335", "#5AA050", "#807DBA", "#1A6000", "#F16913", "#FD8D3C", "#DEEBF7", 
-    "#7F2704", "#DADAEB", "#FC9272", "#BCBDDC", extra_colours, "#b2182b", "#85929E", 
-    "#9B59B6", "#74add1","#1b7837", "#b8e186", "#fed976","#e7298a", "#18ffff", "#ef6c00",
-    "#A93226", "black","orange", "#b8bc53", "#5628ce", "#fa909c", "#8ff331","#270e26")
-
-# load original seurat object:
-if (!exists("seurat_10X")) {
-  seurat_10X <- readRDS(
-    paste0(seurat_dir, "03_seurat_object_processed.Rdata")
-  )
-  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
-}
-
-# create function to customize plots:
-customize_plots <- function(splot, type="tSNE", garnett = FALSE) {
-
-  # change text sizes:
-  splot$theme$text$size <- 24
-  splot$theme$legend.text$size <- rel(0.9)
-  splot$theme$axis.text$size <- 24
-
-  # reorder cluster labels in human readable format:
-  if (!garnett) {
-    splot$data$ident <- factor(splot$data$ident, 
-      levels = naturalsort(levels(splot$data$ident)))
-  } else {
-    splot$data$garnett_call_ext_major <- factor(splot$data$garnett_call_ext_major, 
-      levels = naturalsort(levels(splot$data$garnett_call_ext_major)))
-  }
-
-  # relabel axes:
-  if (type == "tSNE") {
-    splot$labels$x <- "tSNE dim. 1"
-    splot$labels$y <- "tSNE dim. 2"
-  } else if (type == "UMAP") {
-    splot$labels$x <- "UMAP dim. 1"
-    splot$labels$y <- "UMAP dim. 2"
-  }
-  return(splot)
-
-}
-
-# create all cell tSNE with labelled clusters:
-all_cells_tSNE <- DimPlot(seurat_10X, label.size = 7, pt.size = 2, 
-  reduction = "TSNEA", cols = col_palette[1:length(unique(Idents(seurat_10X)))])
-all_cells_tSNE <- customize_plots(all_cells_tSNE, "tSNE")
-
-pdf(paste0(plot_dir, "tSNE_all_cells.pdf"), width = 14, 
-  height = 8)
-  print(all_cells_tSNE)
-dev.off()
-png(paste0(plot_dir, "tSNE_all_cells.png"), width = 14, 
-  height = 8, units = "in", res = 300)
-  print(all_cells_tSNE)
-dev.off()
-
-# create all cell tSNE with labelled garnett calls:
-all_garnett_tSNE <- DimPlot(seurat_10X, label.size = 7, pt.size = 2, 
-  reduction = "TSNEA", cols = col_palette[1:length(unique(Idents(seurat_10X)))],
-  group.by = "garnett_call_ext_major", label = T)
-all_garnett_tSNE <- customize_plots(all_garnett_tSNE, "tSNE", garnett = T)
-
-pdf(paste0(plot_dir, "tSNE_all_cell_garnett_calls.pdf"), width = 14, 
-  height = 8)
-  print(all_garnett_tSNE)
-dev.off()
-png(paste0(plot_dir, "tSNE_all_cell_garnett_calls.png"), width = 14, 
-  height = 8, units = "in", res = 300)
-  print(all_garnett_tSNE)
-dev.off()
-
-# create epithelial reclustered UMAP:
-if (file.exists(paste0(reclustered_epithelial_dir, "seurat.rds"))) {
-  
-  if (!exists("seurat_reclustered")) {
-    seurat_reclustered <- readRDS(paste0(reclustered_epithelial_dir, "seurat.rds"))
-  }
-  Idents(seurat_reclustered) <- paste0(
-    "Epithelial ",
-    seurat_reclustered@meta.data$SUBSET_D_res.0.8
-  )
-
-  epithelial_UMAP <- DimPlot(seurat_reclustered, label.size = 7, pt.size = 2, 
-  reduction = "UMAPD", cols = col_palette[1:length(unique(Idents(seurat_reclustered)))])
-  epithelial_UMAP <- customize_plots(epithelial_UMAP, "UMAP", garnett = F)
-
-  pdf(paste0(plot_dir, "UMAP_reclustered_epithelial.pdf"), width = 14, 
-    height = 8)
-    print(epithelial_UMAP)
-  dev.off()
-  png(paste0(plot_dir, "UMAP_reclustered_epithelial.png"), width = 14, 
-    height = 8, units = "in", res = 300)
-    print(epithelial_UMAP)
-  dev.off()
-
-}
-
-
-
-
-
-
-
+#convert pdf to png:
+system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
+"new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
+"convert -density 150 ", plot_dir, "$f -quality 90 ", plot_dir, "$new; done"))
 

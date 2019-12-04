@@ -3,16 +3,17 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.8_normal_identification"
-numcores <- 19
+subproject_name <- "Figure_3.3_individual_infercnv_heatmaps"
+numcores <- 14
 sample_name <- args[1]
 include_t_cells <- as.logical(args[2])
 
-#sample_name <- "CID4495"
+qnorm_samples <- NULL
+#qnorm_samples <- c("CID4515")
+
+#sample_name <- "CID4386"
 #include_t_cells <- TRUE
 #analysis_mode <- "samples"
-#qnorm_samples <- strsplit("CID44972", "CID44991", "CID4471", 
-#  "CID4495", "CID44971")
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -83,11 +84,8 @@ prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"
 
 # load seurat object:
 seurat_10X <- readRDS(paste0(in_dir, "03_seurat_object_processed.Rdata"))
-#if (!is.null(seurat_10X@meta.data$PC_A_res.1)) {
-  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
-#} else if (!is.null(seurat_10X@meta.data$PC_A_res.0.8)) {
-#  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.0.8
-#}
+Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
+
 
 # create raw matrix input file:
 count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
@@ -177,6 +175,8 @@ if (length(epithelial_clusters) < 1) {
   
   print(paste0("Normal is: ", normals))
 
+  print(dim(count_df))
+
   print("Creating inferCNV object...")
   raw_path <- paste0(input_dir, "input_matrix.txt")
   annotation_path <- paste0(input_dir, "metadata.txt")
@@ -189,23 +189,49 @@ if (length(epithelial_clusters) < 1) {
     ref_group_names=normals
   )
 
-  print("InferCNV object created, running inferCNV...")
-  system.time(
-    infercnv_output <- try(
-      infercnv::run(
-        initial_infercnv_object,
-        num_threads=numcores-1,
-        out_dir=sample_name,
-        cutoff=0.1,
-        window_length=101,
-        max_centered_threshold=3,
-        plot_steps=F,
-        denoise=T,
-        sd_amplifier=1.3,
-        analysis_mode = "subclusters"
+  if (sample_name %in% qnorm_samples) {
+
+    print("InferCNV object created, running inferCNV and subclustering using qnorm method...")
+    system.time(
+      infercnv_output <- try(
+        infercnv::run(
+          initial_infercnv_object,
+          num_threads=numcores-1,
+          out_dir=sample_name,
+          cutoff=0.1,
+          window_length=101,
+          max_centered_threshold=3,
+          plot_steps=F,
+          denoise=T,
+          sd_amplifier=1.3,
+          analysis_mode = "subclusters",
+          tumor_subcluster_partition_method="qnorm"
+        )
       )
     )
-  )
+
+  } else {
+
+    print("InferCNV object created, running inferCNV and subclustering using random forest method...")
+    system.time(
+      infercnv_output <- try(
+        infercnv::run(
+          initial_infercnv_object,
+          num_threads=numcores-1,
+          out_dir=sample_name,
+          cutoff=0.1,
+          window_length=101,
+          max_centered_threshold=3,
+          plot_steps=F,
+          denoise=T,
+          sd_amplifier=1.3,
+          analysis_mode = "subclusters",
+          tumor_subcluster_partition_method="random_trees"
+        )
+      )
+    )
+  }
+  
 }
 
 # remove temp files:
@@ -223,3 +249,5 @@ system(paste0("rm ", out_dir, "/09_*"))
 system(paste0("rm ", out_dir, "/10_*"))
 system(paste0("rm ", out_dir, "/11_*"))
 system(paste0("rm ", out_dir, "/12_*"))
+
+

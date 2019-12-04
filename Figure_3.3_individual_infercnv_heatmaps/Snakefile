@@ -1,4 +1,4 @@
-# snakemake --reason --cluster "qsub -pe smp 20 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 10
+# snakemake --reason --cores 50 --cluster "qsub -pe smp 15 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 23
 
 configfile: "config.yaml"
 
@@ -24,8 +24,7 @@ rule infercnv:
         )
     params:
         include_t_cells=config["include_t_cells"]
-
-    threads: 20
+    threads: 15
     shell:
             "mkdir -p logs/{wildcards.sample}/; " +
             "cd logs/{wildcards.sample}/; " +
@@ -37,6 +36,8 @@ rule individual_plot:
         "results/infercnv/t_cells_included/{sample}/" +
         "infercnv.12_denoised.observations.txt"
     output:
+        density_plot = "results/infercnv/t_cells_included/{sample}/" +
+            "plots/CNA_density_plot.pdf",
         infercnv_plot = "results/infercnv/t_cells_included/{sample}/"
             "plots/infercnv_plot.pdf"
     params:
@@ -45,9 +46,9 @@ rule individual_plot:
         cancer_y_threshold_sd_multiplier=config["cancer_y_threshold_sd_multiplier"],
         normal_x_threshold_sd_multiplier=config["normal_x_threshold_sd_multiplier"],
         normal_y_threshold_sd_multiplier=config["normal_y_threshold_sd_multiplier"],
-        reclustered_group_annotation=config["reclustered_group_annotation"],
-        epithelial_markers=config["epithelial_markers"]
-    threads: 10
+        include_normals=config["include_normals"],
+        reclustered_group_annotation=config["reclustered_group_annotation"]
+    threads: 15
     shell:
         "cd logs/{wildcards.sample}/; " +
         R_dir + "/R CMD BATCH  --no-save '--args {wildcards.sample} " +
@@ -56,8 +57,8 @@ rule individual_plot:
         "{params.cancer_y_threshold_sd_multiplier} " +
         "{params.normal_x_threshold_sd_multiplier} " +
         "{params.normal_y_threshold_sd_multiplier} " +
-        "{params.reclustered_group_annotation} " + 
-        "{params.epithelial_markers}' ../../scripts/2.plot_individual_heatmap.R"
+        "{params.include_normals} " +
+        "{params.reclustered_group_annotation}' ../../scripts/2.plot_individual_heatmap.R"
 
 rule pdf2png:
     input:

@@ -39,3 +39,4 @@ normal_x_threshold_sd_multiplier: 1
 normal_y_threshold_sd_multiplier: 1.25
 analysis_mode: samples
 reclustered_group_annotation: TRUE
+epithelial_markers: KRT14_MKI67_ESR1_ELF5_CCND1

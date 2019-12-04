@@ -3,20 +3,21 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.8_normal_identification"
-numcores <- 19
+subproject_name <- "Figure_3.5"
+numcores <- 10
 sample_name <- args[1]
-include_t_cells <- as.logical(args[2])
+subset_data <- as.logical(args[2])
+include_t_cells <- as.logical(args[3])
 
-#sample_name <- "CID4495"
+#sample_name <- "CID4386"
+#subset_data <- FALSE
 #include_t_cells <- TRUE
 #analysis_mode <- "samples"
-#qnorm_samples <- strsplit("CID44972", "CID44991", "CID4471", 
-#  "CID4495", "CID44971")
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
+print(paste0("Subset data? ", as.character(subset_data)))
 print(paste0("Number cores = ", numcores))
 print(paste0("Include T cells? ", as.character(include_t_cells)))
 
@@ -89,8 +90,11 @@ seurat_10X <- readRDS(paste0(in_dir, "03_seurat_object_processed.Rdata"))
 #  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.0.8
 #}
 
-# create raw matrix input file:
+# create raw matrix input file and subset if necessary:
 count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
+if (subset_data) {
+  count_df <- count_df[1:500, 1:500]
+}
 print(
   paste0(
     "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
@@ -99,7 +103,7 @@ print(
 
 # create metadata df:
 print("Creating inferCNV metadata file...")
-infercnv_metadata <- prepare_infercnv_metadata(seurat_10X, subset_data=F, 
+infercnv_metadata <- prepare_infercnv_metadata(seurat_10X, subset_data=subset_data, 
   count_df, for_infercnv=T)
 seurat_10X <- infercnv_metadata$seurat
 print(paste0("Cell types are: ", unique(infercnv_metadata$metadata$cell_type)))
@@ -202,7 +206,7 @@ if (length(epithelial_clusters) < 1) {
         plot_steps=F,
         denoise=T,
         sd_amplifier=1.3,
-        analysis_mode = "subclusters"
+        analysis_mode = "samples"
       )
     )
   )
@@ -223,3 +227,4 @@ system(paste0("rm ", out_dir, "/09_*"))
 system(paste0("rm ", out_dir, "/10_*"))
 system(paste0("rm ", out_dir, "/11_*"))
 system(paste0("rm ", out_dir, "/12_*"))
+

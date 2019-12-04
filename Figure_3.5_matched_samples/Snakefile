@@ -1,4 +1,4 @@
-# snakemake --reason --cluster "qsub -pe smp 20 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 10
+# snakemake --reason --cores 55 --cluster "qsub -pe smp 7 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 23
 
 configfile: "config.yaml"
 
@@ -9,8 +9,12 @@ rule all:
     input:
         expand(
             "results/infercnv/t_cells_included/{sample}/" +
-            "plots/infercnv_plot.png",
-            sample=config["samples"]
+            "plots/CNA_density_plot.png",
+            sample=config["samples"],
+            cancer_x_threshold_sd_multiplier=config["cancer_x_threshold_sd_multiplier"],
+            cancer_y_threshold_sd_multiplier=config["cancer_y_threshold_sd_multiplier"],
+            normal_x_threshold_sd_multiplier=config["normal_x_threshold_sd_multiplier"],
+            normal_y_threshold_sd_multiplier=config["normal_y_threshold_sd_multiplier"]
         )
 
 rule infercnv:
@@ -23,31 +27,34 @@ rule infercnv:
             "infercnv.12_denoised.observations.txt"
         )
     params:
+        subset_data=config["subset_data"],
         include_t_cells=config["include_t_cells"]
 
-    threads: 20
+    threads: 6
     shell:
             "mkdir -p logs/{wildcards.sample}/; " +
             "cd logs/{wildcards.sample}/; " +
             R_dir + "/R CMD BATCH  --no-save '--args {wildcards.sample} " +
-            "{params.include_t_cells}' ../../scripts/1.infercnv.R"
+            "{params.subset_data} {params.include_t_cells}' ../../scripts/1.infercnv.R"
 
 rule individual_plot:
     input:
         "results/infercnv/t_cells_included/{sample}/" +
         "infercnv.12_denoised.observations.txt"
     output:
-        infercnv_plot = "results/infercnv/t_cells_included/{sample}/"
-            "plots/infercnv_plot.pdf"
+        infercnv_plot = "results/infercnv/t_cells_included/{sample}/" +
+            "plots/CNA_density_plot.png",
+        density_plot = "results/infercnv/t_cells_included/{sample}/"
+            "plots/infercnv_plot.png",
+        quad_plot = "results/infercnv/t_cells_included/{sample}/"
+            "plots/normal_call_quad_plot_mean_of_scaled_squares.png",
     params:
         include_t_cells=config["include_t_cells"],
         cancer_x_threshold_sd_multiplier=config["cancer_x_threshold_sd_multiplier"],
         cancer_y_threshold_sd_multiplier=config["cancer_y_threshold_sd_multiplier"],
         normal_x_threshold_sd_multiplier=config["normal_x_threshold_sd_multiplier"],
-        normal_y_threshold_sd_multiplier=config["normal_y_threshold_sd_multiplier"],
-        reclustered_group_annotation=config["reclustered_group_annotation"],
-        epithelial_markers=config["epithelial_markers"]
-    threads: 10
+        normal_y_threshold_sd_multiplier=config["normal_y_threshold_sd_multiplier"]
+    threads: 6
     shell:
         "cd logs/{wildcards.sample}/; " +
         R_dir + "/R CMD BATCH  --no-save '--args {wildcards.sample} " +
@@ -55,14 +62,4 @@ rule individual_plot:
         "{params.cancer_x_threshold_sd_multiplier} " +
         "{params.cancer_y_threshold_sd_multiplier} " +
         "{params.normal_x_threshold_sd_multiplier} " +
-        "{params.normal_y_threshold_sd_multiplier} " +
-        "{params.reclustered_group_annotation} " + 
-        "{params.epithelial_markers}' ../../scripts/2.plot_individual_heatmap.R"
-
-rule pdf2png:
-    input:
-        "results/infercnv/t_cells_included/{sample}/plots/infercnv_plot.pdf"
-    output:
-        "results/infercnv/t_cells_included/{sample}/plots/infercnv_plot.png"
-    shell:
-        "convert -density 150 {input} -quality 90 {output}"
+        "{params.normal_y_threshold_sd_multiplier}' ../../scripts/2.plot_individual_heatmap.R"
