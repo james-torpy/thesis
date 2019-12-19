@@ -1,59 +1,76 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
-#### Generate CNV heatmaps with following annotations: ###
-# nUMI
-# nGene
-# CNA values
-# SNP array CNVs
+RStudio <- FALSE
 
 project_name <- "thesis"
 subproject_name <- "Figure_2.3_simulations"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
 include_t_cells <- as.logical(args[2])
-filtered_by_coverage <- as.logical(args[3])
+random_proportion <- args[3]
 
-sample_name <- "CID4520N"
-include_t_cells <- TRUE
-filtered_by_coverage <- TRUE
+#sample_name <- "CID4520N"
+#include_t_cells <- TRUE
+#random_proportion <- "0.01"
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
-print(paste0("T-cells included?", as.character(include_t_cells)))
+print(paste0("T-cells included? ", as.character(include_t_cells)))
+print(paste0("Proportion of genes randomly permutated = ", 
+  as.character(random_proportion)))
 
-lib_loc <- "/share/ScratchGeneral/jamtor/R/3.5dev/"
-library(cluster, lib.loc = lib_loc)
 library(Seurat)
-library(RColorBrewer)
-library(ComplexHeatmap, lib.loc=lib_loc)
-library(circlize, lib.loc = lib_loc)
-library(reshape2)
 library(ggplot2)
-library(scales, lib.loc = lib_loc)
-library(fpc, lib.loc = lib_loc)
-library(dplyr)
-library(naturalsort, lib.loc = lib_loc)
 library(cowplot)
 
-home_dir <- "/share/ScratchGeneral/jamtor/"
+
+if (RStudio) {
+  
+  library(ComplexHeatmap)
+  library(circlize)
+  library(scales)
+  library(fpc)
+  library(naturalsort)
+  
+  home_dir <- "/Users/jamestorpy/clusterHome/"
+  
+} else {
+  
+  lib_loc <- "/share/ScratchGeneral/jamtor/R/3.5dev/"
+  library(ComplexHeatmap, lib.loc=lib_loc)
+  library(circlize, lib.loc = lib_loc)
+  library(scales, lib.loc = lib_loc)
+  library(fpc, lib.loc = lib_loc)
+  library(naturalsort, lib.loc = lib_loc)
+  
+  home_dir <- "/share/ScratchGeneral/jamtor/"
+  
+}
+
 project_dir <- paste0(home_dir, "projects/", 
   project_name, "/", subproject_name, "/")
-ref_dir <- paste0(project_dir, "refs/")
 func_dir <- paste0(project_dir, "scripts/functions/")
+ref_dir <- paste0(project_dir, "refs/")
 results_dir <- seurat_path <- paste0(project_dir, "results/")
 seurat_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
   sample_name, "/")
 
+paste0(results_dir, "infercnv/t_cells_included/",
+    sample_name, "/", random_proportion, "_genes_randomly_permutated/")
+
 if (include_t_cells) {
-  in_dir <- paste0(results_dir, "infercnv/t_cells_included/", sample_name, "/")
+  in_dir <- paste0(results_dir, "infercnv/t_cells_included/",
+    sample_name, "/", random_proportion, "_genes_randomly_permutated/")
+  non_permutated_dir <- paste0(results_dir, "infercnv/t_cells_included/",
+    sample_name, "/0_genes_randomly_permutated/")
 } else {
-  in_dir <- paste0(results_dir, "infercnv/t_cells_excluded/", sample_name, "/")
+  in_dir <- paste0(results_dir, "infercnv/t_cells_excluded/",
+    sample_name, "/", random_proportion, "_genes_randomly_permutated/")
+  non_permutated_dir <- paste0(results_dir, "infercnv/t_cells_excluded/",
+    sample_name, "/0_genes_randomly_permutated/")
 }
 
-if (filtered_by_coverage) {
-  in_dir <- paste0(in_dir, "filtered_by_coverage/")
-}
-
+input_dir <- paste0(in_dir, "input_files/")
 Robject_dir <- paste0(in_dir, "Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
 plot_dir <- paste0(in_dir, "plots/")
@@ -62,7 +79,6 @@ table_dir <- paste0(in_dir, "tables/")
 system(paste0("mkdir -p ", table_dir))
 
 print(paste0("In directory = ", in_dir))
-print(paste0("Reference directory = ", ref_dir))
 print(paste0("R function directory = ", func_dir))
 print(paste0("R object directory = ", Robject_dir))
 print(paste0("Table directory = ", table_dir))
@@ -90,12 +106,12 @@ if (!file.exists(paste0(Robject_dir, "/1b.initial_epithelial_metadata.Rdata"))) 
   infercnv_output <- as.data.frame(t(read.table(paste0(in_dir, 
   	"infercnv.12_denoised.observations.txt"))))
 
-  # create cluster metadata df:
-  seurat_10X <- readRDS(paste0(seurat_dir, "03_seurat_object_processed.Rdata"))
-  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
-  metadata <- prepare_infercnv_metadata(seurat_10X, subset_data = F, 
-    as.data.frame(t(infercnv_output)), for_infercnv=F)
-  metadata_df <- metadata$metadata
+  # load metadata df:
+  metadata_df <- read.table(paste0(input_dir, "metadata.txt"), header = F,
+    sep = "\t", as.is = TRUE)
+  colnames(metadata_df) <- c("cell_ids", "cell_type")
+  row.names(metadata_df) <- metadata_df$cell_ids
+
   # determine the epithelial cells and only include these in heatmap:
   print(paste0("Number of heatmap rows before non-epithelial thrown: ", 
   	nrow(infercnv_output)))
@@ -121,7 +137,7 @@ if (!file.exists(paste0(Robject_dir, "/1b.initial_epithelial_metadata.Rdata"))) 
 
 
 ################################################################################
-### 2. Add QC metadata ###
+### 2. Add annotation metadata ###
 ################################################################################
 
 if (!file.exists(paste0(Robject_dir, 
@@ -138,23 +154,25 @@ if (!file.exists(paste0(Robject_dir,
 
   # add nUMI and nGene data to epithelial_metadata:
   print("Adding QC metrics to epithelial metadata df...")
-  if (!exists("seurat_10X")) {
-    seurat_10X <- readRDS(
-      paste0(seurat_dir, "03_seurat_object_processed.Rdata")
-    )
-    Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
-  }
+  count_df <- read.table(paste0(input_dir, "input_matrix.txt"), header = TRUE,
+    sep = "\t", as.is = TRUE)
+  count_df_rownames <- rownames(count_df)
+  nUMI <- apply(count_df, 2, sum)
+  nGene <- apply(count_df, 2, function(x) length(x[x!=0]))
+
   QC <- data.frame(
-    row.names = names(Idents(seurat_10X)),
-    nUMI = seurat_10X@meta.data$nCount_RNA,
-    nGene = seurat_10X@meta.data$nFeature_RNA
+    row.names = colnames(count_df),
+    nUMI = nUMI,
+    nGene = nGene
   )
   QC <- QC[rownames(epithelial_metadata),]
   epithelial_metadata <- cbind(epithelial_metadata, QC)
+
   print(paste0(
     "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
     identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
   ))
+
   saveRDS(
     epithelial_heatmap, paste0(Robject_dir, 
     "2a.epithelial_heatmap_with_cell_type_and_QC.Rdata")
@@ -180,79 +198,9 @@ if (!file.exists(paste0(Robject_dir,
 
 
 ################################################################################
-### 3. Add CNA metadata ###
+### 3. Create QC annotations  ###
 ################################################################################
 
-if (!file.exists(paste0(Robject_dir, 
-  "3b.epithelial_heatmap_with_cell_type_QC_and_CNA_values.Rdata"))) {
-  
-  # determine CNA values and add to epithelial_metadata:
-  print("Determining CNA values and adding to epithelial metadata df...")
-  # scale infercnv values to -1:1, square values and take the mean:
-  scaled_df <- as.data.frame(rescale(as.matrix(epithelial_heatmap), c(-1,1)))
-  CNA_values <- apply(scaled_df, 1, function(y) {
-    #y[is.na(y)] <- 0
-    #scaled_y <- rescale(y, c(-1, 1))
-    return(mean(y^2))
-  })
-  CNA_value_df <- data.frame(
-    row.names = names(CNA_values),
-    CNA_value = CNA_values
-  )
-  epithelial_metadata <- cbind(epithelial_metadata, CNA_value_df)
-  print(paste0(
-    "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
-    identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
-  ))
-  # determine correlation with top 5% cancer values and add to epithelial_metadata:
-  print(paste0(
-    "Determining correlation with top 5% cancer values and adding to epithelial ", 
-    "metadata df..."
-  ))
-  
-  saveRDS(
-    epithelial_heatmap, paste0(Robject_dir, 
-    "3a.epithelial_heatmap_with_cell_type_QC_and_CNA_values.Rdata")
-  )
-  saveRDS(
-    epithelial_metadata, paste0(Robject_dir, 
-    "3b.epithelial_heatmap_with_cell_type_QC_and_CNA_values.Rdata")
-  )
-
-} else {
-  epithelial_heatmap <- readRDS(
-    paste0(Robject_dir, 
-    "3a.epithelial_heatmap_with_cell_type_QC_and_CNA_values.Rdata")
-  )
-  epithelial_metadata <- readRDS(
-    paste0(Robject_dir, 
-    "3b.epithelial_heatmap_with_cell_type_QC_and_CNA_values.Rdata")
-  )
-  print(paste0(
-    "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
-    identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
-  ))
-}
-
-
-################################################################################
-### 4. Order heatmap, metadata and create heatmap annotations ###
-################################################################################
-
-# create CNA annotation:
-CNA_value_annotation <- rowAnnotation(
-  correlation_annotation = anno_barplot(
-    epithelial_metadata$CNA_value,
-    gp = gpar(
-      col = "#D95F02", 
-      width = unit(4, "cm")
-    ), 
-    border = FALSE, 
-    which = "row", 
-    axis = F
-  )
-)
-CNA_value_annotation@name <- "CNA_value"
 # create QC annotations:
 nUMI_annotation <- rowAnnotation(
   correlation_annotation = anno_barplot(
@@ -280,6 +228,61 @@ nGene_annotation <- rowAnnotation(
   )
 )
 nGene_annotation@name <- "nGene"
+
+
+################################################################################
+### 4. Calculate correlations with non-permutated InferCNV output  ###
+################################################################################
+
+if (random_proportion != "0") {
+
+  # load InferCNV output:
+  print("Loading non-permutated InferCNV heatmap...")
+  non_permutated_output <- as.data.frame(t(read.table(paste0(non_permutated_dir, 
+    "infercnv.12_denoised.observations.txt"))))
+
+  # load metadata df:
+  non_permutated_metadata <- read.table(paste0(non_permutated_dir, 
+    "input_files/metadata.txt"), header = F, sep = "\t", as.is = TRUE)
+  colnames(non_permutated_metadata) <- c("cell_ids", "cell_type")
+  row.names(non_permutated_metadata) <- non_permutated_metadata$cell_ids
+
+  # ensure only epithelial cells in non-permutated data:
+  non_permutated_ids <- non_permutated_metadata$cell_ids[
+    grep("pithelial", non_permutated_metadata$cell_type)
+  ]
+  non_permutated_heatmap <- non_permutated_output[
+    rownames(non_permutated_output) %in% non_permutated_ids,
+  ]
+
+  # calculate mean of permutated and non-permutated data and make them
+  # the same length:
+  non_permutated_mean_CNV <- apply(non_permutated_heatmap, 2, mean)
+  permutated_mean_CNV <- apply(epithelial_heatmap, 2, mean)
+  non_permutated_mean_CNV <- non_permutated_mean_CNV[
+    names(permutated_mean_CNV)
+  ]
+
+  # calculate correlation between non-permutated and permutated CNVs:
+  correlation_with_original <- cor.test(
+    as.numeric(permutated_mean_CNV), 
+    as.numeric(non_permutated_mean_CNV), 
+    method = "pearson"
+  )
+  cor_result <- data.frame(
+    R_squared = correlation_with_original$estimate, 
+    p_val = correlation_with_original$p.value
+  )
+
+  write.table(
+    cor_result,
+    paste0(table_dir, "correlation_result.txt"),
+    sep = "\t",
+    row.names = F,
+    col.names = F,
+    quote = F
+  )
+}
 
 
 ################################################################################
@@ -319,7 +322,7 @@ final_heatmap <- Heatmap(
   use_raster = T, raster_device = c("png")
 )
 
-ht_list <- final_heatmap + CNA_value_annotation + nUMI_annotation + nGene_annotation
+ht_list <- final_heatmap + nUMI_annotation + nGene_annotation
 
 annotated_heatmap <- grid.grabExpr(
   draw(ht_list, gap = unit(6, "mm"), heatmap_legend_side = "left")
@@ -347,18 +350,27 @@ pdf(paste0(plot_dir, "infercnv_plot.pdf"), height = 13, width = 18)
       })
     popViewport()
 
-    pushViewport(viewport(x=x_coord + 0.875, y=0.025, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("CNA", rot=65)
-    popViewport()
-    pushViewport(viewport(x=x_coord + 0.892, y=0.025, width = 0.1, height = 0.1, 
+    pushViewport(viewport(x=x_coord + 0.917, y=0.025, width = 0.1, height = 0.1, 
       just = "bottom"))
       grid.text("nUMI", rot=65)
     popViewport()
-    pushViewport(viewport(x=x_coord + 0.917, y=0.025, width = 0.1, height = 0.1, 
+    pushViewport(viewport(x=x_coord + 0.942, y=0.025, width = 0.1, height = 0.1, 
       just = "bottom"))
       grid.text("nGene", rot=65)
     popViewport()
+
+    if (exists("cor_result")) {
+      pushViewport(viewport(x=x_coord + 0.072, y=0.71, width = 0.1, height = 0.1, 
+        just = "right"))
+        grid.text(paste0("Correlation with\noriginal = ", round(cor_result$R_squared, 3)), 
+          gp=gpar(fontsize=16))
+      popViewport()
+      pushViewport(viewport(x=x_coord + 0.055, y=0.66, width = 0.1, height = 0.1, 
+        just = "right"))
+        grid.text(paste0("p.val = ", round(cor_result$p_val, 3)), 
+          gp=gpar(fontsize=16))
+      popViewport()
+    }
     
 dev.off()
 
@@ -372,4 +384,5 @@ write.table(epithelial_metadata, paste0(table_dir, "epithelial_metadata.txt"),
 system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
 "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
 "convert -density 150 ", plot_dir, "$f -quality 90 ", plot_dir, "$new; done"))
+
 

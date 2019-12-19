@@ -4,19 +4,23 @@ args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
 subproject_name <- "Figure_2.3_simulations"
-numcores <- 10
 sample_name <- args[1]
-subset_data <- as.logical(args[2])
-include_t_cells <- as.logical(args[3])
-nUMI_threshold <- as.numeric(args[4])
-nGene_threshold <- as.numeric(args[5])
+numcores <- as.numeric(args[2])
+subset_data <- as.logical(args[3])
+include_t_cells <- as.logical(args[4])
+nUMI_threshold <- as.numeric(args[5])
+nGene_threshold <- as.numeric(args[6])
+random_proportion <- as.numeric(args[7])
 
-sample_name <- "CID4520N"
-subset_data <- FALSE
-include_t_cells <- TRUE
-analysis_mode <- "samples"
-nUMI_threshold <- 25000
-nGene_threshold <- 5000
+#numcores <- 10
+#sample_name <- "CID4520N"
+#subset_data <- FALSE
+#include_t_cells <- TRUE
+#analysis_mode <- "samples"
+#nUMI_threshold <- 25000
+#nGene_threshold <- 5000
+#random_proportion <- as.numeric("0.01")
+
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -24,59 +28,50 @@ print(paste0("Sample name = ", sample_name))
 print(paste0("Subset data? ", as.character(subset_data)))
 print(paste0("Number cores = ", numcores))
 print(paste0("Include T cells? ", as.character(include_t_cells)))
+print(paste0("nUMI threshold =  ", nUMI_threshold))
+print(paste0("nGene threshold =  ", nGene_threshold))
+print(paste0("Proportions of genes to randomise =  ", random_proportion))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.5dev/"
 library(cluster, lib.loc = lib_loc)
 library(Seurat)
-library(infercnv, lib.loc=lib_loc)
-library(HiddenMarkov, lib.loc=lib_loc)
-library(RColorBrewer)
-library(ComplexHeatmap, lib.loc=lib_loc)
-library(circlize, lib.loc = lib_loc)
-library(reshape2)
-library(ggplot2)
-library(scales, lib.loc = lib_loc)
-library(fpc, lib.loc = lib_loc)
-library(dplyr)
+library(infercnv, lib.loc = lib_loc)
+
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", 
   project_name, "/", subproject_name, "/")
-ref_dir <- paste0(project_dir, "refs/")
-func_dir <- paste0(project_dir, "scripts/functions/")
 results_dir <- seurat_path <- paste0(project_dir, "results/")
+func_dir <- paste0(project_dir, "scripts/functions/")
+ref_dir <- paste0(project_dir, "refs/")
 in_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
   sample_name, "/")
 
 if (include_t_cells) {
-  out_path <- paste0(results_dir, "infercnv/t_cells_included/")
+  infercnv_dir <- paste0(results_dir, "infercnv/t_cells_included/",
+    sample_name, "/filtered_by_coverage/")
+  out_dir <- paste0(results_dir, "infercnv/t_cells_included/",
+    sample_name, "/", random_proportion, "_genes_randomly_permutated/")
 } else {
-  out_path <- paste0(results_dir, "infercnv/t_cells_excluded/")
-}
-
-if (nUMI_threshold != "none") {
-  out_dir <- paste0(out_path, sample_name, "/filtered_by_coverage/")
-} else {
-  out_dir <- paste0(out_path, sample_name, "/")
+  infercnv_dir <- paste0(results_dir, "infercnv/t_cells_excluded/",
+    sample_name, "/filtered_by_coverage/")
+  out_dir <- paste0(results_dir, "infercnv/t_cells_excluded/",
+    sample_name, "/", random_proportion, "_genes_randomly_permutated/")
 }
 
 input_dir <- paste0(out_dir, "input_files/")
 system(paste0("mkdir -p ", input_dir))
-plot_dir <- paste0(out_dir, "plots/")
-system(paste0("mkdir -p ", plot_dir))
-table_dir <- paste0(out_dir, "tables/")
-system(paste0("mkdir -p ", table_dir))
 
 setwd(out_dir)
 
 print(paste0("Sample directory = ", in_dir))
-print(paste0("Reference directory = ", ref_dir))
-print(paste0("R function directory = ", func_dir))
 print(paste0("Output directory = ", out_dir))
-print(paste0("Plot directory = ", plot_dir))
-print(paste0("Table directory = ", table_dir))
 
-print(paste0("Running InferCNV identify normals pipeline on ", sample_name))
+print(
+  paste0(
+    "Randomly permutating ", random_proportion, " of genes for ", sample_name
+  )
+)
 
 
 ################################################################################
@@ -87,7 +82,7 @@ prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"
 
 
 ################################################################################
-### 1a. Generate input matrix and metadata files for primary sample ###
+### 1. Generate initial input matrix and metadata files ###
 ################################################################################
 
 # load seurat object:
@@ -119,22 +114,6 @@ count_df <- count_df[,colnames(count_df) %in% infercnv_metadata$metadata$cell_id
 print(paste0("No cells in count df after filtering for those in metadata df = ", 
     ncol(count_df)))
 
-# generate cluster metric plots for epithelial cluster:
-epithelial_clusters <- grep("pithelial", unique(infercnv_metadata$metadata$cell_type), value=T)
-print(paste0("Epithelial cluster = ", epithelial_clusters))
-if (!file.exists(paste0(plot_dir, "metrics_by_epithelial_cluster.png"))) {
-  png(paste0(plot_dir, "metrics_by_epithelial_cluster.png"),
-    width=14, height=8, res=300, units='in')
-    temp_violinplot <- VlnPlot(
-      object = seurat_10X,
-      features = c("nFeature_RNA", "nCount_RNA", "percent.mito"),
-      pt.size = 1.5,
-      idents = epithelial_clusters
-    )
-    print(temp_violinplot)
-  dev.off()
-}
-
 # if necessary, remove T cells from analysis:
 if (!include_t_cells) {
   infercnv_metadata$metadata <- infercnv_metadata$metadata[
@@ -150,53 +129,108 @@ infercnv_metadata$metadata$cell_type[
   grep("pithelial", infercnv_metadata$metadata$cell_type)
 ] <- "Epithelial"
 
-if (nUMI_threshold != "none") {
-  # filter out cells with nUMI < nUMI_threshold and nGene < nGene_threshold
-  print(paste0("Number of cells before filtering out low coverage: ",
-    ncol(count_df)))
+# filter out cells with nUMI < nUMI_threshold and nGene < nGene_threshold
+print(paste0("Number of cells before filtering out low coverage: ",
+  ncol(count_df)))
+QC <- data.frame(
+  row.names = names(Idents(seurat_10X)),
+  nUMI = seurat_10X@meta.data$nCount_RNA,
+  nGene = seurat_10X@meta.data$nFeature_RNA
+)
+QC <- QC[colnames(count_df),]
 
-  QC <- data.frame(
-    row.names = names(Idents(seurat_10X)),
-    nUMI = seurat_10X@meta.data$nCount_RNA,
-    nGene = seurat_10X@meta.data$nFeature_RNA
+cells_to_remove <- colnames(count_df)[QC$nUMI < nUMI_threshold & QC$nGene < nGene_threshold]
+print(paste0("Number cells initially in to remove list = ", length(cells_to_remove)))
+# only filter out epithelial cells:
+stromal_cells <- infercnv_metadata$metadata$cell_id[
+  infercnv_metadata$metadata$cell_type == "Stromal"
+]
+epithelial_cells <- infercnv_metadata$metadata$cell_id[
+  infercnv_metadata$metadata$cell_type == "Epithelial"
+]
+print(paste0("Number stromal cells = ", length(stromal_cells)))
+print(paste0("Number epithelial cells = ", length(epithelial_cells)))
+print(paste0("Number stromal cells in cells_to_remove = ",
+  length(cells_to_remove[cells_to_remove %in% stromal_cells])))
+print(paste0("Number epithelial cells in cells_to_remove = ",
+  length(cells_to_remove[cells_to_remove %in% epithelial_cells])))
+cells_to_remove <- cells_to_remove[
+  !(cells_to_remove %in% stromal_cells)
+]
+print(paste0("Number cells to remove after removing stromal = ", length(cells_to_remove)))
+count_df <- count_df[
+  ,!(colnames(count_df) %in% cells_to_remove)
+]
+print(paste0("Number of cells after filtering out low coverage: ",
+  ncol(count_df)))
+print(paste0("Number of cells in metadata before removing low coverage cells = ",
+  nrow(infercnv_metadata$metadata)))
+infercnv_metadata$metadata <- infercnv_metadata$metadata[colnames(count_df),]
+print(paste0("Number of cells in metadata after removing low coverage cells = ",
+  nrow(infercnv_metadata$metadata)))
+
+epithelial_clusters <- grep("pithelial", unique(infercnv_metadata$metadata$cell_type), value=T)
+
+
+################################################################################
+### 2. Randomly permutate epithelial count_df ###
+################################################################################
+
+# load previous InferCNV results to determine which genes weren't filtered out:
+infercnv_output <- read.table(paste0(infercnv_dir, 
+  "infercnv.12_denoised.observations.txt"))
+
+non_filtered_genes <- rownames(count_df)[
+  rownames(count_df) %in% rownames(infercnv_output)
+]
+
+# isolate epithelial counts in data frame and save stromal separately:
+epithelial_count_df <- count_df[, colnames(count_df) %in% epithelial_cells]
+stromal_count_df <- count_df[, colnames(count_df) %in% stromal_cells]
+
+# fetch random selection of genes of sepcified proportion and multiply this
+# gene by 3 for all epithelial cells:
+total_permutations <- floor(
+  as.numeric(random_proportion)*length(non_filtered_genes)
+)
+permutated_gene_indices <- sample(
+  1:length(non_filtered_genes), 
+  total_permutations, 
+  replace=FALSE
+)
+permutated_genes <- non_filtered_genes[permutated_gene_indices]
+permutated_df <- epithelial_count_df
+permutated_df[
+  rownames(permutated_df) %in% permutated_genes,
+] <- permutated_df[
+  rownames(permutated_df) %in% permutated_genes,
+]*3
+
+# add back to stromal_count_df:
+print(
+  paste0(
+    "Number of cells before adding stromal_count_df = ", ncol(permutated_df)
   )
-  QC <- QC[colnames(count_df),]
+)
+permutated_df <- cbind(permutated_df, stromal_count_df)
+print(
+  paste0(
+    "Number of cells after adding stromal_count_df = ", ncol(permutated_df)
+  )
+)
 
-  cells_to_remove <- colnames(count_df)[QC$nUMI < nUMI_threshold & QC$nGene < nGene_threshold]
-  print(paste0("Number cells initially in to remove list = ", length(cells_to_remove)))
+# check gene counts have been changed:
+print(
+  paste0(
+    "Are permutated gene counts different from original? ", 
+    !(identical(count_df[permutated_genes,], permutated_df[permutated_genes,]))
+  )
+)  
 
-  # only filter out epithelial cells:
-  stromal_cells <- infercnv_metadata$metadata$cell_id[
-    infercnv_metadata$metadata$cell_type == "Stromal"
-  ]
-  epithelial_cells <- infercnv_metadata$metadata$cell_id[
-    infercnv_metadata$metadata$cell_type == "Epithelial"
-  ]
-  print(paste0("Number stromal cells = ", length(stromal_cells)))
-  print(paste0("Number epithelial cells = ", length(epithelial_cells)))
-  print(paste0("Number stromal cells in cells_to_remove = ",
-    length(cells_to_remove[cells_to_remove %in% stromal_cells])))
-  print(paste0("Number epithelial cells in cells_to_remove = ",
-    length(cells_to_remove[cells_to_remove %in% epithelial_cells])))
 
-  cells_to_remove <- cells_to_remove[
-    !(cells_to_remove %in% stromal_cells)
-  ]
-  print(paste0("Number cells to remove after removing stromal = ", length(cells_to_remove)))
-
-  count_df <- count_df[
-    ,!(colnames(count_df) %in% cells_to_remove)
-  ]
-  print(paste0("Number of cells after filtering out low coverage: ",
-    ncol(count_df)))
-
-  print(paste0("Number of cells in metadata before removing low coverage cells = ",
-    nrow(infercnv_metadata$metadata)))
-  infercnv_metadata$metadata <- infercnv_metadata$metadata[colnames(count_df),]
-  print(paste0("Number of cells in metadata after removing low coverage cells = ",
-    nrow(infercnv_metadata$metadata)))
-}
-
+################################################################################
+### 3. Save InferCNV input files ###
+################################################################################
 
 # if no epithelial clusters present, abort:
 if (length(epithelial_clusters) < 1) {
@@ -205,7 +239,7 @@ if (length(epithelial_clusters) < 1) {
   # write count, metadata files and new seurat object:
   if (!file.exists(paste0(input_dir, "input_matrix.txt"))) {
     print("Creating inferCNV raw counts file...")
-    write.table(count_df, paste0(input_dir, "input_matrix.txt"), quote=F,
+    write.table(permutated_df, paste0(input_dir, "input_matrix.txt"), quote=F,
     sep="\t", col.names=T, row.names=T)
   }
 
@@ -221,14 +255,14 @@ if (length(epithelial_clusters) < 1) {
   normals <- grep(
     "[e,E]pithelial|[m,M]yoepithelial|CAF|[u,U]nassigned|[u,U]nknown|[t,T]umour|[t,T]umor", 
     unique(infercnv_metadata$metadata$cell_type[
-      infercnv_metadata$metadata$cell_ids %in% colnames(count_df)
+      infercnv_metadata$metadata$cell_ids %in% colnames(permutated_df)
     ]), value=T, 
     invert=T
   )
 
 
   ################################################################################
-  ### 2. Run InferCNV ###
+  ### 4. Run InferCNV ###
   ################################################################################
   
   print(paste0("Normal is: ", normals))
@@ -251,7 +285,7 @@ if (length(epithelial_clusters) < 1) {
       infercnv::run(
         initial_infercnv_object,
         num_threads=numcores-1,
-        out_dir=sample_name,
+        out_dir=".",
         cutoff=0.1,
         window_length=101,
         max_centered_threshold=3,
