@@ -18,7 +18,7 @@ normal_y_threshold_sd_multiplier <- args[6]
 reclustered_group_annotation <- args[7]
 
 
-#sample_name <- "CID45172"
+#sample_name <- "CID45171"
 #include_t_cells <- TRUE
 #cancer_x_threshold_sd_multiplier <- 2
 #cancer_y_threshold_sd_multiplier <- 1.5

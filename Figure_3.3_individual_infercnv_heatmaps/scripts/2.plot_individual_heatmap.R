@@ -20,14 +20,14 @@ normal_y_threshold_sd_multiplier <- as.numeric(args[6])
 include_normals <- as.logical(args[7])
 reclustered_group_annotation <- as.logical(args[8])
 
-#sample_name <- "CID4463"
-#include_t_cells <- TRUE
-#cancer_x_threshold_sd_multiplier <- 2
-#cancer_y_threshold_sd_multiplier <- 1.5
-#normal_x_threshold_sd_multiplier <- 1
-#normal_y_threshold_sd_multiplier <- 1.25
-#include_normals <- TRUE
-#reclustered_group_annotation <- TRUE
+sample_name <- "CID4463"
+include_t_cells <- TRUE
+cancer_x_threshold_sd_multiplier <- 2
+cancer_y_threshold_sd_multiplier <- 1.5
+normal_x_threshold_sd_multiplier <- 1
+normal_y_threshold_sd_multiplier <- 1.25
+include_normals <- TRUE
+reclustered_group_annotation <- TRUE
 
 # distinguish samples with 1 and > 1 clusters:
 mono_samples <- c("CID3586", "CID3921", "CID3941", "CID3948", "CID4067", 
@@ -43,9 +43,12 @@ mets <- c("CID4386", "CID43862", "CID43863", "CID44972", "CID44972CELLSUS",
 
 # specify manual cutoffs for normal calling:
 manual_x_cutoffs <- c(0.12)
-names(manual_x_cutoffs) <- c("CID4463")
+names(manual_x_cutoffs) <- c("CID44630")
 manual_y_cutoffs <- c(0.25)
-names(manual_y_cutoffs) <- c("CID4463")
+names(manual_y_cutoffs) <- c("CID44630")
+
+# specify whether to label unknowns:
+unknowns_as_cancer <- c("CID4463")
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -111,7 +114,7 @@ reclustered_dir <- paste0(paella_dir,
   "analysis/celltype_reclustering_per_sample.DLR_working/garnett_call_ext_major/"
 )
 reclustered_epithelial_dir <- paste0(
-  reclustered_dir, "Epithelial/reprocessing/", sample_name, "/RObj/"
+  reclustered_dir, "Epithelial/seurat/individual/", sample_name, "/RObj/"
 )
 
 print(paste0("In directory = ", in_dir))
@@ -870,17 +873,32 @@ if (!file.exists(paste0(Robject_dir, "8b.epithelial_metadata_final.Rdata"))) {
 ################################################################################
 
 if (include_normals) {
+  # remove unknown labels if necessary:
+  if (sample_name %in% unknowns_as_cancer) {
+    epithelial_metadata$normal_cell_call[
+      epithelial_metadata$normal_cell_call == "unknown"
+    ] <- "cancer"
+  }
   # reorder cells starting with normals, unassigned and ending with cancer:
   epithelial_metadata <- epithelial_metadata
   epithelial_metadata_split <- split(epithelial_metadata, 
     epithelial_metadata$normal_cell_call)
-  epithelial_metadata <- do.call("rbind",
-    list(
-      epithelial_metadata_split$normal,
-      epithelial_metadata_split$unassigned,
-      epithelial_metadata_split$cancer
+  if (sample_name %in% unknowns_as_cancer) {
+    epithelial_metadata <- do.call("rbind",
+      list(
+        epithelial_metadata_split$normal,
+        epithelial_metadata_split$cancer
+      )
     )
-  )
+  } else {
+    epithelial_metadata <- do.call("rbind",
+      list(
+        epithelial_metadata_split$normal,
+        epithelial_metadata_split$unassigned,
+        epithelial_metadata_split$cancer
+      )
+    )
+  }
   epithelial_heatmap <- epithelial_heatmap[rownames(epithelial_metadata),]
   print(paste0(
     "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
@@ -1338,6 +1356,119 @@ if ("normal_cell_call" %in% colnames(epithelial_metadata) & include_normals) {
 }
 
 print(paste0("Heatmap created, output in ", plot_dir))
+
+
+################################################################################
+### 11. Create tSNEs and UMAPs ###
+################################################################################
+
+# create epithelial reclustered UMAP:
+if (file.exists(paste0(reclustered_epithelial_dir, "seurat.rds"))) {
+  
+  if (!exists("seurat_reclustered")) {
+    seurat_reclustered <- readRDS(paste0(reclustered_epithelial_dir, "seurat.rds"))
+  }
+  Idents(seurat_reclustered) <- paste0(
+    "Epithelial ",
+    seurat_reclustered@meta.data$SUBSET_D_res.0.8
+  )
+
+  epithelial_UMAP <- DimPlot(seurat_reclustered, label.size = 7, pt.size = 2, 
+  reduction = "UMAPD", cols = cluster_cols)
+  epithelial_UMAP <- customize_plots(epithelial_UMAP, "UMAP", garnett = F)
+
+  pdf(paste0(plot_dir, "UMAP_reclustered_epithelial.pdf"), width = 14, 
+    height = 8)
+    print(epithelial_UMAP)
+  dev.off()
+  png(paste0(plot_dir, "UMAP_reclustered_epithelial.png"), width = 14, 
+    height = 8, units = "in", res = 300)
+    print(epithelial_UMAP)
+  dev.off()
+
+  # and without legend:
+  epithelial_UMAP <- DimPlot(seurat_reclustered, label.size = 7, pt.size = 2, 
+  reduction = "UMAPD", cols = cluster_cols) + NoLegend()
+  epithelial_UMAP <- customize_plots(epithelial_UMAP, "UMAP", garnett = F)
+
+  pdf(paste0(plot_dir, "UMAP_reclustered_epithelial_no_legend.pdf"), width = 14, 
+    height = 8)
+    print(epithelial_UMAP)
+  dev.off()
+  png(paste0(plot_dir, "UMAP_reclustered_epithelial_no_legend.png"), width = 14, 
+    height = 8, units = "in", res = 300)
+    print(epithelial_UMAP)
+  dev.off()
+
+}
+
+# load original seurat object:
+if (!exists("seurat_10X")) {
+  seurat_10X <- readRDS(
+    paste0(seurat_dir, "03_seurat_object_processed.Rdata")
+  )
+  Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
+}
+
+# create function to customize plots:
+customize_plots <- function(splot, type="tSNE", garnett = FALSE) {
+
+  # change text sizes:
+  splot$theme$text$size <- 24
+  splot$theme$legend.text$size <- rel(0.9)
+  splot$theme$axis.text$size <- 24
+
+  # reorder cluster labels in human readable format:
+  if (!garnett) {
+    splot$data$ident <- factor(splot$data$ident, 
+      levels = naturalsort(levels(splot$data$ident)))
+  } else {
+    splot$data$garnett_call_ext_major <- factor(splot$data$garnett_call_ext_major, 
+      levels = naturalsort(levels(splot$data$garnett_call_ext_major)))
+  }
+
+  # relabel axes:
+  if (type == "tSNE") {
+    splot$labels$x <- "tSNE dim. 1"
+    splot$labels$y <- "tSNE dim. 2"
+  } else if (type == "UMAP") {
+    splot$labels$x <- "UMAP dim. 1"
+    splot$labels$y <- "UMAP dim. 2"
+  }
+  return(splot)
+
+}
+
+# create all cell tSNE with labelled clusters:
+all_cells_tSNE <- DimPlot(seurat_10X, label.size = 7, pt.size = 2, 
+  reduction = "TSNEA", cols = col_palette[1:length(unique(Idents(seurat_10X)))])
+all_cells_tSNE <- customize_plots(all_cells_tSNE, "tSNE")
+
+pdf(paste0(plot_dir, "tSNE_all_cells.pdf"), width = 14, 
+  height = 8)
+  print(all_cells_tSNE)
+dev.off()
+png(paste0(plot_dir, "tSNE_all_cells.png"), width = 14, 
+  height = 8, units = "in", res = 300)
+  print(all_cells_tSNE)
+dev.off()
+
+# create all cell tSNE with labelled garnett calls:
+all_garnett_tSNE <- DimPlot(seurat_10X, label.size = 7, pt.size = 2, 
+  reduction = "TSNEA", cols = col_palette[1:length(unique(Idents(seurat_10X)))],
+  group.by = "garnett_call_ext_major", label = T)
+all_garnett_tSNE <- customize_plots(all_garnett_tSNE, "tSNE", garnett = T)
+
+pdf(paste0(plot_dir, "tSNE_all_cell_garnett_calls.pdf"), width = 14, 
+  height = 8)
+  print(all_garnett_tSNE)
+dev.off()
+png(paste0(plot_dir, "tSNE_all_cell_garnett_calls.png"), width = 14, 
+  height = 8, units = "in", res = 300)
+  print(all_garnett_tSNE)
+dev.off()
+
+
 
 #convert pdf to png:
 system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo $f; ",

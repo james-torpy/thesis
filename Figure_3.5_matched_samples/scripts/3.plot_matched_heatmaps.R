@@ -1,6 +1,6 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
-subproject_name <- "Figure_3.5"
+subproject_name <- "Figure_3.5_matched_samples"
 
 #args = commandArgs(trailingOnly=TRUE)
 #include_t_cells <- as.logical(args[1])
@@ -15,6 +15,17 @@ subset_samples <- F
 na_colour <- "white"
 include_normals <- F
 reclustered_group_annotation <- TRUE
+
+######
+primary_subpopulations <- list(
+  subpop_1 <- 5,
+  subpop_2 <- c(seq(0,4), 6, 7)
+)
+genes_to_label <- list(
+  up = c("IGFBP5", "KRT15", "EMP1"),
+  down = c("MUCL1")
+)
+######
 
 #sample_names <- c("CID4386", "CID43862", "CID43863")
 sample_names <- c("CID45171", "CID45172")
@@ -41,6 +52,7 @@ library(ComplexHeatmap, lib.loc=lib_loc)
 library(circlize, lib.loc = lib_loc)
 library(scales, lib.loc = lib_loc)
 library(fpc, lib.loc = lib_loc)
+library(naturalsort, lib.loc = lib_loc)
 library(Seurat)
 library(RColorBrewer)
 library(reshape2)
@@ -260,6 +272,41 @@ if (!file.exists(paste0(Robject_dir, "initial_combined_heatmap.Rdata")) |
 
 
 ################################################################################
+### 3. Correlation analysis of subpopulations with matched sample ###
+################################################################################
+
+# isolate cells from primary sample only and format:
+primary_metadata <- group_heatmap_metadata[
+  group_heatmap_metadata$type == "primary",
+]
+primary_metadata$cell_type <- gsub("^.*[a-z] ", "", primary_metadata$cell_type)
+
+# fetch mean CNV signal vector for each subpopulation:
+subpopulation_average_CNV <- lapply(primary_subpopulations, function(x) {
+  cell_ids <- primary_metadata$cell_ids[primary_metadata$cell_type %in% x]
+  mean_signal <- apply(group_heatmap[cell_ids,], 2, mean)
+  return(mean_signal[!is.na(mean_signal)])
+})
+
+# fetch mean CNV signal vector for matched sample:
+matched_metadata <- group_heatmap_metadata[
+  group_heatmap_metadata$type != "primary",
+]
+matched_metadata$cell_type <- gsub("^.*[a-z] ", "", matched_metadata$cell_type)
+matched_average_CNV <- apply(group_heatmap[matched_metadata$cell_ids,], 2, mean)
+
+# correlate mean CNV signal of each subpopulation with that of matched sample:
+subpopulation_correlations <- lapply(subpopulation_average_CNV, function(x) {
+  x <- x[names(x) %in% names(matched_average_CNV)]
+  matched_average_CNV <- matched_average_CNV[
+    names(matched_average_CNV) %in% names(x)
+  ]
+  cor <- cor.test(as.numeric(x), matched_average_CNV, method = "pearson")
+  return(data.frame(cor$estimate, cor$p.value))
+})
+
+
+################################################################################
 ### 3a. Create heatmap row annotations ###
 ################################################################################
 
@@ -414,8 +461,55 @@ chr_data <- fetch_chromosome_boundaries(group_heatmap, ref_dir)
 saveRDS(chr_data, paste0(Robject_dir, "chromosome_data.Rdata"))
 
 
+################################################################################
+### 5. Annotate specific genes ###
+################################################################################
+
+heatmap_DE_genes <- data.frame(gene = colnames(group_heatmap))
+genes_vector <- unlist(genes_to_label)
+names(genes_vector) <- gsub("[0-9]", "", names(genes_vector))
+
+# isolate DE genes in heatmap df:
+genes_vector_sub <- genes_vector[genes_vector %in% heatmap_DE_genes$gene]
+
+# label genes to include:
+heatmap_DE_genes$type <- "do_not_include"
+heatmap_DE_genes$type[
+  heatmap_DE_genes$gene %in% genes_vector_sub[names(genes_vector_sub) == "up"]
+] <- "up"
+heatmap_DE_genes$type[
+  heatmap_DE_genes$gene %in% genes_vector_sub[names(genes_vector_sub) == "down"]
+] <- "down"
+
+label_subset <- which(heatmap_DE_genes$type != "do_not_include")
+heatmap_DE_labels <- as.character(heatmap_DE_genes$gene[label_subset])
+
+# expand annotation bands by including a number of genes around GOI depending
+# on plot width:
+all_do_not_include <- which(heatmap_DE_genes$type != "do_not_include")
+expand_no <- as.integer(ncol(group_heatmap)/1300)
+for (n in 1:expand_no) {
+    for ( temp_index in all_do_not_include ) {
+    
+      heatmap_DE_genes$type[temp_index + n] <- heatmap_DE_genes$type[temp_index]
+    
+      if ( (temp_index - n) > 0 ) {
+          heatmap_DE_genes$type[temp_index - n] <- heatmap_DE_genes$type[temp_index]
+      }
+    }
+}
+
+# create DE_genes text annotation vector:
+heatmap_DE_genes <- subset(heatmap_DE_genes, select = -gene)
+DE_genes_annot = HeatmapAnnotation(df = heatmap_DE_genes, show_legend = F,
+    col = list(type = c("up" = "#FFFF00", "down" = "#FF00FF", 
+      "do_not_include"="#E7E4D3")),
+    text = anno_link(label_subset, heatmap_DE_labels, side = "bottom", 
+    labels_gp = gpar(fontsize = 6, rot=2)))
+
+
 #############################################################################
-### 5. Prepare heatmap and annotations ###
+### 6. Prepare heatmap and annotations ###
 ################################################################################
 
 if (!file.exists(paste0(Robject_dir, "final_group_heatmap.Rdata"))) {
@@ -477,8 +571,8 @@ final_heatmap <- Heatmap(
   show_row_names = F, show_column_names = T,
   column_names_gp = gpar(col = "white"),
   show_row_dend = FALSE,
-#  bottom_annotation = CNV_genes_annotation, bottom_annotation_height = unit(2, "cm"),
-#    gap = unit(1, "cm"),
+  bottom_annotation = DE_genes_annotation, bottom_annotation_height = unit(2, "cm"),
+    gap = unit(1, "cm"),
   heatmap_legend_param = list(title = "Modified\nexpression", color_bar = "continuous", 
   grid_height = unit(2, "cm"), grid_width = unit(1, "cm"), legend_direction = "horizontal",
   title_gp = gpar(fontsize = 20, fontface = "bold"), labels_gp = gpar(fontsize = 18)),
@@ -505,7 +599,6 @@ if (length(spl_groups) > 1) {
 
 ht_list <- type_annotation + sample_annotation + group_annotation +
   final_heatmap + CNA_value_annotation + nUMI_annotation + nGene_annotation
-#ht_list <- type_annotation + final_heatmap
 
 annotated_heatmap <- grid.grabExpr(
   draw(ht_list, gap = unit(3, "mm"), heatmap_legend_side = "left")
@@ -567,4 +660,58 @@ system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo 
 "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
 "convert -density 150 ", plot_dir, "$f -quality 90 ", plot_dir, "$new; done"))
 
+
+######
+
+################################################################################
+### 11. Create tSNEs and UMAPs ###
+################################################################################
+
+paella_dir <- "/paella/TumourProgressionGroupTemp/projects/brca_mini_atlas/"
+reclustered_dir <- paste0(paella_dir, 
+  "analysis/celltype_reclustering_per_sample.DLR_working/garnett_call_ext_major/"
+)
+reclustered_epithelial_dir <- paste0(
+  reclustered_dir, "Epithelial/seurat/individual/", sample_names[1], "/RObj/"
+)
+
+# create epithelial reclustered UMAP:
+if (file.exists(paste0(reclustered_epithelial_dir, "seurat.rds"))) {
+  
+  if (!exists("seurat_reclustered")) {
+    seurat_reclustered <- readRDS(paste0(reclustered_epithelial_dir, "seurat.rds"))
+  }
+  Idents(seurat_reclustered) <- paste0(
+    "Epithelial ",
+    seurat_reclustered@meta.data$SUBSET_D_res.0.8
+  )
+
+  epithelial_UMAP <- DimPlot(seurat_reclustered, label.size = 7, pt.size = 2, 
+  reduction = "UMAPD", cols = type_cols)
+  epithelial_UMAP <- customize_plots(epithelial_UMAP, "UMAP", garnett = F)
+
+  pdf(paste0(plot_dir, sample_names[1], "_UMAP_reclustered_epithelial.pdf"), width = 14, 
+    height = 8)
+    print(epithelial_UMAP)
+  dev.off()
+  png(paste0(plot_dir, sample_names[1], "_UMAP_reclustered_epithelial.png"), width = 14, 
+    height = 8, units = "in", res = 300)
+    print(epithelial_UMAP)
+  dev.off()
+
+  # and without legend:
+  epithelial_UMAP <- DimPlot(seurat_reclustered, label.size = 7, pt.size = 2, 
+  reduction = "UMAPD", cols = cluster_cols) + NoLegend()
+  epithelial_UMAP <- customize_plots(epithelial_UMAP, "UMAP", garnett = F)
+
+  pdf(paste0(plot_dir, "UMAP_reclustered_epithelial_no_legend.pdf"), width = 14, 
+    height = 8)
+    print(epithelial_UMAP)
+  dev.off()
+  png(paste0(plot_dir, "UMAP_reclustered_epithelial_no_legend.png"), width = 14, 
+    height = 8, units = "in", res = 300)
+    print(epithelial_UMAP)
+  dev.off()
+
+}
 

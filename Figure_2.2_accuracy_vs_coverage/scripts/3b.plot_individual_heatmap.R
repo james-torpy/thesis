@@ -3,23 +3,25 @@
 RStudio <- FALSE
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.3_simulations"
+subproject_name <- "Figure_2.2_accuracy_vs_coverage"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
 include_t_cells <- as.logical(args[2])
-downsample <- as.logical(args[3])
+simulation_number <- args[3]
 downsample_proportion <- args[4]
-neutral_signal_range <- unlist(strsplit(args[5], split = "_"))
-nUMI_threshold <- as.numeric(args[6])
-nGene_threshold <- as.numeric(args[7])
+infercnv_mode <- args[5]
+neutral_signal_range <- unlist(strsplit(args[6], split = "_"))
+nUMI_threshold <- as.numeric(args[7])
+nGene_threshold <- as.numeric(args[8])
 
-sample_name <- "CID4520N_cancer_sim"
-include_t_cells <- TRUE
-downsample <- TRUE
-downsample_proportion <- "1.0"
-neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
-nUMI_threshold <- 25000
-nGene_threshold <- 5000
+#sample_name <- "CID4520N_cancer_sim"
+#include_t_cells <- TRUE
+#simulation_number <- "1"
+#downsample_proportion <- "0.9"
+#infercnv_mode <- "samples"
+#neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
+#nUMI_threshold <- 25000
+#nGene_threshold <- 5000
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -35,12 +37,11 @@ print(paste0("nGene threshold = ", as.character(nGene_threshold)))
 library(Seurat)
 library(RColorBrewer)
 library(reshape2)
-library(ggplot2)
 library(dplyr)
 library(cowplot)
 library(viridis)
 library(GenomicRanges)
-library(Polychrome)
+library(ggplot2)
 
 if (RStudio) {
   
@@ -54,10 +55,11 @@ if (RStudio) {
   
 } else {
   
-  lib_loc <- "/share/ScratchGeneral/jamtor/R/3.5dev/"
+  lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
+  library(Polychrome, lib.loc=lib_loc)
   library(ComplexHeatmap, lib.loc=lib_loc)
   library(circlize, lib.loc = lib_loc)
-  library(scales, lib.loc = lib_loc)
+  #library(scales, lib.loc = lib_loc)
   library(fpc, lib.loc = lib_loc)
   library(naturalsort, lib.loc = lib_loc)
   
@@ -73,48 +75,29 @@ results_dir <- seurat_path <- paste0(project_dir, "results/")
 seurat_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
   sample_name, "/")
 
-if (downsample) {
+sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
+  "/", simulation_number, "/Rdata/")
+general_sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
+  "/Rdata/")
 
-  sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
-    "/downsampling/Rdata/")
+non_downsampled_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
+  sample_name, "/", simulation_number, "/no_downsampling/", infercnv_mode,
+  "_mode/")
 
-  if (downsample_proportion == "1.0") {
-  
-    if (include_t_cells) {
-      in_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
-        sample_name, "/downsampling/")
-    } else {
-      in_dir <- paste0(results_dir, "infercnv/t_cells_excluded/", 
-        sample_name, "/downsampling/")
-    }
-    
-  } else {
-  
-    if (include_t_cells) {
-      in_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
-        sample_name, "/downsampling/", downsample_proportion, 
-        "_downsampling/")
-      non_downsampled_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
-        sample_name, "/downsampling/")
-    } else {
-      in_dir <- paste0(results_dir, "infercnv/t_cells_excluded/", 
-        sample_name, "/downsampling/", downsample_proportion, 
-        "_downsampling/")
-      non_downsampled_dir <- paste0(results_dir, "infercnv/t_cells_excluded/", 
-        sample_name, "/downsampling/")
-    }
+if (include_t_cells) {
 
-  }
+  in_path <- paste0(results_dir, "infercnv/t_cells_included/", 
+    sample_name, "/", simulation_number, "/", downsample_proportion, 
+    "_downsampling/")
+  in_dir <- paste0(in_path, infercnv_mode, "_mode/")
 
 } else {
-  sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
-    "/Rdata/")
 
-  if (include_t_cells) {
-    in_dir <- paste0(results_dir, "infercnv/t_cells_included/", sample_name, "/")
-  } else {
-    in_dir <- paste0(results_dir, "infercnv/t_cells_excluded/", sample_name, "/")
-  }
+  in_path <- paste0(results_dir, "infercnv/t_cells_excluded/", 
+    sample_name, "/downsampling/", downsample_proportion, 
+    "_downsampling/")
+  in_dir <- paste0(in_path, infercnv_mode, "_mode/")
+
 }
 
 Robject_dir <- paste0(in_dir, "Rdata/")
@@ -124,8 +107,7 @@ system(paste0("mkdir -p ", plot_dir))
 table_dir <- paste0(in_dir, "tables/")
 system(paste0("mkdir -p ", table_dir))
 
-input_dir <- paste0(in_dir, "input_files/")
-CNV_dir <- paste0(results_dir, "seurat_objects/", sample_name, "/Rdata/")
+input_dir <- paste0(in_path, "input_files/")
 
 print(paste0("In directory = ", in_dir))
 print(paste0("Reference directory = ", ref_dir))
@@ -430,16 +412,61 @@ nGene_annotation@name <- "nGene"
 
 
 ################################################################################
-### 4. Create simulated CNV annotation  ###
+### 4. Format CNV indices  ###
 ################################################################################
 
 # create simulated CNV annotation:
 simulated_CNV_plot_data <- readRDS(paste0(sim_dir, 
   "simulated_CNV_plot_data.Rdata"))
-log_adjusted_fold_change_df <- 
-  simulated_CNV_plot_data$log_adjusted_fold_change_df
+log_modified_fold_change_df <- 
+  simulated_CNV_plot_data$log_modified_fold_change_df
 CNV_indices <- simulated_CNV_plot_data$CNV_indices
-colnames(CNV_indices) <- gsub("chromosome", "chr", colnames(CNV_indices))
+
+# if CNV-neutral regions not present, fill in:
+if ( !(1.0 %in% CNV_indices$multiplier) ) {
+
+  print("Filling in CNV-neutral regions...")
+
+  # order CNV_indices and fill in areas of neutral CNV:
+  CNV_indices <- CNV_indices[order(CNV_indices$start),]
+  CNV_gr <- GRanges(
+    seqnames = Rle("genome"),
+    ranges = IRanges(start = CNV_indices$start, end = CNV_indices$end),
+    strand = Rle("*"),
+    multiplier = CNV_indices$multiplier,
+    log_median_modified_FC = CNV_indices$log_median_modified_FC
+  )
+  CNV_gaps <- gaps(CNV_gr)
+  CNV_gaps$multiplier <- 1
+  CNV_gaps$log_median_modified_FC <- 0
+  CNV_gr_full <- c(CNV_gr, CNV_gaps)
+  CNV_gr_full <- CNV_gr_full[order(end(ranges(CNV_gr_full)))]
+  
+  # add last CNV neutral region:
+  CNV_gr_full <- c(
+    CNV_gr_full,
+    GRanges(
+      seqnames = Rle("genome"),
+      ranges = IRanges(
+        start = end(ranges(CNV_gr_full))[length(CNV_gr_full)]+1, 
+        end = nrow(log_modified_fold_change_df)
+      ),
+      strand = Rle("*"),
+      multiplier = 1,
+      log_median_modified_FC = 0
+    )
+  )
+  
+  # convert back to df:
+  CNV_indices <- data.frame(
+    start = start(ranges(CNV_gr_full)),
+    end = end(ranges(CNV_gr_full)),
+    multiplier = CNV_gr_full$multiplier,
+    log_median_modified_FC = CNV_gr_full$log_median_modified_FC
+  )
+
+}
+
 zero_count_value <- simulated_CNV_plot_data$zero_count_value
 
 # record original CNV lengths:
@@ -447,16 +474,13 @@ CNVs_only <- CNV_indices[CNV_indices$multiplier != 1,]
 orig_CNV_lengths <- CNVs_only$end - CNVs_only$start
 
 # only keep genes present in epithelial_heatmap:
-log_adjusted_fold_change_df <- log_adjusted_fold_change_df[
-    colnames(epithelial_heatmap),
-]
-log_adjusted_fold_change_df <- log_adjusted_fold_change_df[
+log_modified_fold_change_df <- log_modified_fold_change_df[
     colnames(epithelial_heatmap),
 ]
 
 # load all gene annotation:
-gene_annotation <- readRDS(paste0(sim_dir, 
-  "/2b.gene_annotation.Rdata"))
+gene_annotation <- readRDS(paste0(general_sim_dir, 
+  "/1c.gene_annotation.Rdata"))
 
 colnames(gene_annotation) <- c("gene", "chromosome", "start", "end")
 # number genes:
@@ -477,6 +501,7 @@ for (n in 1:nrow(CNV_indices)) {
     gene_annotation$number >= CNV_indices$start[n] & 
     gene_annotation$number <= CNV_indices$end[n]
   ])
+  print(paste0("No. genes = ", no_genes))
 
   if (no_genes > 0) {
 
@@ -484,10 +509,10 @@ for (n in 1:nrow(CNV_indices)) {
   	  CNV_indices$start[n] <- 1
     } else {
   	  CNV_indices$start[n] <- CNV_indices$end[n-1] + 1
-      print(CNV_indices$start[n])
+      print(paste0("Start of segment is ", CNV_indices$start[n]))
     }
     CNV_indices$end[n] <- CNV_indices$start[n] + (no_genes-1)
-    print(CNV_indices$end[n])
+    print(paste0("End of segment is ", CNV_indices$end[n]))
 
   } else {
 
@@ -497,10 +522,10 @@ for (n in 1:nrow(CNV_indices)) {
       CNV_indices$start[n] <- 1
     } else {
       CNV_indices$start[n] <- CNV_indices$end[n-1]
-      print(CNV_indices$start[n])
+      print(paste0("Start of segment is ", CNV_indices$start[n]))
     }
     CNV_indices$end[n] <- CNV_indices$start[n]
-    print(CNV_indices$end[n])
+    print(paste0("End of segment is ", CNV_indices$end[n]))
 
   }
 
@@ -512,15 +537,7 @@ CNV_indices$length <- CNV_indices$end - CNV_indices$start
 CNV_indices$midpoints <- CNV_indices$start + floor(CNV_indices$length/2)
 CNV_indices$number <- seq_along(CNV_indices$start)
 CNV_indices$ticks <- "exclude"
-
-if (downsample) {
-  CNV_indices$ticks[CNV_indices$multiplier != 1] <- "include"
-} else {
-  CNV_indices$ticks[
-    c(9, 11, 13, 15, 17, 19, 21, 24, 26, 28, 30, 32, 34, 36, 38, 41, 43, 
-    45, 47, 49, 51, 53, 55, 57, 59)
-  ] <- "include"
-}
+CNV_indices$ticks[CNV_indices$multiplier != 1] <- "include"
 
 # fetch chromosome boundary co-ordinates:
 if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
@@ -530,11 +547,46 @@ if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
   chr_data <- readRDS(paste0(Robject_dir, "chromosome_data.Rdata"))
 }
 
-p <- ggplot(log_adjusted_fold_change_df, 
+# if start and end chromosome information not present for CNVs, fill in:
+CNV_indices$start_chr <- "chr1"
+CNV_indices$end_chr <- "chr1"
+for (k in 1:length(chr_data$ends)) {
+  if (k==1) {
+
+    CNV_indices$start_chr[
+      CNV_indices$start <= chr_data$ends[k]
+    ] <- names(chr_data$ends)[k]
+
+    CNV_indices$end_chr[
+      CNV_indices$end <= chr_data$ends[k]
+    ] <- names(chr_data$ends)[k]
+
+  } else {
+
+    CNV_indices$start_chr[
+      CNV_indices$start <= chr_data$ends[k] & 
+      CNV_indices$start > chr_data$ends[k-1]
+    ] <- names(chr_data$ends)[k]
+
+    CNV_indices$end_chr[
+      CNV_indices$end <= unlist(chr_data$ends[k]) & 
+      CNV_indices$end > unlist(chr_data$ends[k-1])
+    ] <- names(chr_data$ends)[k]
+
+  }
+}
+
+
+
+################################################################################
+### 5. Create simulated CNV annotation  ###
+################################################################################
+
+p <- ggplot(log_modified_fold_change_df, 
   aes(x=number, y=count))
 p <- p + scale_x_continuous(
   limits = c(
-    0,length(log_adjusted_fold_change_df$count)
+    0,length(log_modified_fold_change_df$count)
   ), 
   expand = c(0, 0),
   breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
@@ -553,19 +605,18 @@ for (r in 1:nrow(CNV_indices)) {
   p <- p + geom_segment(
     x=CNV_indices$start[r], 
     xend=CNV_indices$end[r], 
-    y=CNV_indices$segment_log_median_FC[r], 
-    yend=CNV_indices$segment_log_median_FC[r], 
+    y=CNV_indices$log_median_modified_FC[r], 
+    yend=CNV_indices$log_median_modified_FC[r], 
     size=1, color="#37841f"
   )
 
   # create left vertical line:
-
   if (r != 1) {
     p <- p + geom_segment(
       x=CNV_indices$start[r], 
       xend=CNV_indices$start[r], 
-      y=CNV_indices$segment_log_median_FC[r-1], 
-      yend=CNV_indices$segment_log_median_FC[r], 
+      y=CNV_indices$log_median_modified_FC[r-1], 
+      yend=CNV_indices$log_median_modified_FC[r], 
       size=1, color="#37841f"
     )
   }
@@ -582,9 +633,9 @@ p <- p + geom_segment(
 # remove axis labels:
 p <- p + theme(
   axis.title.x=element_blank(),
-    axis.title.y=element_blank(),
-    axis.text.y=element_blank(),
-    axis.ticks.y=element_blank()
+  axis.title.y=element_blank(),
+  axis.text.y=element_blank(),
+  axis.ticks.y=element_blank()
 )
 grid_sim_plot <- ggplotGrob(p)
 dev.off()
@@ -599,7 +650,7 @@ if (!file.exists(paste0(plot_dir, "sim_CNV_plot.pdf"))) {
 
 
 ################################################################################
-### 5. Determine neutral regions  ###
+### 6. Determine neutral regions  ###
 ################################################################################
 
 # record gain or loss in each genomic segment:
@@ -669,7 +720,7 @@ if (!file.exists(paste0(plot_dir, "filtered_neutral_density_plot.png"))) {
 
 
 ################################################################################
-### 6. Determine true positives and false negatives  ###
+### 7. Determine true positives and false negatives  ###
 ################################################################################
 
 if (!file.exists(
@@ -929,7 +980,7 @@ accuracy_annotation@name <- "accuracy"
 ### 9. Calculate correlation with average of non-downsampled heatmap  ###
 ################################################################################
 
-if (downsample & downsample_proportion != "1.0") {
+if (downsample_proportion != "no") {
 
   # load InferCNV output:
   print("Loading non-downsampled InferCNV heatmap...")
@@ -975,7 +1026,7 @@ if (downsample & downsample_proportion != "1.0") {
     data.frame(
       type = c("mean_UMI", "no_genes", "pearson_R_squared", "pearson_p_val"),
       number = c(
-      	round(mean(epithelial_metadata$nUMI), 0),
+        round(mean(epithelial_metadata$nUMI), 0),
         length(downsampled_mean_CNV), 
         cor_result$R_squared,
         cor_result$p_val

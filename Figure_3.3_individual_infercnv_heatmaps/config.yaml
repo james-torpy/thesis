@@ -14,7 +14,7 @@ samples:
 #  CID4471: raw_files/seurat_object/CID4471/03_seurat_object_processed.Rdata
 #  CID4495: raw_files/seurat_object/CID4495/03_seurat_object_processed.Rdata
 #  CID4513: raw_files/seurat_object/CID4513/03_seurat_object_processed.Rdata
-  CID4515: raw_files/seurat_object/CID4515/03_seurat_object_processed.Rdata
+#  CID4515: raw_files/seurat_object/CID4515/03_seurat_object_processed.Rdata
 #  CID4523: raw_files/seurat_object/CID4523/03_seurat_object_processed.Rdata
 #  CID4535: raw_files/seurat_object/CID4535/03_seurat_object_processed.Rdata
 include_t_cells: TRUE

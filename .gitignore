@@ -10,3 +10,5 @@ raw_files/
 refs/
 results/
 *snakemake*
+*tar.gz
+*md5*
