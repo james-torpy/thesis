@@ -548,33 +548,36 @@ if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
 }
 
 # if start and end chromosome information not present for CNVs, fill in:
-CNV_indices$start_chr <- "chr1"
-CNV_indices$end_chr <- "chr1"
-for (k in 1:length(chr_data$ends)) {
-  if (k==1) {
-
-    CNV_indices$start_chr[
-      CNV_indices$start <= chr_data$ends[k]
-    ] <- names(chr_data$ends)[k]
-
-    CNV_indices$end_chr[
-      CNV_indices$end <= chr_data$ends[k]
-    ] <- names(chr_data$ends)[k]
-
-  } else {
-
-    CNV_indices$start_chr[
-      CNV_indices$start <= chr_data$ends[k] & 
-      CNV_indices$start > chr_data$ends[k-1]
-    ] <- names(chr_data$ends)[k]
-
-    CNV_indices$end_chr[
-      CNV_indices$end <= unlist(chr_data$ends[k]) & 
-      CNV_indices$end > unlist(chr_data$ends[k-1])
-    ] <- names(chr_data$ends)[k]
-
+if ( !("start_chr" %in% colnames(CNV_indices) ) {
+  CNV_indices$start_chr <- "chr1"
+  CNV_indices$end_chr <- "chr1"
+  for (k in 1:length(chr_data$ends)) {
+    if (k==1) {
+  
+      CNV_indices$start_chr[
+        CNV_indices$start <= chr_data$ends[k]
+      ] <- names(chr_data$ends)[k]
+  
+      CNV_indices$end_chr[
+        CNV_indices$end <= chr_data$ends[k]
+      ] <- names(chr_data$ends)[k]
+  
+    } else {
+  
+      CNV_indices$start_chr[
+        CNV_indices$start <= chr_data$ends[k] & 
+        CNV_indices$start > chr_data$ends[k-1]
+      ] <- names(chr_data$ends)[k]
+  
+      CNV_indices$end_chr[
+        CNV_indices$end <= unlist(chr_data$ends[k]) & 
+        CNV_indices$end > unlist(chr_data$ends[k-1])
+      ] <- names(chr_data$ends)[k]
+  
+    }
   }
 }
+
 
 
 

@@ -11,16 +11,18 @@ include_t_cells <- as.logical(args[4])
 analysis_mode <- args[5]
 downsample <- as.logical(args[6])
 downsample_proportion <- as.character(args[7])
-simulation_number <- as.character(args[8])
+CNV_type <- args[8]
+simulation_number <- as.character(args[9])
 
-sample_name <- "CID4520N_cancer_sim"
-numcores <- 10
-subset_data <- FALSE
-include_t_cells <- TRUE
-analysis_mode <- "samples"
-downsample <- TRUE
-downsample_proportion <- "no"
-simulation_number <- "1"
+#sample_name <- "CID4520N_cancer_sim"
+#numcores <- 10
+#subset_data <- TRUE
+#include_t_cells <- TRUE
+#analysis_mode <- "samples"
+#downsample <- TRUE
+#downsample_proportion <- "0.5"
+#CNV_type <- "both"
+#simulation_number <- "1"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -28,7 +30,9 @@ print(paste0("Sample name = ", sample_name))
 print(paste0("Subset data? ", as.character(subset_data)))
 print(paste0("Number cores = ", numcores))
 print(paste0("Include T cells? ", as.character(include_t_cells)))
+print(paste0("Analysis mode = ", analysis_mode))
 print(paste0("Downsample proportion = ", downsample_proportion))
+print(paste0("CNV type = ", CNV_type))
 print(paste0("Simulation number = ", simulation_number))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
@@ -44,28 +48,46 @@ results_dir <- seurat_path <- paste0(project_dir, "results/")
 if (downsample) {
   if (include_t_cells) {
     out_path <- paste0(results_dir, "infercnv/t_cells_included/")
-    out_dir <- paste0(out_path, sample_name, "/", simulation_number, 
-      "/", downsample_proportion, "_downsampling/", analysis_mode, "_mode/")
+    out_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
+      simulation_number, "/", downsample_proportion, "_downsampling/", 
+      analysis_mode, "_mode/")
   } else {
     out_path <- paste0(results_dir, "infercnv/t_cells_excluded/")
-    out_dir <- paste0(out_path, sample_name, "/", simulation_number, 
-      "/", downsample_proportion, "_downsampling/", analysis_mode, "_mode/")
+    out_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
+      simulation_number, "/", downsample_proportion, "_downsampling/", 
+      analysis_mode, "_mode/")
   }
-  input_dir <- paste0(out_path, sample_name, "/", simulation_number, 
-      "/", downsample_proportion, "_downsampling/input_files/")
+  input_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
+    simulation_number, "/", downsample_proportion, "_downsampling/input_files/")
 } else {
   if (include_t_cells) {
     out_path <- paste0(results_dir, "infercnv/t_cells_included/")
-    out_dir <- paste0(out_path, sample_name, "/", simulation_number, "_mode/",
-      analysis_mode, "/")
+    out_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
+      simulation_number, "_mode/", analysis_mode, "/")
   } else {
     out_path <- paste0(results_dir, "infercnv/t_cells_excluded/")
-    out_dir <- paste0(out_path, sample_name, "/", simulation_number, "_mode/",
-      analysis_mode, "/")
+    out_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
+      simulation_number, "_mode/", analysis_mode, "/")
   }
-  input_dir <- paste0(sample_name, "/", simulation_number, 
-      "/", downsample_proportion, "_downsampling/input_files/")
+  input_dir <- paste0(sample_name, "/", CNV_type, "/", simulation_number, 
+    "/", downsample_proportion, "_downsampling/input_files/")
 }
+
+if (subset_data) {
+  input_dir <- gsub(
+    paste0(sample_name, "/.*"), 
+    paste0(sample_name, "/subset/", CNV_type, "/", simulation_number, "/", 
+      downsample_proportion, "_downsampling/input_files/"),
+    input_dir
+  )
+  out_dir <- gsub(
+    paste0(sample_name, "/.*"), 
+    paste0(sample_name, "/subset/", CNV_type, "/", simulation_number, "/", 
+      downsample_proportion, "_downsampling/", analysis_mode, "_mode/"),
+    out_dir
+  )
+}
+
 system(paste0("mkdir -p ", out_dir))
 
 setwd(out_dir)
@@ -75,7 +97,8 @@ print(paste0("Reference directory = ", ref_dir))
 print(paste0("Output directory = ", out_dir))
 
 print(paste0("Running InferCNV identify normals pipeline on ", sample_name ,
-  " number ", simulation_number, " downsampled to ", downsample_proportion))
+  " number ", simulation_number, " with ", CNV_type, " CNVs, downsampled to ", 
+  downsample_proportion))
 
 
 ################################################################################
