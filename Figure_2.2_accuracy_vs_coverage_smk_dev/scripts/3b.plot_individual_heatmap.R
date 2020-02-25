@@ -1,11 +1,9 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
-### fix F1 scores for no downsampling ###
-
 RStudio <- FALSE
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_accuracy_vs_coverage"
+subproject_name <- "Figure_2.2_accuracy_vs_coverage_smk_dev"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
 include_t_cells <- as.logical(args[2])
@@ -833,10 +831,8 @@ if (!file.exists(
       accuracy_metrics["true_positive",] + accuracy_metrics["false_positive",]
     ), 3
   )
-  CNV_F1 <- round(
-    2*(
-      (CNV_precision*CNV_sensitivity) / (CNV_precision+CNV_sensitivity)
-    ), 3
+  CNV_F1 <- 2*(
+    (CNV_precision*CNV_sensitivity) / (CNV_precision+CNV_sensitivity)
   )
 
   print(paste0("Sensitivity is ", CNV_sensitivity))

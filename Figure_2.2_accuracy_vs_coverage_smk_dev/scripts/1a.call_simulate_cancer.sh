@@ -5,7 +5,7 @@ ncores=8
 project_name="thesis"
 subproject_name="Figure_2.2_accuracy_vs_coverage"
 sample_name=CID4520N
-subset_data="FALSE"
+subset_data="TRUE"
 nUMI_threshold="25000"
 nGene_threshold="5000"
 CNV_type="both"
@@ -17,7 +17,7 @@ downsample_proportions="0.9_0.8_0.7_0.6_0.5_0.4_0.3_0.2_0.15_0.1_0.05"
 #number_of_simulations=1
 #downsample_proportions="0.5"
 number_of_simulations=1
-start_numbering_from=16
+start_numbering_from=30
 end_numbering_at=$(($start_numbering_from+$number_of_simulations-1))
 noise_cell_no="5000"
 

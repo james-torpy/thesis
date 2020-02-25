@@ -1,0 +1,137 @@
+# snakemake --reason --cores 100 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 18
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+# define variables:
+#SAMPLES = list(range(1, 31, 1))
+SAMPLES = list([1])
+SAMPLES = list(map(str, SAMPLES))
+PROPORTIONS = ["no"]
+#PROPORTIONS = ["0.9", "0.8", "0.7", "0.6", "0.5", "0.4", "0.3", "0.2", "0.15", "0.1", "0.05", "no"]
+
+# simulation parameters:
+sample_name="CID4520N"
+subset_data="FALSE"
+nUMI_threshold="25000"
+nGene_threshold="5000"
+CNV_type="both"
+CNV_no_range="10_50"
+CNV_lengths="20_50_75_100_150_150_200_200_250_250_300_300_350_400_450_500_550_600_650_700_750_800"
+CNV_multipliers="3_2_1.5_0.5_0"
+downsample="TRUE"
+downsample_proportions="0.9_0.8_0.7_0.6_0.5_0.4_0.3_0.2_0.15_0.1_0.05"
+
+noise_cell_no="5000"
+
+# infercnv parameters:
+sim_name = "CID4520N_cancer_sim"
+ncores = "10"
+include_t_cells="TRUE"
+analysis_mode="samples"
+downsample="TRUE"
+
+# individual plot parameters:
+neutral_signal_range = "0.97_1.03"
+
+
+rule all:
+    input:
+        expand(
+            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{sample}/{proportion}_downsampling/samples_mode/plots/" + 
+            "infercnv_plot_with_accuracy_metrics.png",
+            sample=SAMPLES, proportion=PROPORTIONS
+        )
+
+######
+
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{sample}/no_downsampling/input_files/input_matrix.txt",
+#            sample=SAMPLES, proportion=PROPORTIONS
+#        )
+
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{sample}/{proportion}_downsampling/samples_mode/infercnv.12_denoised.png",
+#            sample=SAMPLES, proportion=PROPORTIONS
+#        )
+#######
+
+rule simulate_cancer:
+    input:
+        "raw_files/seurat_objects/CID4520N/03_seurat_object_processed.Rdata"
+    output:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+        "both/{sample}/no_downsampling/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+        "both/{sample}/no_downsampling/input_files/metadata.txt"
+    threads: 10
+    shell:
+            "module load briglo/R/3.6.0; "
+            "mkdir -p logs/simulation/; " +
+            "cd logs/simulation/; " + 
+#            "echo {output.matrix} > foo.txt; " + 
+#            "touch ../../{output.matrix}; " + 
+#            "touch ../../{output.metadata}; " + 
+#            "echo '" + R_dir + "/R CMD BATCH  --no-save --args " + sample_name + " " + 
+            R_dir + "/R CMD BATCH  --no-save '--args " + sample_name + " " + 
+            subset_data + " " + nUMI_threshold + " " + nGene_threshold + " " + CNV_type + " " + 
+            CNV_no_range + " " + CNV_lengths + " " + CNV_multipliers + " " + downsample + " " + 
+            downsample_proportions + " {wildcards.sample} " + noise_cell_no +
+            "' ../../scripts/1b.simulate_cancer.R" 
+#            "' > ../../results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{wildcards.sample}/no_downsampling/input_files/command_eg.txt"
+
+rule infercnv:
+    input:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{sample}/{proportion}_downsampling/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{sample}/{proportion}_downsampling/input_files/metadata.txt"
+    output:
+        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{sample}/{proportion}_downsampling/samples_mode/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+            "module load briglo/R/3.6.0; "
+            "mkdir -p logs/{wildcards.sample}/{wildcards.proportion}_downsampling/; " +
+            "cd logs/{wildcards.sample}/{wildcards.proportion}_downsampling/; " + 
+#            "touch check.txt"
+#            "touch ../../../../{output}; " + 
+            R_dir + "/R CMD BATCH  --no-save '--args " + sim_name + " " + ncores + " " + 
+            subset_data + " " + include_t_cells + " " + analysis_mode + " " + downsample +
+            " {wildcards.proportion} " + CNV_type + " {wildcards.sample}" + 
+            "' ../../../../scripts/2b.simulated_cancer_infercnv.R"
+#            "echo '" + R_dir + "/R CMD BATCH  --no-save --args " + sim_name + " " + 
+#            R_dir + "/R CMD BATCH  --no-save '--args " + sim_name + 
+             
+#            " ../../../../scripts/2b.simulated_cancer_infercnv.R"
+#            "' > ../../../../results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{wildcards.sample}/{wildcards.proportion}_downsampling/samples_mode/command_eg.txt"
+
+rule individual_plot:
+    input:
+        infercnv_output = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{sample}/{proportion}_downsampling/samples_mode/infercnv.12_denoised.png",
+        nondownsampled_output = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{sample}/no_downsampling/samples_mode/infercnv.12_denoised.png"
+
+    output:
+        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{sample}/{proportion}_downsampling/samples_mode/plots/" + 
+            "infercnv_plot_with_accuracy_metrics.png"
+    threads: 6
+
+    shell:
+            "cd logs/{wildcards.sample}/{wildcards.proportion}_downsampling/; " +
+            R_dir + "/R CMD BATCH  --no-save '--args " + sim_name + " " + include_t_cells + 
+            " " + " {wildcards.sample} " + " {wildcards.proportion} " + " " + analysis_mode + " " + 
+            neutral_signal_range + " " + nUMI_threshold + " " + nGene_threshold + " " + 
+            CNV_type + "' ../../../../scripts/3b.plot_individual_heatmap.R"
+

@@ -3,7 +3,7 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_accuracy_vs_coverage"
+subproject_name <- "Figure_2.2_accuracy_vs_coverage_smk_dev"
 sample_name <- args[1]
 numcores <- as.numeric(args[2])
 subset_data <- as.logical(args[3])

@@ -9,7 +9,7 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_accuracy_vs_coverage"
+subproject_name <- "Figure_2.2_accuracy_vs_coverage_smk_dev"
 sample_name <- args[1]
 print(paste0("sample name = ", sample_name))
 subset_data <- as.logical(args[2])
@@ -117,7 +117,7 @@ print(paste0("Noise input cell number = ", noise_cell_no))
 #    )
 #  )
 #)
-#simulation_number <- 16
+#simulation_number <- 1
 #noise_cell_no <- 5000
 
 RStudio <- FALSE
@@ -563,8 +563,7 @@ genome_length <- nrow(epithelial_df)
 
 if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rdata")) | 
   !file.exists(paste0(Robject_dir, "/2b.pre_noise_log_modified_fold_change_df.Rdata")) |
-  !file.exists(paste0(Robject_dir, "/2c.CNV_record.Rdata")),
-  !file.exists(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata")) {
+  !file.exists(paste0(Robject_dir, "/2c.CNV_record.Rdata")) ) {
 
   print("Adding CNVs to dataset...")
   writeLines("\n")
@@ -903,7 +902,6 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
   log_modified_fold_change_df <- readRDS(paste0(Robject_dir, 
   	"/2b.pre_noise_log_modified_fold_change_df.Rdata"))
   final_CNV_record <- readRDS(paste0(Robject_dir, "/2c.CNV_record.Rdata"))
-  simulated_CNV_plot_data <- readRDS(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata"))
 }
 
 #save.image(paste0(Robject_dir, "temp2.Rdata"))

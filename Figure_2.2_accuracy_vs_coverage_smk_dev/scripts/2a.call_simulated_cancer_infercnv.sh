@@ -5,7 +5,7 @@ subproject_name="Figure_2.2_accuracy_vs_coverage"
 
 sample_name=CID4520N_cancer_sim
 ncores=10
-subset_data="FALSE"
+subset_data="TRUE"
 include_t_cells="TRUE"
 analysis_mode="samples"
 downsample="TRUE"
