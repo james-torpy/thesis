@@ -117,7 +117,7 @@ print(paste0("Noise input cell number = ", noise_cell_no))
 #    )
 #  )
 #)
-#simulation_number <- 16
+#simulation_number <- 1
 #noise_cell_no <- 5000
 
 RStudio <- FALSE
@@ -207,6 +207,7 @@ print(paste0("Plot directory = ", plot_dir))
 print(paste0("Table directory = ", table_dir))
 print(paste0("Original directory = ", original_dir))
 
+set.seed(399)
 CNV_no <- sample(seq(CNV_no_range[1], CNV_no_range[2]), 1)
 
 print(paste0("Generating simulated cancer data set from ", sample_name))
@@ -563,8 +564,8 @@ genome_length <- nrow(epithelial_df)
 
 if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rdata")) | 
   !file.exists(paste0(Robject_dir, "/2b.pre_noise_log_modified_fold_change_df.Rdata")) |
-  !file.exists(paste0(Robject_dir, "/2c.CNV_record.Rdata")),
-  !file.exists(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata")) {
+  !file.exists(paste0(Robject_dir, "/2c.CNV_record.Rdata")) | 
+  !file.exists(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata")) ) {
 
   print("Adding CNVs to dataset...")
   writeLines("\n")
@@ -588,9 +589,11 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
       repeat {
         # choose start position at random:
         gene_no <- nrow(epithelial_df)
+        set.seed(850)
         start_position <- sample(1:gene_no, 1)
       
         # choose CNV length at random:
+        set.seed(107)
         CNV_length <- CNV_lengths[sample(1:length(CNV_lengths), 1)]
         end_position <- start_position+CNV_length
         CNV_region <- start_position:end_position
@@ -629,6 +632,7 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
       }
     
       # choose CNV multiplier at random:
+      set.seed(598)
       CNV_multiplier <- CNV_multipliers[sample(1:length(CNV_multipliers), 1)]
   
       # record region so no future CNVs overlap:
@@ -799,111 +803,111 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
     paste0(Robject_dir, "simulated_CNV_plot_data.Rdata")
   )
 
-
-  ################################################################################
-  ### 6. Create modified counts and line CNV plots ###
-  ################################################################################
-  
-  # plot median fold change from original median for modified data:
-  if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"))) {
-    p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
-    p <- p + scale_x_continuous(
-      breaks = unlist(chromosome_midpoints),
-      labels = paste0("chr", 1:length(chromosome_midpoints)),
-      limits = c(0,length(log_modified_fold_change_df$count)), 
-      expand = c(0, 0)
-    )
-    p <- p + scale_y_continuous(
-      breaks = c(-4, -3, -2, -1, 0, 1),
-      labels = c("-4", "-3", "-2", "-1", "0", "1"),
-      limits = c(zero_count_value, 1)
-    )
- 
-    for (end in chromosome_ends) {
-      p <- p + geom_vline(xintercept=end)
-    }
-    for (r in 1:nrow(final_CNV_record)) {
-      print(r)
-      # create horizontal line:
-      p <- p + geom_segment(
-        x=final_CNV_record$start[r], 
-        xend=final_CNV_record$end[r], 
-        y=final_CNV_record$log_median_modified_FC[r], 
-        yend=final_CNV_record$log_median_modified_FC[r], 
-        size=1, color="#37841f"
-      )
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=final_CNV_record$start[r], 
-          xend=final_CNV_record$start[r], 
-          y=final_CNV_record$log_median_modified_FC[r-1], 
-          yend=final_CNV_record$log_median_modified_FC[r], 
-          size=1, color="#37841f"
-        )
-      }
-    }
-    pdf(paste0(plot_dir, 
-      "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"), width = 20)
-      print(p)
-    dev.off()
-    
-  }
-  
-  # plot counts:
-  if (!file.exists(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"))) {
-    p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
-    p <- p + geom_point(colour = "#E8D172")
-    p <- p + xlab("Genomic location")
-    p <- p + scale_x_continuous(
-      breaks = unlist(chromosome_midpoints),
-      labels = paste0("chr", 1:length(chromosome_midpoints)),
-      limits = c(0,nrow(log_modified_fold_change_df)), 
-      expand = c(0, 0)
-    )
-    p <- p + ylab("Log10 fold change")
-    p <- p + scale_y_continuous(
-      breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-      labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-      limits = c(min(log_modified_fold_change_df$count), max(log_modified_fold_change_df$count))
-    )
-
-    for (end in chromosome_ends) {
-      p <- p + geom_vline(xintercept=end)
-    }
-    for (r in 1:nrow(final_CNV_record)) {
-      print(r)
-      # create horizontal line:
-      p <- p + geom_segment(
-        x=final_CNV_record$start[r], 
-        xend=final_CNV_record$end[r], 
-        y=final_CNV_record$log_median_modified_FC[r], 
-        yend=final_CNV_record$log_median_modified_FC[r], 
-        size=1, color="red"
-      )
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=final_CNV_record$start[r], 
-          xend=final_CNV_record$start[r], 
-          y=final_CNV_record$log_median_modified_FC[r-1], 
-          yend=final_CNV_record$log_median_modified_FC[r], 
-          size=1, color="red"
-        )
-      }
-    }
-    pdf(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"), width = 20)
-      print(p)
-    dev.off()
-  }
-
 } else {
+
   modified_df <- readRDS(paste0(Robject_dir, 
     "/2a.pre_noise_simulated_epithelial_df.Rdata"))
   log_modified_fold_change_df <- readRDS(paste0(Robject_dir, 
-  	"/2b.pre_noise_log_modified_fold_change_df.Rdata"))
+    "/2b.pre_noise_log_modified_fold_change_df.Rdata"))
   final_CNV_record <- readRDS(paste0(Robject_dir, "/2c.CNV_record.Rdata"))
   simulated_CNV_plot_data <- readRDS(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata"))
+
+}
+
+
+################################################################################
+### 6. Create modified counts and line CNV plots ###
+################################################################################
+
+# plot median fold change from original median for modified data:
+if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"))) {
+  p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
+  p <- p + scale_x_continuous(
+    breaks = unlist(chromosome_midpoints),
+    labels = paste0("chr", 1:length(chromosome_midpoints)),
+    limits = c(0,length(log_modified_fold_change_df$count)), 
+    expand = c(0, 0)
+  )
+  p <- p + scale_y_continuous(
+    breaks = c(-4, -3, -2, -1, 0, 1),
+    labels = c("-4", "-3", "-2", "-1", "0", "1"),
+    limits = c(zero_count_value, 1)
+  )
+  for (end in chromosome_ends) {
+    p <- p + geom_vline(xintercept=end)
+  }
+  for (r in 1:nrow(final_CNV_record)) {
+    print(r)
+    # create horizontal line:
+    p <- p + geom_segment(
+      x=final_CNV_record$start[r], 
+      xend=final_CNV_record$end[r], 
+      y=final_CNV_record$log_median_modified_FC[r], 
+      yend=final_CNV_record$log_median_modified_FC[r], 
+      size=1, color="#37841f"
+    )
+    # create left vertical line:
+    if (r != 1) {
+      p <- p + geom_segment(
+        x=final_CNV_record$start[r], 
+        xend=final_CNV_record$start[r], 
+        y=final_CNV_record$log_median_modified_FC[r-1], 
+        yend=final_CNV_record$log_median_modified_FC[r], 
+        size=1, color="#37841f"
+      )
+    }
+  }
+  pdf(paste0(plot_dir, 
+    "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"), width = 20)
+    print(p)
+  dev.off()
+  
+}
+
+# plot counts:
+if (!file.exists(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"))) {
+  p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
+  p <- p + geom_point(colour = "#E8D172")
+  p <- p + xlab("Genomic location")
+  p <- p + scale_x_continuous(
+    breaks = unlist(chromosome_midpoints),
+    labels = paste0("chr", 1:length(chromosome_midpoints)),
+    limits = c(0,nrow(log_modified_fold_change_df)), 
+    expand = c(0, 0)
+  )
+  p <- p + ylab("Log10 fold change")
+  p <- p + scale_y_continuous(
+    breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+    labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
+    limits = c(min(log_modified_fold_change_df$count), max(log_modified_fold_change_df$count))
+  )
+  for (end in chromosome_ends) {
+    p <- p + geom_vline(xintercept=end)
+  }
+  for (r in 1:nrow(final_CNV_record)) {
+    print(r)
+    # create horizontal line:
+    p <- p + geom_segment(
+      x=final_CNV_record$start[r], 
+      xend=final_CNV_record$end[r], 
+      y=final_CNV_record$log_median_modified_FC[r], 
+      yend=final_CNV_record$log_median_modified_FC[r], 
+      size=1, color="red"
+    )
+    # create left vertical line:
+    if (r != 1) {
+      p <- p + geom_segment(
+        x=final_CNV_record$start[r], 
+        xend=final_CNV_record$start[r], 
+        y=final_CNV_record$log_median_modified_FC[r-1], 
+        yend=final_CNV_record$log_median_modified_FC[r], 
+        size=1, color="red"
+      )
+    }
+  }
+  pdf(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"), width = 20)
+    print(p)
+  dev.off()
 }
 
 #save.image(paste0(Robject_dir, "temp2.Rdata"))
@@ -984,7 +988,7 @@ print(paste0(
 
 
 ###################################################################################
-### 8. Simulate noise dataset from noise counts and add to simulated cancer df ###
+### 8. Simulate noise dataset from noise counts ###
 ###################################################################################
 
 if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
@@ -1216,6 +1220,11 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
 #save.image(paste0(Robject_dir, "temp3.Rdata"))
 #load(paste0(Robject_dir, "temp3.Rdata"))
 
+
+###################################################################################
+### 9. Add noise to simulated counts ###
+###################################################################################
+
 # ensure metadata has same cells as modified_df and label stromal cells:
 epithelial_metadata <- infercnv_metadata$metadata[
   grep("pithelial", infercnv_metadata$metadata$cell_type),
@@ -1298,6 +1307,11 @@ for (i in 1:nrow(final_CNV_record)) {
     final_CNV_record$start[i]:final_CNV_record$end[i]
   ] <- log_modified_fold_change
 }
+
+
+###################################################################################
+### 9. Plot post-noise gene expression profiles ###
+###################################################################################
 
 # plot median fold change from original median for modified data:
 if (!file.exists(paste0(plot_dir, "3a.log_modified_fold_change_from_median_with_noise_line_only.pdf"))) {
@@ -1401,50 +1415,95 @@ if (!file.exists(paste0(no_downsample_dir, "input_matrix.txt"))) {
 
 
 ################################################################################
-### 9. Downsample new counts and save ###
+### 10. Downsample new counts and save ###
 ################################################################################
 
 if (downsample) {
+
+  # downsample by UMI:
   library(DropletUtils, lib.loc = lib_loc)
 
   print("Total counts before downsampling:")
   print(sum(as.vector(new_counts)))
 
+  seeds <- c(165, 31, 455, 301, 417, 788, 629, 872, 586, 907, 97, 919)
+  m=1
   for (proportion in downsample_proportions) {
 
     # downsample simulated dataset with noise added:
-    print(paste0("Downsampling counts by ", proportion, "..."))
-    downsampled_counts_with_noise <- downsampleMatrix(
+    print(paste0("Downsampling counts to ", proportion, " total UMIs..."))
+
+    set.seed(seeds[m])
+    downsampled_counts <- downsampleMatrix(
       nondownsampled_counts_with_noise, proportion, bycol=T
     )
     print("Total counts after downsampling:")
-    print(sum(as.vector(downsampled_counts_with_noise)))
+    print(sum(as.vector(downsampled_counts)))
 
     downsample_dir <- paste0(out_dir, proportion, 
       "_downsampling/input_files/")
     system(paste0("mkdir -p ", downsample_dir))
     write.table(
-      downsampled_counts_with_noise, paste0(downsample_dir, "input_matrix.txt"), 
+      downsampled_counts, paste0(downsample_dir, "input_matrix.txt"), 
       quote=F, sep="\t", col.names=T, row.names=T)
     write.table(metadata_df, paste0(downsample_dir, "metadata.txt"), sep = "\t",
       quote = F, col.names = F, row.names = F)
+
+    m <<- m+1
   
   }
+
+  # downsample by genes:
+  seeds <- c(504, 925, 252, 754, 45, 447, 873, 920, 68, 573, 562, 298)
+  n=1
+  for (proportion in downsample_proportions) {
+
+    original_gene_no <- nrow(nondownsampled_counts_with_noise)
+    downsampled_gene_no <- original_gene_no*proportion
+    to_remove_no <- original_gene_no - downsampled_gene_no
+
+    print("Total genes before downsampling:")
+    print(original_gene_no)
+
+    # downsample simulated dataset with noise added:
+    print(paste0("Downsampling counts to ", proportion, " total genes..."))
+
+    set.seed(seeds[n])
+    gene_downsampled_counts <- nondownsampled_counts_with_noise[
+      -sample(1:original_gene_no, to_remove_no),
+    ]
+
+    print("Total genes after downsampling:")
+    print(nrow(gene_downsampled_counts))
+
+    gene_downsample_dir <- paste0(out_dir, proportion, 
+      "_gene_downsampling/input_files/")
+    system(paste0("mkdir -p ", gene_downsample_dir))
+    write.table(
+      gene_downsampled_counts, paste0(gene_downsample_dir, "input_matrix.txt"), 
+      quote=F, sep="\t", col.names=T, row.names=T)
+    write.table(metadata_df, paste0(gene_downsample_dir, "metadata.txt"), sep = "\t",
+      quote = F, col.names = F, row.names = F)
+
+    n <<- n+1
+  
+  }
+
 }
 
 
 ################################################################################
-### 7. Convert PDF to PNG ###
+### 11. Convert PDF to PNG ###
 ################################################################################
 
-system(paste0("for p in ", plot_dir, 
-  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-  "convert -density 150 ", plot_dir, "$f -quality 90 ", 
-  plot_dir, "$new; done"))
-system(paste0("for p in ", noise_dir, 
-  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-  "convert -density 150 ", noise_dir, "$f -quality 90 ", 
-  noise_dir, "$new; done"))
+#system(paste0("for p in ", plot_dir, 
+#  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
+#  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
+#  "convert -density 150 ", plot_dir, "$f -quality 90 ", 
+#  plot_dir, "$new; done"))
+#system(paste0("for p in ", noise_dir, 
+#  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
+#  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
+#  "convert -density 150 ", noise_dir, "$f -quality 90 ", 
+#  noise_dir, "$new; done"))
 

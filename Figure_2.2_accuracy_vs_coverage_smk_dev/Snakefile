@@ -103,16 +103,16 @@ rule infercnv:
             "mkdir -p logs/{wildcards.sample}/{wildcards.proportion}_downsampling/; " +
             "cd logs/{wildcards.sample}/{wildcards.proportion}_downsampling/; " + 
 #            "touch check.txt"
-#            "touch ../../../../{output}; " + 
+#            "touch ../../../{output}; " + 
             R_dir + "/R CMD BATCH  --no-save '--args " + sim_name + " " + ncores + " " + 
             subset_data + " " + include_t_cells + " " + analysis_mode + " " + downsample +
             " {wildcards.proportion} " + CNV_type + " {wildcards.sample}" + 
-            "' ../../../../scripts/2b.simulated_cancer_infercnv.R"
+            "' ../../../scripts/2b.simulated_cancer_infercnv.R"
 #            "echo '" + R_dir + "/R CMD BATCH  --no-save --args " + sim_name + " " + 
 #            R_dir + "/R CMD BATCH  --no-save '--args " + sim_name + 
              
-#            " ../../../../scripts/2b.simulated_cancer_infercnv.R"
-#            "' > ../../../../results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            " ../../../scripts/2b.simulated_cancer_infercnv.R"
+#            "' > ../../../results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
 #            "both/{wildcards.sample}/{wildcards.proportion}_downsampling/samples_mode/command_eg.txt"
 
 rule individual_plot:
@@ -133,5 +133,5 @@ rule individual_plot:
             R_dir + "/R CMD BATCH  --no-save '--args " + sim_name + " " + include_t_cells + 
             " " + " {wildcards.sample} " + " {wildcards.proportion} " + " " + analysis_mode + " " + 
             neutral_signal_range + " " + nUMI_threshold + " " + nGene_threshold + " " + 
-            CNV_type + "' ../../../../scripts/3b.plot_individual_heatmap.R"
+            CNV_type + "' ../../../scripts/3b.plot_individual_heatmap.R"
 

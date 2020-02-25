@@ -563,7 +563,8 @@ genome_length <- nrow(epithelial_df)
 
 if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rdata")) | 
   !file.exists(paste0(Robject_dir, "/2b.pre_noise_log_modified_fold_change_df.Rdata")) |
-  !file.exists(paste0(Robject_dir, "/2c.CNV_record.Rdata")) ) {
+  !file.exists(paste0(Robject_dir, "/2c.CNV_record.Rdata")) | 
+  !file.exists(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata")) ) {
 
   print("Adding CNVs to dataset...")
   writeLines("\n")
@@ -798,110 +799,111 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
     paste0(Robject_dir, "simulated_CNV_plot_data.Rdata")
   )
 
-
-  ################################################################################
-  ### 6. Create modified counts and line CNV plots ###
-  ################################################################################
-  
-  # plot median fold change from original median for modified data:
-  if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"))) {
-    p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
-    p <- p + scale_x_continuous(
-      breaks = unlist(chromosome_midpoints),
-      labels = paste0("chr", 1:length(chromosome_midpoints)),
-      limits = c(0,length(log_modified_fold_change_df$count)), 
-      expand = c(0, 0)
-    )
-    p <- p + scale_y_continuous(
-      breaks = c(-4, -3, -2, -1, 0, 1),
-      labels = c("-4", "-3", "-2", "-1", "0", "1"),
-      limits = c(zero_count_value, 1)
-    )
- 
-    for (end in chromosome_ends) {
-      p <- p + geom_vline(xintercept=end)
-    }
-    for (r in 1:nrow(final_CNV_record)) {
-      print(r)
-      # create horizontal line:
-      p <- p + geom_segment(
-        x=final_CNV_record$start[r], 
-        xend=final_CNV_record$end[r], 
-        y=final_CNV_record$log_median_modified_FC[r], 
-        yend=final_CNV_record$log_median_modified_FC[r], 
-        size=1, color="#37841f"
-      )
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=final_CNV_record$start[r], 
-          xend=final_CNV_record$start[r], 
-          y=final_CNV_record$log_median_modified_FC[r-1], 
-          yend=final_CNV_record$log_median_modified_FC[r], 
-          size=1, color="#37841f"
-        )
-      }
-    }
-    pdf(paste0(plot_dir, 
-      "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"), width = 20)
-      print(p)
-    dev.off()
-    
-  }
-  
-  # plot counts:
-  if (!file.exists(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"))) {
-    p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
-    p <- p + geom_point(colour = "#E8D172")
-    p <- p + xlab("Genomic location")
-    p <- p + scale_x_continuous(
-      breaks = unlist(chromosome_midpoints),
-      labels = paste0("chr", 1:length(chromosome_midpoints)),
-      limits = c(0,nrow(log_modified_fold_change_df)), 
-      expand = c(0, 0)
-    )
-    p <- p + ylab("Log10 fold change")
-    p <- p + scale_y_continuous(
-      breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-      labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-      limits = c(min(log_modified_fold_change_df$count), max(log_modified_fold_change_df$count))
-    )
-
-    for (end in chromosome_ends) {
-      p <- p + geom_vline(xintercept=end)
-    }
-    for (r in 1:nrow(final_CNV_record)) {
-      print(r)
-      # create horizontal line:
-      p <- p + geom_segment(
-        x=final_CNV_record$start[r], 
-        xend=final_CNV_record$end[r], 
-        y=final_CNV_record$log_median_modified_FC[r], 
-        yend=final_CNV_record$log_median_modified_FC[r], 
-        size=1, color="red"
-      )
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=final_CNV_record$start[r], 
-          xend=final_CNV_record$start[r], 
-          y=final_CNV_record$log_median_modified_FC[r-1], 
-          yend=final_CNV_record$log_median_modified_FC[r], 
-          size=1, color="red"
-        )
-      }
-    }
-    pdf(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"), width = 20)
-      print(p)
-    dev.off()
-  }
-
 } else {
+
   modified_df <- readRDS(paste0(Robject_dir, 
     "/2a.pre_noise_simulated_epithelial_df.Rdata"))
   log_modified_fold_change_df <- readRDS(paste0(Robject_dir, 
-  	"/2b.pre_noise_log_modified_fold_change_df.Rdata"))
+    "/2b.pre_noise_log_modified_fold_change_df.Rdata"))
   final_CNV_record <- readRDS(paste0(Robject_dir, "/2c.CNV_record.Rdata"))
+  simulated_CNV_plot_data <- readRDS(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata"))
+
+}
+
+
+################################################################################
+### 6. Create modified counts and line CNV plots ###
+################################################################################
+
+# plot median fold change from original median for modified data:
+if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"))) {
+  p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
+  p <- p + scale_x_continuous(
+    breaks = unlist(chromosome_midpoints),
+    labels = paste0("chr", 1:length(chromosome_midpoints)),
+    limits = c(0,length(log_modified_fold_change_df$count)), 
+    expand = c(0, 0)
+  )
+  p <- p + scale_y_continuous(
+    breaks = c(-4, -3, -2, -1, 0, 1),
+    labels = c("-4", "-3", "-2", "-1", "0", "1"),
+    limits = c(zero_count_value, 1)
+  )
+  for (end in chromosome_ends) {
+    p <- p + geom_vline(xintercept=end)
+  }
+  for (r in 1:nrow(final_CNV_record)) {
+    print(r)
+    # create horizontal line:
+    p <- p + geom_segment(
+      x=final_CNV_record$start[r], 
+      xend=final_CNV_record$end[r], 
+      y=final_CNV_record$log_median_modified_FC[r], 
+      yend=final_CNV_record$log_median_modified_FC[r], 
+      size=1, color="#37841f"
+    )
+    # create left vertical line:
+    if (r != 1) {
+      p <- p + geom_segment(
+        x=final_CNV_record$start[r], 
+        xend=final_CNV_record$start[r], 
+        y=final_CNV_record$log_median_modified_FC[r-1], 
+        yend=final_CNV_record$log_median_modified_FC[r], 
+        size=1, color="#37841f"
+      )
+    }
+  }
+  pdf(paste0(plot_dir, 
+    "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"), width = 20)
+    print(p)
+  dev.off()
+  
+}
+
+# plot counts:
+if (!file.exists(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"))) {
+  p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
+  p <- p + geom_point(colour = "#E8D172")
+  p <- p + xlab("Genomic location")
+  p <- p + scale_x_continuous(
+    breaks = unlist(chromosome_midpoints),
+    labels = paste0("chr", 1:length(chromosome_midpoints)),
+    limits = c(0,nrow(log_modified_fold_change_df)), 
+    expand = c(0, 0)
+  )
+  p <- p + ylab("Log10 fold change")
+  p <- p + scale_y_continuous(
+    breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+    labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
+    limits = c(min(log_modified_fold_change_df$count), max(log_modified_fold_change_df$count))
+  )
+  for (end in chromosome_ends) {
+    p <- p + geom_vline(xintercept=end)
+  }
+  for (r in 1:nrow(final_CNV_record)) {
+    print(r)
+    # create horizontal line:
+    p <- p + geom_segment(
+      x=final_CNV_record$start[r], 
+      xend=final_CNV_record$end[r], 
+      y=final_CNV_record$log_median_modified_FC[r], 
+      yend=final_CNV_record$log_median_modified_FC[r], 
+      size=1, color="red"
+    )
+    # create left vertical line:
+    if (r != 1) {
+      p <- p + geom_segment(
+        x=final_CNV_record$start[r], 
+        xend=final_CNV_record$start[r], 
+        y=final_CNV_record$log_median_modified_FC[r-1], 
+        yend=final_CNV_record$log_median_modified_FC[r], 
+        size=1, color="red"
+      )
+    }
+  }
+  pdf(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"), width = 20)
+    print(p)
+  dev.off()
 }
 
 #save.image(paste0(Robject_dir, "temp2.Rdata"))
@@ -1435,14 +1437,14 @@ if (downsample) {
 ### 7. Convert PDF to PNG ###
 ################################################################################
 
-system(paste0("for p in ", plot_dir, 
-  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-  "convert -density 150 ", plot_dir, "$f -quality 90 ", 
-  plot_dir, "$new; done"))
-system(paste0("for p in ", noise_dir, 
-  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-  "convert -density 150 ", noise_dir, "$f -quality 90 ", 
-  noise_dir, "$new; done"))
+#system(paste0("for p in ", plot_dir, 
+#  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
+#  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
+#  "convert -density 150 ", plot_dir, "$f -quality 90 ", 
+#  plot_dir, "$new; done"))
+#system(paste0("for p in ", noise_dir, 
+#  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
+#  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
+#  "convert -density 150 ", noise_dir, "$f -quality 90 ", 
+#  noise_dir, "$new; done"))
 

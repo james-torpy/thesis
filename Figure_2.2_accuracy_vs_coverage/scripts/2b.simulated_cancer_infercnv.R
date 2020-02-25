@@ -16,13 +16,13 @@ simulation_number <- as.character(args[9])
 
 #sample_name <- "CID4520N_cancer_sim"
 #numcores <- 10
-#subset_data <- TRUE
+#subset_data <- FALSE
 #include_t_cells <- TRUE
 #analysis_mode <- "samples"
 #downsample <- TRUE
-#downsample_proportion <- "0.5"
+#downsample_proportion <- "0.9_gene"
 #CNV_type <- "both"
-#simulation_number <- "11"
+#simulation_number <- "1"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
