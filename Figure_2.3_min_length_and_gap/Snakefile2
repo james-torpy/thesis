@@ -1,0 +1,114 @@
+# snakemake --reason --cores 160 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 16
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+# define variables:
+#SAMPLES = list(range(1, 31, 1))
+SAMPLES = list([2,3])
+SAMPLES = list(map(str, SAMPLES))
+GAP_OR_CNV = ["CNV", "gap"]
+
+# simulation parameters:
+sample_name = "CID4520N_cancer_sim"
+ncores = "10"
+subset_data="FALSE"
+nUMI_threshold="25000"
+nGene_threshold="5000"
+CNV_type="both"
+gap_or_CNV="CNV"
+feature_lengths="400_300_200_150_125_100_75_50_40_30_20_15_10_5"
+gap_CNV_length="100"
+noise_cell_no="5000"
+
+# infercnv parameters:
+include_t_cells="TRUE"
+analysis_mode="samples"
+
+
+# individual plot parameters:
+neutral_signal_range = "0.97_1.03"
+
+
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{sample}/{proportion}_downsampling/samples_mode/plots/" + 
+#            "infercnv_plot_with_accuracy_metrics.pdf",
+#            sample=SAMPLES, proportion=PROPORTIONS
+#        )
+
+#####
+rule all:
+    input:
+        expand(
+            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{gap_or_cnv}/{sample}/samples_mode/infercnv.12_denoised.png",
+            sample=SAMPLES, gap_or_cnv=GAP_OR_CNV
+        )
+#####
+
+#rule simulate_cancer:
+#    input:
+#        "raw_files/seurat_objects/CID4520N/03_seurat_object_processed.Rdata"
+#    output:
+#        matrix = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{gap_or_cnv}/{sample}/input_files/input_matrix.txt",
+#            gap_or_cnv=GAP_OR_CNV
+#        ),
+#        metadata = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{gap_or_cnv}/{sample}/input_files/metadata.txt",
+#            gap_or_cnv=GAP_OR_CNV
+#        )
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/simulation/; " +
+#        "cd logs/simulation/; " + 
+#        R_dir + "/R CMD BATCH  --no-save '--args " + sample_name + " " + 
+#        subset_data + " " + nUMI_threshold + " " + nGene_threshold + " " + CNV_type + " " + 
+#        gap_or_CNV + " " + feature_lengths + " " + gap_CNV_length + " {wildcards.sample} " + 
+#        " " + noise_cell_no + "' ../../scripts/1b.simulate_cancer.R"
+
+rule infercnv:
+    input:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{gap_or_cnv}/{sample}/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "bboth/{gap_or_cnv}/{sample}/input_files/metadata.txt"
+    output:
+        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "both/{gap_or_cnv}/{sample}/samples_mode/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+            "module load briglo/R/3.6.0; "
+            "mkdir -p logs/{wildcards.gap_or_cnv}/{wildcards.sample}_downsampling/; " +
+            "cd logs/{wildcards.gap_or_cnv}/{wildcards.sample}_downsampling/; " + 
+            R_dir + "/R CMD BATCH  --no-save '--args " + sample_name + " " + 
+            ncores + " " + subset_data + " " + include_t_cells + " " + analysis_mode + " " + 
+            CNV_type + " " + gap_or_cnv + " {wildcards.sample}" + 
+            " ../../../scripts/2b.simulated_cancer_infercnv.R"
+
+#rule individual_plot:
+#    input:
+#        infercnv_output = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{sample}/{proportion}_downsampling/samples_mode/infercnv.12_denoised.png",
+#        nondownsampled_output = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{sample}/no_downsampling/samples_mode/infercnv.12_denoised.png"
+#
+#    output:
+#        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "both/{sample}/{proportion}_downsampling/samples_mode/plots/" + 
+#            "infercnv_plot_with_accuracy_metrics.pdf"
+#    threads: 6
+#
+#    shell:
+#            "cd logs/{wildcards.sample}/{wildcards.proportion}_downsampling/; " +
+#            R_dir + "/R CMD BATCH  --no-save '--args " + sample_name + " " + include_t_cells + 
+#            " " + " {wildcards.sample} " + " {wildcards.proportion} " + " " + analysis_mode + " " + 
+#            neutral_signal_range + " " + nUMI_threshold + " " + nGene_threshold + " " + 
+#            CNV_type + "' ../../../scripts/3b.plot_individual_heatmap.R"
+

@@ -889,65 +889,172 @@ accuracy_annotation@name <- "accuracy"
 ### 9. Calculate correlation with average of non-downsampled heatmap  ###
 ################################################################################
 
+
+#if (!file.exists(
+#  paste0(Robject_dir, "3.accuracy_metrics_with_correlation.Rdata")
+#  )) {
+#  
+#  if (downsample_proportion != "no" & file.exists(paste0(non_downsampled_dir, 
+#      "samples_mode/infercnv.12_denoised.observations.txt"))) {
+#  
+#    # load InferCNV output:
+#    print("Loading non-downsampled InferCNV heatmap...")
+#    non_downsampled_output <- as.data.frame(t(read.table(paste0(non_downsampled_dir, 
+#      "samples_mode/infercnv.12_denoised.observations.txt"))))
+#  
+#    # load metadata df:
+#    non_downsampled_metadata <- read.table(paste0(non_downsampled_dir, 
+#      "input_files/metadata.txt"), header = F, sep = "\t", as.is = TRUE)
+#    colnames(non_downsampled_metadata) <- c("cell_ids", "cell_type")
+#    row.names(non_downsampled_metadata) <- non_downsampled_metadata$cell_ids
+#  
+#    # ensure only epithelial cells in non-downsampled data:
+#    non_downsampled_ids <- non_downsampled_metadata$cell_ids[
+#      grep("pithelial", non_downsampled_metadata$cell_type)
+#    ]
+#    non_downsampled_heatmap <- non_downsampled_output[
+#      rownames(non_downsampled_output) %in% non_downsampled_ids,
+#    ]
+#  
+#    # calculate mean of downsampled and non-downsampled data and make them
+#    # the same length:
+#    non_downsampled_mean_CNV <- apply(non_downsampled_heatmap, 2, mean)
+#    downsampled_mean_CNV <- apply(epithelial_heatmap, 2, mean)
+#    non_downsampled_mean_CNV <- non_downsampled_mean_CNV[
+#      names(downsampled_mean_CNV)
+#    ]
+#  
+#    # calculate correlation between non-downsampled and downsampled CNVs:
+#    correlation_with_original <- cor.test(
+#      as.numeric(downsampled_mean_CNV), 
+#      as.numeric(non_downsampled_mean_CNV), 
+#      method = "pearson"
+#    )
+#    cor_result <- data.frame(
+#      R_squared = correlation_with_original$estimate, 
+#      p_val = correlation_with_original$p.value
+#    )
+#  
+#    # add to accuracy metrics
+#    final_accuracy_metrics <- rbind(
+#      accuracy_metrics,
+#      data.frame(
+#        row.names = c("mean_UMI", "no_genes", "pearson_R_squared", "pearson_p_val"),
+#        number = c(
+#          round(mean(epithelial_metadata$nUMI), 0),
+#          length(downsampled_mean_CNV), 
+#          cor_result$R_squared,
+#          cor_result$p_val
+#        )
+#      )
+#    )
+#    final_accuracy_metrics$number <- round(final_accuracy_metrics$number, 3)
+#  
+#  } else {
+#
+#    colnames(accuracy_metrics) <- "number"
+#    final_accuracy_metrics <- rbind(
+#      accuracy_metrics,
+#      data.frame(
+#        row.names = c("mean_UMI", "no_genes"),
+#        number = c(round(mean(epithelial_metadata$nUMI), 0),
+#          ncol(epithelial_heatmap))
+#      )
+#    )
+#
+#  }
+#  
+#  write.table(
+#    final_accuracy_metrics,
+#    paste0(table_dir, "accuracy_metrics_with_correlation.txt"),
+#    sep = "\t",
+#    row.names = F,
+#    col.names = F,
+#    quote = F
+#  )
+#
+#  saveRDS(final_accuracy_metrics,
+#    paste0(Robject_dir, "3.accuracy_metrics_with_correlation.Rdata")
+#  )
+#
+#} else {
+#
+#  final_accuracy_metrics <- readRDS(
+#    paste0(Robject_dir, "3.accuracy_metrics_with_correlation.Rdata")
+#  )
+#
+#}
+
 if (!file.exists(
   paste0(Robject_dir, "3.accuracy_metrics_with_correlation.Rdata")
   )) {
   
   if (downsample_proportion != "no") {
-  
-    # load InferCNV output:
-    print("Loading non-downsampled InferCNV heatmap...")
-    non_downsampled_output <- as.data.frame(t(read.table(paste0(non_downsampled_dir, 
-      "samples_mode/infercnv.12_denoised.observations.txt"))))
-  
-    # load metadata df:
-    non_downsampled_metadata <- read.table(paste0(non_downsampled_dir, 
-      "input_files/metadata.txt"), header = F, sep = "\t", as.is = TRUE)
-    colnames(non_downsampled_metadata) <- c("cell_ids", "cell_type")
-    row.names(non_downsampled_metadata) <- non_downsampled_metadata$cell_ids
-  
-    # ensure only epithelial cells in non-downsampled data:
-    non_downsampled_ids <- non_downsampled_metadata$cell_ids[
-      grep("pithelial", non_downsampled_metadata$cell_type)
-    ]
-    non_downsampled_heatmap <- non_downsampled_output[
-      rownames(non_downsampled_output) %in% non_downsampled_ids,
-    ]
-  
-    # calculate mean of downsampled and non-downsampled data and make them
-    # the same length:
-    non_downsampled_mean_CNV <- apply(non_downsampled_heatmap, 2, mean)
-    downsampled_mean_CNV <- apply(epithelial_heatmap, 2, mean)
-    non_downsampled_mean_CNV <- non_downsampled_mean_CNV[
-      names(downsampled_mean_CNV)
-    ]
-  
-    # calculate correlation between non-downsampled and downsampled CNVs:
-    correlation_with_original <- cor.test(
-      as.numeric(downsampled_mean_CNV), 
-      as.numeric(non_downsampled_mean_CNV), 
-      method = "pearson"
-    )
-    cor_result <- data.frame(
-      R_squared = correlation_with_original$estimate, 
-      p_val = correlation_with_original$p.value
-    )
-  
-    # add to accuracy metrics
-    final_accuracy_metrics <- rbind(
-      accuracy_metrics,
-      data.frame(
-        row.names = c("mean_UMI", "no_genes", "pearson_R_squared", "pearson_p_val"),
-        number = c(
-          round(mean(epithelial_metadata$nUMI), 0),
-          length(downsampled_mean_CNV), 
-          cor_result$R_squared,
-          cor_result$p_val
+
+    while (TRUE) {
+
+      if (file.exists(paste0(non_downsampled_dir, 
+        "samples_mode/infercnv.12_denoised.observations.txt")) {
+    
+        # load InferCNV output:
+        print("Loading non-downsampled InferCNV heatmap...")
+        non_downsampled_output <- as.data.frame(t(read.table(paste0(non_downsampled_dir, 
+          "samples_mode/infercnv.12_denoised.observations.txt"))))
+      
+        # load metadata df:
+        non_downsampled_metadata <- read.table(paste0(non_downsampled_dir, 
+          "input_files/metadata.txt"), header = F, sep = "\t", as.is = TRUE)
+        colnames(non_downsampled_metadata) <- c("cell_ids", "cell_type")
+        row.names(non_downsampled_metadata) <- non_downsampled_metadata$cell_ids
+      
+        # ensure only epithelial cells in non-downsampled data:
+        non_downsampled_ids <- non_downsampled_metadata$cell_ids[
+          grep("pithelial", non_downsampled_metadata$cell_type)
+        ]
+        non_downsampled_heatmap <- non_downsampled_output[
+          rownames(non_downsampled_output) %in% non_downsampled_ids,
+        ]
+      
+        # calculate mean of downsampled and non-downsampled data and make them
+        # the same length:
+        non_downsampled_mean_CNV <- apply(non_downsampled_heatmap, 2, mean)
+        downsampled_mean_CNV <- apply(epithelial_heatmap, 2, mean)
+        non_downsampled_mean_CNV <- non_downsampled_mean_CNV[
+          names(downsampled_mean_CNV)
+        ]
+      
+        # calculate correlation between non-downsampled and downsampled CNVs:
+        correlation_with_original <- cor.test(
+          as.numeric(downsampled_mean_CNV), 
+          as.numeric(non_downsampled_mean_CNV), 
+          method = "pearson"
         )
-      )
-    )
-    final_accuracy_metrics$number <- round(final_accuracy_metrics$number, 3)
-  
+        cor_result <- data.frame(
+          R_squared = correlation_with_original$estimate, 
+          p_val = correlation_with_original$p.value
+        )
+      
+        # add to accuracy metrics
+        final_accuracy_metrics <- rbind(
+          accuracy_metrics,
+          data.frame(
+            row.names = c("mean_UMI", "no_genes", "pearson_R_squared", "pearson_p_val"),
+            number = c(
+              round(mean(epithelial_metadata$nUMI), 0),
+              length(downsampled_mean_CNV), 
+              cor_result$R_squared,
+              cor_result$p_val
+            )
+          )
+        )
+        final_accuracy_metrics$number <- round(final_accuracy_metrics$number, 3)
+
+        return()
+
+      }
+      
+    }
+
   } else {
 
     colnames(accuracy_metrics) <- "number"

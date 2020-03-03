@@ -117,7 +117,7 @@ print(paste0("Noise input cell number = ", noise_cell_no))
 #    )
 #  )
 #)
-#simulation_number <- 1
+#simulation_number <- 2
 #noise_cell_no <- 5000
 
 RStudio <- FALSE
@@ -160,10 +160,7 @@ if (subset_data) {
 }
 system(paste0("mkdir -p ", noise_dir))
 
-atlas_dir <- "/paella/TumourProgressionGroupTemp/projects/brca_mini_atlas/"
-indiv_atlas_dir <- paste0(atlas_dir, 
-  "analysis/Jun2019_final_primary_set/01_individual_samples/output")
-emptydrops_dir <- paste0(indiv_atlas_dir, "/seurat_", sample_name, "/Output/EmptyDrops/")
+emptydrops_dir <- paste0(in_dir, "/emptydrops/")
 
 sim_out_path <- paste0(results_dir, "cancer_simulation/", sample_name, 
 	"_cancer_sim/")
@@ -207,25 +204,51 @@ print(paste0("Plot directory = ", plot_dir))
 print(paste0("Table directory = ", table_dir))
 print(paste0("Original directory = ", original_dir))
 
-set.seed(399)
-CNV_no <- sample(seq(CNV_no_range[1], CNV_no_range[2]), 1)
+
 
 print(paste0("Generating simulated cancer data set from ", sample_name))
 print(paste0("Filtering out cells with less than ", nUMI_threshold, " UMIs and ",
   nGene_threshold, " genes"))
-print(paste0(
-  "Adding ", CNV_no, " CNVs ",
-  "with lengths between ", CNV_lengths[1], " and ", CNV_lengths[length(CNV_lengths)]
-))
 print(paste0("Each sample will be downsampled to the following proportions:"))
 paste(downsample_proportions, collapse = ", ")
 
 
 ################################################################################
-### 0. Define functions ###
+### 0. Define functions and choose seeds ###
 ################################################################################
 
 prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"))
+
+# choose and record seeds:
+if (file.exists(paste0(table_dir, "random_seed_record.txt"))) {
+  seed_record <- read.table(
+    paste0(table_dir, "random_seed_record.txt"),
+    sep = "\t",
+    header = T,
+    as.is = T
+  )
+} else {
+  seed_record <- data.frame(
+    row.names = c("CNV_no", "start_position", "length", "multiplier", "UMI_downsample",
+      "gene_downsample"),
+    seed = sample(1:999, 6)
+  )
+  write.table(
+    seed_record, 
+    paste0(table_dir, "random_seed_record.txt"),
+    sep = "\t",
+    row.names = T,
+    col.names = T,
+    quote = F
+  )
+}
+
+set.seed(seed_record["CNV_no",])
+CNV_no <- sample(seq(CNV_no_range[1], CNV_no_range[2]), 1)
+print(paste0(
+  "Adding ", CNV_no, " CNVs ",
+  "with lengths between ", CNV_lengths[1], " and ", CNV_lengths[length(CNV_lengths)]
+))
 
 
 ###################################################################################
@@ -570,6 +593,24 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
   print("Adding CNVs to dataset...")
   writeLines("\n")
 
+  # choose random indices for start positions:
+  set.seed(seed_record["start_position",])
+  gene_no <- nrow(epithelial_df)
+  random_starts <- sample(1:gene_no, 1000)
+
+  # choose random indices for lengths:
+  set.seed(seed_record["length",])
+  random_lengths <- CNV_lengths[
+    sample(1:length(CNV_lengths), 1000, replace=T)
+  ]
+
+   # choose random indices for multipliers:
+  set.seed(seed_record["multiplier",])
+  random_multipliers <- CNV_multipliers[
+    sample(1:length(CNV_multipliers), CNV_no, replace = T)
+  ]
+
+  r=1
   for (i in 1:CNV_no) {
 
   	if (exists("CNV_record")) {
@@ -588,13 +629,10 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
 
       repeat {
         # choose start position at random:
-        gene_no <- nrow(epithelial_df)
-        set.seed(850)
-        start_position <- sample(1:gene_no, 1)
+        start_position <- random_starts[r]
       
         # choose CNV length at random:
-        set.seed(107)
-        CNV_length <- CNV_lengths[sample(1:length(CNV_lengths), 1)]
+        CNV_length <- random_lengths[r]
         end_position <- start_position+CNV_length
         CNV_region <- start_position:end_position
       
@@ -629,11 +667,12 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
         } else {
           print("Region overlaps with end of genome, trying different region...")
         }
+
+        r <<- r+1
       }
     
       # choose CNV multiplier at random:
-      set.seed(598)
-      CNV_multiplier <- CNV_multipliers[sample(1:length(CNV_multipliers), 1)]
+      CNV_multiplier <- random_multipliers[i]
   
       # record region so no future CNVs overlap:
       if (!(exists("CNV_record"))) {
@@ -1310,7 +1349,7 @@ for (i in 1:nrow(final_CNV_record)) {
 
 
 ###################################################################################
-### 9. Plot post-noise gene expression profiles ###
+### 10. Plot post-noise gene expression profiles ###
 ###################################################################################
 
 # plot median fold change from original median for modified data:
@@ -1415,7 +1454,7 @@ if (!file.exists(paste0(no_downsample_dir, "input_matrix.txt"))) {
 
 
 ################################################################################
-### 10. Downsample new counts and save ###
+### 11. Downsample new counts and save ###
 ################################################################################
 
 if (downsample) {
@@ -1426,14 +1465,17 @@ if (downsample) {
   print("Total counts before downsampling:")
   print(sum(as.vector(new_counts)))
 
-  seeds <- c(165, 31, 455, 301, 417, 788, 629, 872, 586, 907, 97, 919)
+  # choose seeds for downsampling:
+  set.seed(seed_record["UMI_downsample",])
+  random_UMI_seeds <- sample(1:999, length(downsample_proportions))
+
   m=1
   for (proportion in downsample_proportions) {
 
     # downsample simulated dataset with noise added:
     print(paste0("Downsampling counts to ", proportion, " total UMIs..."))
 
-    set.seed(seeds[m])
+    set.seed(random_UMI_seeds[m])
     downsampled_counts <- downsampleMatrix(
       nondownsampled_counts_with_noise, proportion, bycol=T
     )
@@ -1453,9 +1495,11 @@ if (downsample) {
   
   }
 
-  # downsample by genes:
-  seeds <- c(504, 925, 252, 754, 45, 447, 873, 920, 68, 573, 562, 298)
-  n=1
+  # choose seeds for downsampling:
+  set.seed(seed_record["gene_downsample",])
+  random_gene_seeds <- sample(1:999, length(downsample_proportions))
+
+  s=1
   for (proportion in downsample_proportions) {
 
     original_gene_no <- nrow(nondownsampled_counts_with_noise)
@@ -1468,7 +1512,7 @@ if (downsample) {
     # downsample simulated dataset with noise added:
     print(paste0("Downsampling counts to ", proportion, " total genes..."))
 
-    set.seed(seeds[n])
+    set.seed(random_gene_seeds[s])
     gene_downsampled_counts <- nondownsampled_counts_with_noise[
       -sample(1:original_gene_no, to_remove_no),
     ]
@@ -1485,7 +1529,7 @@ if (downsample) {
     write.table(metadata_df, paste0(gene_downsample_dir, "metadata.txt"), sep = "\t",
       quote = F, col.names = F, row.names = F)
 
-    n <<- n+1
+    s <<- s+1
   
   }
 
@@ -1493,7 +1537,7 @@ if (downsample) {
 
 
 ################################################################################
-### 11. Convert PDF to PNG ###
+### 12. Convert PDF to PNG ###
 ################################################################################
 
 #system(paste0("for p in ", plot_dir, 

@@ -1,7 +1,5 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
-### fix F1 scores for no downsampling ###
-
 RStudio <- FALSE
 
 project_name <- "thesis"
@@ -20,7 +18,7 @@ CNV_type <- args[9]
 #sample_name <- "CID4520N_cancer_sim"
 #include_t_cells <- TRUE
 #simulation_number <- "1"
-#downsample_proportion <- "0.9"
+#downsample_proportion <- "0.9_gene"
 #analysis_mode <- "samples"
 #neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
 #nUMI_threshold <- 25000
@@ -897,7 +895,8 @@ if (!file.exists(
   paste0(Robject_dir, "3.accuracy_metrics_with_correlation.Rdata")
   )) {
   
-  if (downsample_proportion != "no") {
+  if (downsample_proportion != "no" & file.exists(paste0(non_downsampled_dir, 
+      "samples_mode/infercnv.12_denoised.observations.txt"))) {
   
     # load InferCNV output:
     print("Loading non-downsampled InferCNV heatmap...")
@@ -1141,12 +1140,11 @@ write.table(epithelial_metadata, paste0(table_dir, "epithelial_metadata.txt"),
 
 print(paste0("Heatmap created, output in ", plot_dir))
 
-#convert pdf to png:
-system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-              "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-              "convert -density 150 ", plot_dir, "$f -quality 90 ", plot_dir, "$new; done"))
-
-######
+##convert pdf to png:
+#system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
+#              "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
+#              "convert -density 150 ", plot_dir, "$f -quality 90 ", plot_dir, "$new; done"))
+#
 
 
 ################################################################################
