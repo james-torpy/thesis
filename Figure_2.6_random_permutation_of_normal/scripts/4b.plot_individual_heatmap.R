@@ -3,42 +3,30 @@
 RStudio <- FALSE
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.3_min_length_and_gap"
+subproject_name <- "Figure_2.6_random_permutation_of_normal"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
-t_cells_included <- as.logical(args[2])
+permutation_proportion <- args[2]
 simulation_number <- args[3]
-analysis_mode <- args[4]
-neutral_signal_range <- unlist(strsplit(args[5], split = "_"))
-nUMI_threshold <- as.numeric(args[6])
-nGene_threshold <- as.numeric(args[7])
-gap_or_CNV <- args[8]
-CNV_type <- args[9]
-min_gap_length <- as.numeric(args[10])
+t_cells_included <- as.logical(args[4])
+analysis_mode <- args[5]
+neutral_signal_range <- unlist(strsplit(args[6], split = "_"))
 
-#sample_name <- "CID4520N_cancer_sim"
+#sample_name <- "permutated_CID4520N"
+#permutation_proportion <- 0.01
+#simulation_number <- "1"
 #t_cells_included <- TRUE
-#simulation_number <- "13"
 #analysis_mode <- "samples"
 #neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
-#nUMI_threshold <- 25000
-#nGene_threshold <- 5000
-#gap_or_CNV <- "CNV"
-#CNV_type <- "both"
-#min_gap_length <- 30
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
-print(paste0("T-cells included? ", as.character(t_cells_included)))
+print(paste0("Proportion of genes permutated = ", permutation_proportion))
 print(paste0("Simulation number = ", simulation_number))
+print(paste0("T-cells included? ", as.character(t_cells_included)))
 print(paste0("Analysis mode = ", analysis_mode))
 print("Neutral signal range = ")
 print(neutral_signal_range)
-print(paste0("nUMI threshold = ", nUMI_threshold))
-print(paste0("nGene threshold = ", as.character(nGene_threshold)))
-print(paste0("Gap or CNV = ", gap_or_CNV))
-print(paste0("CNV type = ", CNV_type))
-print(paste0("Min. gap length = ", min_gap_length))
 
 library(Seurat)
 library(RColorBrewer)
@@ -65,7 +53,6 @@ if (RStudio) {
   library(Polychrome, lib.loc=lib_loc)
   library(ComplexHeatmap, lib.loc=lib_loc)
   library(circlize, lib.loc = lib_loc)
-  #library(scales, lib.loc = lib_loc)
   library(fpc, lib.loc = lib_loc)
   library(naturalsort, lib.loc = lib_loc)
   
@@ -79,35 +66,28 @@ ref_dir <- paste0(project_dir, "refs/")
 func_dir <- paste0(project_dir, "scripts/functions/")
 results_dir <- seurat_path <- paste0(project_dir, "results/")
 
-orig_sample_name <- gsub("_cancer_sim", "", sample_name)
-seurat_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
-  orig_sample_name, "/")
+#orig_sample_name <- gsub("permutated_", "", sample_name)
+#seurat_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
+#  orig_sample_name, "/")
 
-if (gap_or_CNV == "CNV") {
-  sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
-    "/", gap_or_CNV, "/", simulation_number, "/Rdata/")
-} else {
-  sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
-    "/", gap_or_CNV, "/", simulation_number, "/", CNV_type, "/Rdata/")
-}
-general_sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
-  "/Rdata/")
+perm_dir <- paste0(results_dir, sample_name, "/", permutation_proportion, 
+  "_proportion/", simulation_number, "/Rdata/")
+
+#general_sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
+#  "/Rdata/")
 
 if (t_cells_included) {
   in_path <- paste0(results_dir, "infercnv/t_cells_included/", 
-    sample_name, "/", gap_or_CNV, "/", simulation_number, "/")
+    sample_name, "/", permutation_proportion, "_proportion/", 
+    simulation_number, "/")
+  
 } else {
   in_path <- paste0(results_dir, "infercnv/t_cells_excluded/", 
-    sample_name, "/", gap_or_CNV, "/", simulation_number, "/")
+    sample_name, "/", permutation_proportion, "_proportion/", 
+    simulation_number, "/")
 }
-
-if (gap_or_CNV == "CNV") {
-  in_dir <- paste0(in_path, analysis_mode, "_mode/")
-  input_dir <- paste0(in_path, "input_files/")
-} else {
-  in_dir <- paste0(in_path, CNV_type, "/", analysis_mode, "_mode/")  
-  input_dir <- paste0(in_path, CNV_type, "/input_files/")
-}
+in_dir <- paste0(in_path, analysis_mode, "_mode/")
+input_dir <- paste0(in_path, "input_files/")
 
 Robject_dir <- paste0(in_dir, "Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
@@ -131,24 +111,24 @@ print(paste0("Plot directory = ", plot_dir))
 fetch_chromosome_boundaries <- dget(paste0(func_dir, 
   "fetch_chromosome_boundaries.R"))
 
-create_extended_vector <- function(df, column) {
-  for (j in 1:nrow(df)) {
-    vector_length <- length(seq(df$start[j], df$end[j]))
-    if (j==1) {
-      result_vector <- rep(
-        eval(parse(text=paste0("df$", column, "[j]"))), vector_length
-      )
-    } else {
-      result_vector <- c(
-        result_vector,
-        rep(
-          eval(parse(text=paste0("df$", column, "[j]"))), vector_length
-        )
-      )
-    }
-  }
-  return(result_vector)
-}
+#create_extended_vector <- function(df, column) {
+#  for (j in 1:nrow(df)) {
+#    vector_length <- length(seq(df$start[j], df$end[j]))
+#    if (j==1) {
+#      result_vector <- rep(
+#        eval(parse(text=paste0("df$", column, "[j]"))), vector_length
+#      )
+#    } else {
+#      result_vector <- c(
+#        result_vector,
+#        rep(
+#          eval(parse(text=paste0("df$", column, "[j]"))), vector_length
+#        )
+#      )
+#    }
+#  }
+#  return(result_vector)
+#}
 
 
 ################################################################################
@@ -160,7 +140,7 @@ if (!file.exists(paste0(Robject_dir, "/1b.initial_epithelial_metadata.Rdata"))) 
   print("Loading InferCNV output files...")
   infercnv_output <- as.data.frame(t(read.table(paste0(in_dir, 
   	"infercnv.12_denoised.observations.txt"))))
-
+  
   # load metadata df:
   metadata_df <- read.table(paste0(input_dir, "metadata.txt"), header = F,
     sep = "\t", as.is = TRUE)
@@ -207,55 +187,6 @@ if (!file.exists(paste0(Robject_dir,
     identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
   ))
 
-  # add nUMI and nGene data to epithelial_metadata:
-  print("Adding QC metrics to epithelial metadata df...")
-  count_df <- read.table(paste0(input_dir, "input_matrix.txt"), header = TRUE,
-    sep = "\t", as.is = TRUE)
-  count_df_rownames <- rownames(count_df)
-  nUMI <- apply(count_df, 2, sum)
-  nGene <- apply(count_df, 2, function(x) length(x[x!=0]))
-
-  QC <- data.frame(
-    row.names = colnames(count_df),
-    nUMI = nUMI,
-    nGene = nGene
-  )
-  QC <- QC[rownames(epithelial_metadata),]
-  epithelial_metadata <- cbind(epithelial_metadata, QC)
-
-  # plot distributions of nUMI and nGene to determine cutoff for high coverage cells:
-  if (!file.exists(paste0(plot_dir, "nUMI_density_plot.png"))) {
-    
-    nUMI_density_plot <- density(QC$nUMI, bw="SJ")
-    pdf(paste0(plot_dir, "nUMI_density_plot.pdf"))
-      plot(nUMI_density_plot, main=NA, xlab = "nUMI")
-    dev.off()
-    png(paste0(plot_dir, "nUMI_density_plot.png"))
-      plot(nUMI_density_plot, main=NA, xlab = "nUMI")
-    dev.off()
-    log_nUMI_density_plot <- density(log10(QC$nUMI), bw="SJ")
-    pdf(paste0(plot_dir, "log_nUMI_density_plot.pdf"))
-      plot(log_nUMI_density_plot, main=NA, xlab = "log10 nUMI")
-    dev.off()
-    png(paste0(plot_dir, "log_nUMI_density_plot.png"))
-      plot(log_nUMI_density_plot, main=NA, xlab = "log10 nUMI")
-    dev.off()
-    nGene_density_plot <- density(QC$nGene, bw="SJ")
-    pdf(paste0(plot_dir, "nGene_density_plot.pdf"))
-      plot(nGene_density_plot, main=NA, xlab = "nGene")
-    dev.off()
-    png(paste0(plot_dir, "nGene_density_plot.png"))
-      plot(nGene_density_plot, main=NA, xlab = "nGene")
-    dev.off()
-    log_nGene_density_plot <- density(log10(QC$nGene), bw="SJ")
-    pdf(paste0(plot_dir, "log_nGene_density_plot.pdf"))
-      plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
-    dev.off()
-    png(paste0(plot_dir, "log_nGene_density_plot.png"))
-      plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
-    dev.off()
-  }
-
   print(paste0(
     "Are epithelial_metadata rownames still in the same order as epithelial_heatmap?? ",
     identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
@@ -286,57 +217,11 @@ if (!file.exists(paste0(Robject_dir,
 
 
 ################################################################################
-### 3. Format CNV indices  ###
+### 3. Format permutation indices  ###
 ################################################################################
 
-# load CNV information:
-CNV_data <- readRDS(paste0(sim_dir, "4.final_CNV_data.Rdata"))
-
-# load either CNV or extended gap indices as 'feature indices':
-if (gap_or_CNV == "CNV") {
-
-  feature_indices <- CNV_data$CNV_record
-  CNV_indices <- CNV_data$CNV_record
-
-} else {
-
-  if (CNV_type == "gain") {
-    if (CNV_data$extended_gap_record$multiplier[1] == 3) {
-      feature_indices <- CNV_data$extended_gap_record
-      CNV_indices <- CNV_data$CNV_record
-    } else if (CNV_data$extended_gap_record$multiplier[1] == 0) {
-      feature_indices <- CNV_data[[2]]$extended_gap_record
-      CNV_indices <- CNV_data[[2]]$CNV_record
-    }
-  } else if (CNV_type == "loss") {
-    if (CNV_data$extended_gap_record$multiplier[1] == 0) {
-      feature_indices <- CNV_data$extended_gap_record
-      CNV_indices <- CNV_data$CNV_record
-    } else if (CNV_data$extended_gap_record$multiplier[1] == 3) {
-      feature_indices <- CNV_data[[2]]$extended_gap_record
-      CNV_indices <- CNV_data[[2]]$CNV_record
-    }
-  }
-
-  # subtract 100 gene CNV regions ither side of gap:
-  feature_indices$start <- feature_indices$start + 100
-  feature_indices$end <- feature_indices$end - 100
-
-}
-
-log_modified_fold_change_df <- CNV_data$log_modified_fold_change_df
-
-# only keep genes present in epithelial_heatmap:
-log_modified_fold_change_df <- log_modified_fold_change_df[
-    colnames(epithelial_heatmap),
-]
-
-# record length and midpoint of segments:
-feature_indices$length <- (feature_indices$end - feature_indices$start)
-feature_indices$midpoints <- feature_indices$start + floor(feature_indices$length/2)
-feature_indices$number <- seq_along(feature_indices$start)
-feature_indices$ticks <- "exclude"
-feature_indices$ticks[feature_indices$multiplier != 1] <- "include"
+# load permutation information:
+permutation_data <- readRDS(paste0(perm_dir, "3.final_permutation_data.Rdata"))
 
 # fetch chromosome boundary co-ordinates:
 if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
@@ -346,105 +231,8 @@ if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
   chr_data <- readRDS(paste0(Robject_dir, "chromosome_data.Rdata"))
 }
 
-# if start and end chromosome information not present for CNVs, fill in:
-if ( !("start_chr" %in% colnames(CNV_indices)) ) {
-  CNV_indices$start_chr <- "chr1"
-  CNV_indices$end_chr <- "chr1"
-  for (k in 1:length(chr_data$ends)) {
-    if (k==1) {
-  
-      CNV_indices$start_chr[
-        CNV_indices$start <= chr_data$ends[k]
-      ] <- names(chr_data$ends)[k]
-  
-      CNV_indices$end_chr[
-        CNV_indices$end <= chr_data$ends[k]
-      ] <- names(chr_data$ends)[k]
-  
-    } else {
-  
-      CNV_indices$start_chr[
-        CNV_indices$start <= chr_data$ends[k] & 
-        CNV_indices$start > chr_data$ends[k-1]
-      ] <- names(chr_data$ends)[k]
-  
-      CNV_indices$end_chr[
-        CNV_indices$end <= unlist(chr_data$ends[k]) & 
-        CNV_indices$end > unlist(chr_data$ends[k-1])
-      ] <- names(chr_data$ends)[k]
-  
-    }
-  }
-}
 
 
-################################################################################
-### 4. Create simulated CNV annotation  ###
-################################################################################
-
-p <- ggplot(log_modified_fold_change_df, 
-  aes(x=number, y=count))
-p <- p + scale_x_continuous(
-  limits = c(
-    0,length(log_modified_fold_change_df$count)
-  ), 
-  expand = c(0, 0),
-  breaks = feature_indices$midpoints[feature_indices$ticks == "include"],
-  labels = feature_indices$length[feature_indices$ticks == "include"]
-)
-p <- p + scale_y_continuous(
-  breaks = c(-3, -1, 0, 1),
-  limits = c(-3, 1)
-)
-for (c_end in chr_data$ends) {
-  p <- p + geom_vline(xintercept=c_end)
-}
-for (r in 1:nrow(CNV_indices)) {
-  print(r)
-  # create horizontal line:
-  p <- p + geom_segment(
-    x=CNV_indices$start[r], 
-    xend=CNV_indices$end[r], 
-    y=CNV_indices$log_median_modified_FC[r], 
-    yend=CNV_indices$log_median_modified_FC[r], 
-    size=1, color="#37841f"
-  )
-
-  # create left vertical line:
-  if (r != 1) {
-    p <- p + geom_segment(
-      x=CNV_indices$start[r], 
-      xend=CNV_indices$start[r], 
-      y=CNV_indices$log_median_modified_FC[r-1], 
-      yend=CNV_indices$log_median_modified_FC[r], 
-      size=1, color="#37841f"
-    )
-  }
-}
-# create 0 line:
-p <- p + geom_segment(
-  x=CNV_indices$start[1],
-  xend=CNV_indices$end[
-    nrow(CNV_indices)
-  ],
-  y=0,
-  yend=0
-)
-# remove axis labels:
-p <- p + theme(
-  axis.title.x=element_blank(),
-  axis.title.y=element_blank(),
-  axis.text.y=element_blank(),
-  axis.ticks.y=element_blank()
-)
-grid_sim_plot <- ggplotGrob(p)
-dev.off()
-
-if (!file.exists(paste0(plot_dir, "sim_CNV_plot.pdf"))) {
-  pdf(paste0(plot_dir, "sim_CNV_plot.pdf"))
-    grid.draw(grid_sim_plot)
-  dev.off()
-}
 
 
 ################################################################################
@@ -528,8 +316,6 @@ if (gap_or_CNV == "CNV") {
   ) {
 
     feature_indices <- CNV_indices
-    feature_indices$length <- feature_indices$end-feature_indices$start
-
     # for each range, fetch mean infercnv signal:
     feature_indices$mean_signal <- NA
     for (r in 1:nrow(feature_indices)) {
@@ -542,68 +328,31 @@ if (gap_or_CNV == "CNV") {
     # annotate non-CNV regions:
     feature_indices$call <- "non-CNV"
 
-    for (r in 1:nrow(feature_indices)) {
-
-      heatmap_segment <- epithelial_heatmap[,feature_indices[r,]$start:feature_indices[r,]$end]
-      cell_means <- apply(heatmap_segment, 1, mean)
-
-      if (feature_indices[r,]$type == "gain") {
-
-        correct_cell_no <- length(
-          which(
-            cell_means > neutral_signal_range[2]
-          )
-        )
-        total_no <- length(cell_means)
-        proportion_correct <- correct_cell_no/total_no
-        if (proportion_correct >= 0.7) {
-          feature_indices$call[r] <- "feature_called"
-          print(paste0("CNV present for gain length ", feature_indices$length[r]))
-        } else {
-          feature_indices$call[r] <- "feature_not_called"
-        }
-      } else if (feature_indices[r,]$type == "loss") {
-        correct_cell_no <- length(
-          which(
-            cell_means < neutral_signal_range[1]
-          )
-        )
-        total_no <- length(cell_means)
-        proportion_correct <- correct_cell_no/total_no
-        if (proportion_correct >= 0.7) {
-          feature_indices$call[r] <- "feature_called"
-          print(paste0("CNV present for loss length ", feature_indices$length[r]))
-        } else {
-          feature_indices$call[r] <- "feature_not_called"
-        }
-      }
-    }
-
-#    # annotate all loss ranges with mean signal >= lower range of 
-#    # neutral_ranges as "feature_not_called":
-#    feature_indices$call[
-#      feature_indices$multiplier == 0 & 
-#      feature_indices$mean_signal >= neutral_signal_range[1]
-#    ] <- "feature_not_called"
-#    # annotate all loss ranges with mean signal < lower range of 
-#    # neutral_ranges as "feature_called":
-#    feature_indices$call[
-#      feature_indices$multiplier == 0 & 
-#      feature_indices$mean_signal < neutral_signal_range[1]
-#    ] <- "feature_called"
-#   
-#    # annotate all gain ranges with mean signal <= upper range of 
-#    # neutral_ranges as "feature_not_called":
-#    feature_indices$call[
-#      feature_indices$multiplier == 3 & 
-#      feature_indices$mean_signal <= neutral_signal_range[2]
-#    ] <- "feature_not_called"
-#    # annotate all gain ranges with mean signal > upper range of 
-#    # neutral_ranges as "feature_called":
-#    feature_indices$call[
-#      feature_indices$multiplier == 3 & 
-#      feature_indices$mean_signal > neutral_signal_range[2]
-#    ] <- "feature_called"
+    # annotate all loss ranges with mean signal >= lower range of 
+    # neutral_ranges as "feature_not_called":
+    feature_indices$call[
+      feature_indices$multiplier == 0 & 
+      feature_indices$mean_signal >= neutral_signal_range[1]
+    ] <- "feature_not_called"
+    # annotate all loss ranges with mean signal < lower range of 
+    # neutral_ranges as "feature_called":
+    feature_indices$call[
+      feature_indices$multiplier == 0 & 
+      feature_indices$mean_signal < neutral_signal_range[1]
+    ] <- "feature_called"
+   
+    # annotate all gain ranges with mean signal <= upper range of 
+    # neutral_ranges as "feature_not_called":
+    feature_indices$call[
+      feature_indices$multiplier == 3 & 
+      feature_indices$mean_signal <= neutral_signal_range[2]
+    ] <- "feature_not_called"
+    # annotate all gain ranges with mean signal > upper range of 
+    # neutral_ranges as "feature_called":
+    feature_indices$call[
+      feature_indices$multiplier == 3 & 
+      feature_indices$mean_signal > neutral_signal_range[2]
+    ] <- "feature_called"
 
     # record calls for gain and loss of each length:
     feature_calls <- feature_indices[feature_indices$call != "non-CNV",]
@@ -645,79 +394,54 @@ if (gap_or_CNV == "CNV") {
     !file.exists(paste0(Robject_dir, "3.final_gap_indices.Rdata"))
   ) {
 
-    # for each range, determine whether there is a min_gap_length long gene window with 
-    # mean signal within neutral_signal_ranges or the range of the opposite CNV type
-    # in at least 80% of genes:
+    # for each range, determine whether there is a 40 gene window with mean
+    # signal within neutral_signal_ranges or the range of the opposite CNV type:
     feature_indices$call <- "feature_not_called"
-#    for (r in 1:nrow(feature_indices)) {
-#
-#      for (g in feature_indices[r,]$start:feature_indices[r,]$end) {
-#
-#        segment_mean <- mean(average_epithelial[g:(g+(min_gap_length-1))])
-#
-#        if (CNV_type == "gain") {
-#          if (segment_mean <= neutral_signal_range[2]) {
-#            feature_indices$call[r] <- "feature_called"
-#            print(paste0("Gap present for length ", feature_indices$length[r]))
-#            break()
-#          }
-#        } else if (CNV_type == "loss") {
-#          if (segment_mean >= neutral_signal_range[1]) {
-#            feature_indices$call[r] <- "feature_called"
-#            print(paste0("Gap present for length ", feature_indices$length[r]))
-#            break()
-#          }
-#        }
-#
-#      }
-#
-#    }
-
     for (r in 1:nrow(feature_indices)) {
 
-      print(r)
       for (g in feature_indices[r,]$start:feature_indices[r,]$end) {
 
-        heatmap_segment <- epithelial_heatmap[,g:(g+(min_gap_length-1))]
-        cell_means <- apply(heatmap_segment, 1, mean)
+        segment_mean <- mean(average_epithelial[g:g+39])
 
         if (CNV_type == "gain") {
-
-          correct_cell_no <- length(
-            which(
-              cell_means <= neutral_signal_range[2]
-            )
-          )
-          total_no <- length(cell_means)
-          proportion_correct <- correct_cell_no/total_no
-
-          if (proportion_correct >= 0.7) {
+          if (segment_mean <= neutral_signal_range[2]) {
             feature_indices$call[r] <- "feature_called"
-            print(paste0("Gap present for length ", feature_indices$length[r]))
             break()
           }
-
         } else if (CNV_type == "loss") {
-
-          correct_cell_no <- length(
-            which(
-              cell_means >= neutral_signal_range[1]
-            )
-          )
-          total_no <- length(cell_means)
-          proportion_correct <- correct_cell_no/total_no
-
-          if (proportion_correct >= 0.7) {
+          if (segment_mean >= neutral_signal_range[1]) {
             feature_indices$call[r] <- "feature_called"
-            print(paste0("Gap present for length ", feature_indices$length[r]))
             break()
           }
-
         }
 
       }
 
     }
+
+#    # for each range, fetch mean infercnv signal:
+#    feature_indices$mean_signal <- NA
+#    for (r in 1:nrow(feature_indices)) {
+#      signal_segment <- average_epithelial[
+#        feature_indices$start[r]:feature_indices$end[r]
+#      ]
+#      feature_indices$mean_signal[r] <- mean(signal_segment)
+#    }
+#
+#    # annotate non-called gap regions:
+#    feature_indices$call <- "feature_not_called"
+#
+#    # annotate all gap ranges which have a gap of at least 40 genes within 
+#    # neutral_signal_ranges or the range of the opposite CNV type as "feature_called":
+#    if (CNV_type == "gain") {
+#      feature_indices$call[
+#        feature_indices$mean_signal <= neutral_signal_range[2]
+#      ] <- "feature_called"
+#    } else if (CNV_type == "loss") {
+#      feature_indices$call[
+#        feature_indices$mean_signal >= neutral_signal_range[1]
+#      ] <- "feature_called"
+#    }
 
     # order feature_indices and fill in areas of no gaps:
     feature_indices <- feature_indices[order(feature_indices$start),]
@@ -881,7 +605,7 @@ x_coord <- longest_cluster_name*0.0037
 
 
 ################################################################################
-### 9. Plot heatmap ###
+### 11. Plot heatmap ###
 ################################################################################
 
 # plot final annotated heatmap:

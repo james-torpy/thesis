@@ -17,7 +17,9 @@ print(paste0("nUMI_threshold = ", nUMI_threshold))
 nGene_threshold <- as.numeric(args[3])
 print(paste0("nGene_threshold = ", nGene_threshold))
 gap_or_CNV <- args[4]
+print(paste0("Gap or CNV = ", gap_or_CNV))
 CNV_type <- args[5]
+print(paste0("CNV_type = ", CNV_type))
 # range of lengths of CNVs/gaps:
 feature_lengths <- as.numeric(
   unlist(
@@ -27,7 +29,7 @@ feature_lengths <- as.numeric(
     )
   )
 )
-print(paste0("Possible CNV lengths = ", feature_lengths))
+print(paste0("Possible CNV/gap lengths = ", feature_lengths))
 gap_CNV_length <- as.numeric(args[7])
 simulation_number <- as.numeric(args[8])
 print(paste0("Simulation number = ", simulation_number))
@@ -118,7 +120,6 @@ noise_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
   "_cancer_sim/noise_generation/")
 system(paste0("mkdir -p ", noise_dir))
 
-
 sim_out_path <- paste0(results_dir, "cancer_simulation/", sample_name, 
 	"_cancer_sim/")
 
@@ -129,14 +130,31 @@ system(paste0("mkdir -p ", common_plot_dir))
 common_table_dir <- paste0(sim_out_path, "tables/")
 system(paste0("mkdir -p ", common_table_dir))
 
-Robject_dir <- paste0(sim_out_path, gap_or_CNV, "/",
- simulation_number, "/Rdata/")
-system(paste0("mkdir -p ", Robject_dir))
-plot_path <- paste0(sim_out_path, gap_or_CNV, "/", 
-  simulation_number, "/plots/")
-table_dir <- paste0(sim_out_path, gap_or_CNV, "/", 
-  simulation_number, "/tables/")
-system(paste0("mkdir -p ", table_dir))
+if (gap_or_CNV == "CNV") {
+
+  Robject_dir <- paste0(sim_out_path, gap_or_CNV, "/",
+   simulation_number, "/Rdata/")
+  system(paste0("mkdir -p ", Robject_dir))
+  plot_dir <- paste0(sim_out_path, gap_or_CNV, "/", 
+    simulation_number, "/plots/")
+  system(paste0("mkdir -p ", plot_dir))
+  table_dir <- paste0(sim_out_path, gap_or_CNV, "/", 
+    simulation_number, "/tables/")
+  system(paste0("mkdir -p ", table_dir))
+
+} else if (gap_or_CNV == "gap") {
+
+  Robject_dir <- paste0(sim_out_path, gap_or_CNV, "/",
+   simulation_number, "/", CNV_type, "/Rdata/")
+  system(paste0("mkdir -p ", Robject_dir))
+  plot_dir <- paste0(sim_out_path, gap_or_CNV, "/", 
+    simulation_number, "/", CNV_type, "/plots/")
+  system(paste0("mkdir -p ", plot_dir))
+  table_dir <- paste0(sim_out_path, gap_or_CNV, "/", 
+    simulation_number, "/", CNV_type, "/tables/")
+  system(paste0("mkdir -p ", table_dir))
+
+}
 
 out_path <- paste0(results_dir, "infercnv/t_cells_included/", sample_name, 
   "_cancer_sim/")
@@ -147,21 +165,16 @@ if (gap_or_CNV == "CNV") {
     system(paste0("mkdir -p ", out_dir))
   print(paste0("Output directory = ", out_dir))
 } else if (gap_or_CNV == "gap") {
-  gain_out_dir <- paste0(out_path, gap_or_CNV, "/", simulation_number, 
-    "/gain/input_files/")
-  loss_out_dir <- paste0(out_path, gap_or_CNV, "/", simulation_number, 
-    "/loss/input_files/")
-  system(paste0("mkdir -p ", gain_out_dir))
-  print(paste0("Gain output directory = ", gain_out_dir))
-  system(paste0("mkdir -p ", loss_out_dir))
-  print(paste0("Loss output directory = ", loss_out_dir))
+  out_dir <- paste0(out_path, gap_or_CNV, "/", simulation_number, 
+    "/", CNV_type, "/input_files/")
+  system(paste0("mkdir -p ", out_dir))
+  print(paste0("Output directory = ", out_dir))
 }
-
 
 print(paste0("Sample directory = ", in_dir))
 print(paste0("Reference directory = ", ref_dir))
 
-print(paste0("Plot path = ", plot_path))
+print(paste0("Plot dir = ", plot_dir))
 print(paste0("Table directory = ", table_dir))
 
 print(paste0("Generating simulated cancer data set from ", sample_name))
@@ -205,92 +218,114 @@ if (file.exists(paste0(table_dir, "random_seed_record.txt"))) {
 # matrix and create new gene_annotation df ###
 #################################################################################
 
-# load unfiltered matrix from last run:
-raw_matrix <- read.table(paste0(in_dir, "input_matrix.txt"), header = T, 
-  sep = "\t")
+if (
+  !file.exists(paste0(common_Robject_dir, "1a.gene_annotation.Rdata")) | 
+  !file.exists(paste0(common_Robject_dir, "1b.original_epithelial_df.Rdata")) |
+  !file.exists(paste0(common_Robject_dir, "1c.original_metadata.Rdata"))
+) {
 
-# load metadata:
-infercnv_metadata <- read.table(paste0(in_dir, "metadata.txt"), header = F, 
-  sep = "\t")
-colnames(infercnv_metadata) <- c("cell_ids", "cell_type")
-rownames(infercnv_metadata) <- infercnv_metadata$cell_ids
-
-# isolate epithelial cells only:
-epithelial_ids <- as.character(
-  infercnv_metadata$cell_ids[
-    infercnv_metadata$cell_type == "Epithelial"
-  ]
-)
-epithelial_matrix <- raw_matrix[
-  ,colnames(raw_matrix) %in% epithelial_ids
-]
-# fetch genes remaining from filtered infercnv output:
-last_run_genes <- gsub(
-  "\"",
-  "",
-  system(
-    paste0("awk '{print $1}' ", normal_infercnv_dir, "infercnv.12_denoised.observations.txt"),
-    intern=TRUE
+  # load unfiltered matrix from last run:
+  raw_matrix <- read.table(paste0(in_dir, "input_matrix.txt"), header = T, 
+    sep = "\t")
+  
+  # load metadata:
+  infercnv_metadata <- read.table(paste0(in_dir, "metadata.txt"), header = F, 
+    sep = "\t")
+  colnames(infercnv_metadata) <- c("cell_ids", "cell_type")
+  rownames(infercnv_metadata) <- infercnv_metadata$cell_ids
+  
+  # isolate epithelial cells only:
+  epithelial_ids <- as.character(
+    infercnv_metadata$cell_ids[
+      infercnv_metadata$cell_type == "Epithelial"
+    ]
   )
-)[-1]
-# filter input matrix for only genes retained in last run infercnv output and write:
-epithelial_df <- epithelial_matrix[last_run_genes,]
-
-# subset genes and cells:
-epithelial_df <- epithelial_df[1:3000, 1:150]
-non_epithelial_ids <- as.character(
-  infercnv_metadata$cell_ids[
-    infercnv_metadata$cell_type != "Epithelial"
+  epithelial_matrix <- raw_matrix[
+    ,colnames(raw_matrix) %in% epithelial_ids
   ]
-)
-filtered_ids <- c(colnames(epithelial_df), non_epithelial_ids)
-infercnv_metadata <- infercnv_metadata[
-  as.character(infercnv_metadata$cell_ids) %in% filtered_ids,
-]
+  # fetch genes remaining from filtered infercnv output:
+  last_run_genes <- gsub(
+    "\"",
+    "",
+    system(
+      paste0("awk '{print $1}' ", normal_infercnv_dir, "infercnv.12_denoised.observations.txt"),
+      intern=TRUE
+    )
+  )[-1]
+  # filter input matrix for only genes retained in last run infercnv output and write:
+  epithelial_df <- epithelial_matrix[last_run_genes,]
+  
+#  # subset genes and cells:
+#  epithelial_df <- epithelial_df[1:3000, 1:150]
+  non_epithelial_ids <- as.character(
+    infercnv_metadata$cell_ids[
+      infercnv_metadata$cell_type != "Epithelial"
+    ]
+  )
+  filtered_ids <- c(colnames(epithelial_df), non_epithelial_ids)
+  infercnv_metadata <- infercnv_metadata[
+    as.character(infercnv_metadata$cell_ids) %in% filtered_ids,
+  ]
+  
+  # load in gene annotation and determine chromosome lengths:
+  gene_annotation <- read.table(
+    paste0(ref_dir, "infercnv_gene_order.txt"),
+    header = F,
+    sep = "\t",
+    as.is = T
+  )
+  colnames(gene_annotation) <- c("symbol", "chromosome", "start", "end")
+  
+  # subset gene annotation and epithelial_df so they contain the same genes:
+  rownames(gene_annotation) <- gene_annotation$symbol
+  genes_not_in_gene_annotation <- rownames(epithelial_df)[
+    !(rownames(epithelial_df) %in% rownames(gene_annotation))
+  ]
+  print(paste0(length(genes_not_in_gene_annotation), 
+    " genes not present in InferCNV gene annotation but present in ", sample_name, 
+    " counts matrix"))
+  
+  genes_not_in_epithelial_df <- rownames(gene_annotation)[
+    !(rownames(gene_annotation) %in% rownames(epithelial_df))
+  ]
+  print(paste0(length(genes_not_in_epithelial_df), " genes not present in ", sample_name, 
+    " counts matrix but present in InferCNV gene annotation"))
+  
+  print("Removing genes not present in both InferCNV gene annotation and counts matrix...")
+  gene_annotation <- gene_annotation[
+    rownames(gene_annotation) %in% rownames(epithelial_df),
+  ]
+  print(paste0("Gene numbers of InferCNV gene annotation and counts matrix are now ",
+    nrow(gene_annotation), " and ", nrow(epithelial_df), " respectively"))
+  
+  # number genes in gene annotation:
+  gene_annotation$number <- seq(1, nrow(gene_annotation))
 
-# load in gene annotation and determine chromosome lengths:
-gene_annotation <- read.table(
-  paste0(ref_dir, "infercnv_gene_order.txt"),
-  header = F,
-  sep = "\t",
-  as.is = T
-)
-colnames(gene_annotation) <- c("symbol", "chromosome", "start", "end")
-
-# subset gene annotation and epithelial_df so they contain the same genes:
-rownames(gene_annotation) <- gene_annotation$symbol
-genes_not_in_gene_annotation <- rownames(epithelial_df)[
-  !(rownames(epithelial_df) %in% rownames(gene_annotation))
-]
-print(paste0(length(genes_not_in_gene_annotation), 
-  " genes not present in InferCNV gene annotation but present in ", sample_name, 
-  " counts matrix"))
-
-genes_not_in_epithelial_df <- rownames(gene_annotation)[
-  !(rownames(gene_annotation) %in% rownames(epithelial_df))
-]
-print(paste0(length(genes_not_in_epithelial_df), " genes not present in ", sample_name, 
-  " counts matrix but present in InferCNV gene annotation"))
-
-print("Removing genes not present in both InferCNV gene annotation and counts matrix...")
-gene_annotation <- gene_annotation[
-  rownames(gene_annotation) %in% rownames(epithelial_df),
-]
-print(paste0("Gene numbers of InferCNV gene annotation and counts matrix are now ",
-  nrow(gene_annotation), " and ", nrow(epithelial_df), " respectively"))
-
-# number genes in gene annotation:
-gene_annotation$number <- seq(1, nrow(gene_annotation))
-
-if (!file.exists(paste0(common_Robject_dir, "1.gene_annotation.Rdata"))) {
   saveRDS(
     gene_annotation, 
-    paste0(common_Robject_dir, "1.gene_annotation.Rdata")
+    paste0(common_Robject_dir, "1a.gene_annotation.Rdata")
   )
+  saveRDS(
+    epithelial_df, 
+    paste0(common_Robject_dir, "1b.original_epithelial_df.Rdata")
+  )
+  saveRDS(
+    infercnv_metadata, 
+    paste0(common_Robject_dir, "1c.original_metadata.Rdata")
+  )
+
 } else {
+
   gene_annotation <- readRDS(
-    paste0(common_Robject_dir, "1.gene_annotation.Rdata")
+    paste0(common_Robject_dir, "1a.gene_annotation.Rdata")
   )
+  epithelial_df <- readRDS(
+    paste0(common_Robject_dir, "1b.original_epithelial_df.Rdata")
+  )
+  infercnv_metadata <- readRDS(
+    paste0(common_Robject_dir, "1c.original_metadata.Rdata")
+  )
+
 }
 
 
@@ -431,46 +466,39 @@ if ( !file.exists(paste0(Robject_dir, "2.initial_CNV_data.Rdata")) ) {
     random_loss_starts <- sample(1:gene_no, 1000)
   
     # for each length, introduce a loss of that length:
-    initial_CNV_data <- list(introduce_CNVs(feature_lengths, type = "loss", random_starts = random_loss_starts, 
+    initial_CNV_data <- introduce_CNVs(feature_lengths, type = "loss", random_starts = random_loss_starts, 
       epithelial_df, CNV_record = CNV_data_list$CNV_record, modified_df = CNV_data_list$modified_df, 
-      log_modified_fold_change_df = CNV_data_list$log_modified_fold_change_df))
+      log_modified_fold_change_df = CNV_data_list$log_modified_fold_change_df)
   
     saveRDS(initial_CNV_data, paste0(Robject_dir, "/2.initial_CNV_data.Rdata"))
     
   } else if (gap_or_CNV == "gap") {
 
-    # choose random indices for gain positions for gaps:
-    set.seed(seed_record["gain_gap_start",])
-    gene_no <- nrow(epithelial_df)
-    random_gain_gap_starts <- sample(1:gene_no, 1000)
-      
-    # for each length, introduce a gain gap of that length:
-    gain_CNV_data_list <- introduce_gaps(gap_lengths = feature_lengths, type = "gain", 
-      random_starts = random_gain_gap_starts, epithelial_df = epithelial_df, 
-      extended_gap_record = NULL, CNV_record = NULL, modified_df = NULL, 
-      log_modified_fold_change_df = NULL)
+    if (CNV_type == "gain") {
+
+      # choose random indices for gain positions for gaps:
+      set.seed(seed_record["gain_gap_start",])
+      gene_no <- nrow(epithelial_df)
+      random_gain_gap_starts <- sample(1:gene_no, 1000)
+        
+      # for each length, introduce a gap of that length:
+      initial_CNV_data <- introduce_gaps(gap_lengths = feature_lengths, type = "gain", 
+        random_starts = random_gain_gap_starts, epithelial_df = epithelial_df, 
+        extended_gap_record = NULL, CNV_record = NULL, modified_df = NULL, 
+        log_modified_fold_change_df = NULL)
+
+    } else {
+
+      # choose random indices for loss positions for gaps:
+      set.seed(seed_record["loss_gap_start",])
+      gene_no <- nrow(epithelial_df)
+      random_loss_gap_starts <- sample(1:gene_no, 1000)
+      # for each length, introduce a loss gap of that length:
+      initial_CNV_data <- introduce_gaps(feature_lengths, type = "loss", 
+        random_starts = random_loss_gap_starts, epithelial_df, 
+        extended_gap_record = NULL, CNV_record = NULL, modified_df = NULL, 
+        log_modified_fold_change_df = NULL)
   
-    # define list variables independently:
-    initial_CNV_data <- list(
-      gain = gain_CNV_data_list
-    )
-    
-    # choose random indices for loss positions for gaps:
-    set.seed(seed_record["loss_gap_start",])
-    random_loss_gap_starts <- sample(1:gene_no, 1000)
-    # for each length, introduce a loss gap of that length:
-    loss_CNV_data_list <- introduce_gaps(feature_lengths, type = "loss", 
-      random_starts = random_loss_gap_starts, epithelial_df, 
-      extended_gap_record = NULL, CNV_record = NULL, modified_df = NULL, 
-      log_modified_fold_change_df = NULL)
-  
-    # define list variables independently:
-    initial_CNV_data <- list.append(
-      initial_CNV_data, 
-      loss_CNV_data_list
-    )
-    if (gap_or_CNV == "gap") {
-      names(initial_CNV_data) <- c("gain", "loss")
     }
 
     saveRDS(initial_CNV_data, paste0(Robject_dir, "/2.initial_CNV_data.Rdata"))
@@ -492,100 +520,94 @@ if ( !file.exists(paste0(Robject_dir, "3.CNV_data.Rdata")) ) {
   print("Plotting new fold change from median for all genes...")
   writeLines("\n")
 
-  for (e in 1:length(initial_CNV_data)) {
-  
-    # add non-CNV regions to CNV record:
-    CNV_record_gr <- GRanges(
-      seqnames = Rle("genome"),
-      ranges = IRanges(start = initial_CNV_data[[e]]$CNV_record$start, end = initial_CNV_data[[e]]$CNV_record$end),
-      strand = Rle("*"),
-      multiplier = initial_CNV_data[[e]]$CNV_record$multiplier,
-      log_median_modified_FC = initial_CNV_data[[e]]$CNV_record$log_median_modified_FC
+
+  # add non-CNV regions to CNV record:
+  CNV_record_gr <- GRanges(
+    seqnames = Rle("genome"),
+    ranges = IRanges(start = initial_CNV_data$CNV_record$start, end = initial_CNV_data$CNV_record$end),
+    strand = Rle("*"),
+    multiplier = initial_CNV_data$CNV_record$multiplier,
+    log_median_modified_FC = initial_CNV_data$CNV_record$log_median_modified_FC
+  )
+  # identify gaps between marked CNV regions as non-CNV regions and fill in values accordingly:
+  non_CNV_record <- gaps(CNV_record_gr)
+  non_CNV_record$multiplier = rep(1, length(non_CNV_record))
+  non_CNV_record$log_median_modified_FC = rep(0, length(non_CNV_record))
+  CNV_record_gr <- c(CNV_record_gr, non_CNV_record)
+  # convert back to data frame and order:
+  CNV_record <- data.frame(
+    start = start(ranges(CNV_record_gr)),
+    end = end(ranges(CNV_record_gr)),
+    multiplier = CNV_record_gr$multiplier,
+    log_median_modified_FC = CNV_record_gr$log_median_modified_FC
+  )
+  CNV_record <- CNV_record[order(CNV_record$start),]
+  # fill in last non-CNV segment:
+  CNV_record <- rbind(
+    CNV_record,
+    data.frame(
+      start = CNV_record$end[nrow(CNV_record)]+1,
+      end = nrow(epithelial_df),
+      multiplier = 1,
+      log_median_modified_FC = 0
     )
-    # identify gaps between marked CNV regions as non-CNV regions and fill in values accordingly:
-    non_CNV_record <- gaps(CNV_record_gr)
-    non_CNV_record$multiplier = rep(1, length(non_CNV_record))
-    non_CNV_record$log_median_modified_FC = rep(0, length(non_CNV_record))
-    CNV_record_gr <- c(CNV_record_gr, non_CNV_record)
-    # convert back to data frame and order:
-    CNV_record <- data.frame(
-      start = start(ranges(CNV_record_gr)),
-      end = end(ranges(CNV_record_gr)),
-      multiplier = CNV_record_gr$multiplier,
-      log_median_modified_FC = CNV_record_gr$log_median_modified_FC
-    )
-    CNV_record <- CNV_record[order(CNV_record$start),]
-    # fill in last non-CNV segment:
-    CNV_record <- rbind(
-      CNV_record,
-      data.frame(
-        start = CNV_record$end[nrow(CNV_record)]+1,
-        end = nrow(epithelial_df),
-        multiplier = 1,
-        log_median_modified_FC = 0
-      )
-    )
-    
-    # add chromosome information:
-    CNV_record$start_chr <- "chr1"
-    CNV_record$end_chr <- "chr1"
-    for (k in 1:length(chromosome_ends)) {
-      if (k==1) {
+  )
   
-        CNV_record$start_chr[
-          CNV_record$start <= unlist(chromosome_ends[k])
-        ] <- names(chromosome_ends)[k]
-  
-        CNV_record$end_chr[
-          CNV_record$end <= unlist(chromosome_ends[k])
-        ] <- names(chromosome_ends)[k]
-  
-      } else {
-  
-        CNV_record$start_chr[
-          CNV_record$start <= unlist(chromosome_ends[k]) & 
-          CNV_record$start > unlist(chromosome_ends[k-1])
-        ] <- names(chromosome_ends)[k]
-  
-        CNV_record$end_chr[
-          CNV_record$end <= unlist(chromosome_ends[k]) & 
-          CNV_record$end > unlist(chromosome_ends[k-1])
-        ] <- names(chromosome_ends)[k]
-  
-      }
-    }
-  
-    if (e==1 & gap_or_CNV == "CNV") {
-      CNV_data <- list(
-        list(
-          CNV_record = CNV_record,
-          modified_df = initial_CNV_data[[e]]$modified_df,
-          log_modified_fold_change_df = initial_CNV_data[[e]]$log_modified_fold_change_df
-        )
-      )
-    } else if (e==1 & gap_or_CNV == "gap") {
-      CNV_data <- list(
-        list(
-          extended_gap_record = initial_CNV_data[[e]]$extended_gap_record,
-          CNV_record = CNV_record,
-          modified_df = initial_CNV_data[[e]]$modified_df,
-          log_modified_fold_change_df = initial_CNV_data[[e]]$log_modified_fold_change_df
-        )
-      )
+  # add chromosome information:
+  CNV_record$start_chr <- "chr1"
+  CNV_record$end_chr <- "chr1"
+  for (k in 1:length(chromosome_ends)) {
+    if (k==1) {
+
+      CNV_record$start_chr[
+        CNV_record$start <= unlist(chromosome_ends[k])
+      ] <- names(chromosome_ends)[k]
+
+      CNV_record$end_chr[
+        CNV_record$end <= unlist(chromosome_ends[k])
+      ] <- names(chromosome_ends)[k]
+
     } else {
-      CNV_data <- list.append(
-        CNV_data, 
-        list(
-          extended_gap_record = initial_CNV_data[[e]]$extended_gap_record,
-          CNV_record = CNV_record,
-          modified_df = initial_CNV_data[[e]]$modified_df,
-          log_modified_fold_change_df = initial_CNV_data[[e]]$log_modified_fold_change_df
-        )
-      )
+
+      CNV_record$start_chr[
+        CNV_record$start <= unlist(chromosome_ends[k]) & 
+        CNV_record$start > unlist(chromosome_ends[k-1])
+      ] <- names(chromosome_ends)[k]
+
+      CNV_record$end_chr[
+        CNV_record$end <= unlist(chromosome_ends[k]) & 
+        CNV_record$end > unlist(chromosome_ends[k-1])
+      ] <- names(chromosome_ends)[k]
+
     }
   }
-  if (gap_or_CNV == "gap") {
-    names(CNV_data) <- c("gain", "loss")
+  
+  if (gap_or_CNV == "CNV") {
+
+    CNV_data <- list(
+      CNV_record = CNV_record,
+      modified_df = initial_CNV_data$modified_df,
+      log_modified_fold_change_df = initial_CNV_data$log_modified_fold_change_df
+    )
+
+  } else if (gap_or_CNV == "gap" & CNV_type == "gain") {
+
+    CNV_data <- list(
+      extended_gap_record = initial_CNV_data$extended_gap_record,
+      CNV_record = CNV_record,
+      modified_df = initial_CNV_data$modified_df,
+      log_modified_fold_change_df = initial_CNV_data$log_modified_fold_change_df
+    )
+
+  } else {
+
+    CNV_data <- list(
+      extended_gap_record = initial_CNV_data$extended_gap_record,
+      CNV_record = CNV_record,
+      modified_df = initial_CNV_data$modified_df,
+      log_modified_fold_change_df = initial_CNV_data$log_modified_fold_change_df
+    )
+    
   }
     
   saveRDS(CNV_data, paste0(Robject_dir, "3.CNV_data.Rdata"))
@@ -599,111 +621,97 @@ if ( !file.exists(paste0(Robject_dir, "3.CNV_data.Rdata")) ) {
 ### 6. Create modified counts and line CNV plots ###
 ################################################################################
 
-for (e in 1:length(CNV_data)) {
-
-  if (gap_or_CNV == "gap") {
-    if (e==1) {
-      plot_dir <- paste0(plot_path, "gain/")    
-    } else {
-      plot_dir <- paste0(plot_path, "loss/") 
-    }
-    system(paste0("mkdir -p ", plot_dir))
-  } else {
-    plot_dir <- plot_path
-    system(paste0("mkdir -p ", plot_dir))
+# plot median fold change from original median for modified data:
+if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"))) {
+  p <- ggplot(CNV_data$log_modified_fold_change_df, aes(x=number, y=count))
+  p <- p + scale_x_continuous(
+    breaks = unlist(chromosome_midpoints),
+    labels = paste0("chr", 1:length(chromosome_midpoints)),
+    limits = c(0,length(CNV_data$log_modified_fold_change_df$count)), 
+    expand = c(0, 0)
+  )
+  p <- p + scale_y_continuous(
+    breaks = c(-4, -3, -2, -1, 0, 1),
+    labels = c("-4", "-3", "-2", "-1", "0", "1"),
+    limits = c(-3, 1)
+  )
+  for (end in chromosome_ends) {
+    p <- p + geom_vline(xintercept=end)
   }
-
-  # plot median fold change from original median for modified data:
-  if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"))) {
-    p <- ggplot(CNV_data[[e]]$log_modified_fold_change_df, aes(x=number, y=count))
-    p <- p + scale_x_continuous(
-      breaks = unlist(chromosome_midpoints),
-      labels = paste0("chr", 1:length(chromosome_midpoints)),
-      limits = c(0,length(CNV_data[[e]]$log_modified_fold_change_df$count)), 
-      expand = c(0, 0)
+  for (r in 1:nrow(CNV_data$CNV_record)) {
+    print(r)
+    # create horizontal line:
+    p <- p + geom_segment(
+      x=CNV_data$CNV_record$start[r], 
+      xend=CNV_data$CNV_record$end[r], 
+      y=CNV_data$CNV_record$log_median_modified_FC[r], 
+      yend=CNV_data$CNV_record$log_median_modified_FC[r], 
+      size=1, color="#37841f"
     )
-    p <- p + scale_y_continuous(
-      breaks = c(-4, -3, -2, -1, 0, 1),
-      labels = c("-4", "-3", "-2", "-1", "0", "1"),
-      limits = c(-3, 1)
-    )
-    for (end in chromosome_ends) {
-      p <- p + geom_vline(xintercept=end)
-    }
-    for (r in 1:nrow(CNV_data[[e]]$CNV_record)) {
-      print(r)
-      # create horizontal line:
+    # create left vertical line:
+    if (r != 1) {
       p <- p + geom_segment(
-        x=CNV_data[[e]]$CNV_record$start[r], 
-        xend=CNV_data[[e]]$CNV_record$end[r], 
-        y=CNV_data[[e]]$CNV_record$log_median_modified_FC[r], 
-        yend=CNV_data[[e]]$CNV_record$log_median_modified_FC[r], 
+        x=CNV_data$CNV_record$start[r], 
+        xend=CNV_data$CNV_record$start[r], 
+        y=CNV_data$CNV_record$log_median_modified_FC[r-1], 
+        yend=CNV_data$CNV_record$log_median_modified_FC[r], 
         size=1, color="#37841f"
       )
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=CNV_data[[e]]$CNV_record$start[r], 
-          xend=CNV_data[[e]]$CNV_record$start[r], 
-          y=CNV_data[[e]]$CNV_record$log_median_modified_FC[r-1], 
-          yend=CNV_data[[e]]$CNV_record$log_median_modified_FC[r], 
-          size=1, color="#37841f"
-        )
-      }
     }
-    pdf(paste0(plot_dir, 
-      "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"), width = 20)
-      print(p)
-    dev.off()
-    
   }
+  pdf(paste0(plot_dir, 
+    "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"), width = 20)
+    print(p)
+  dev.off()
   
-  # plot counts:
-  if (!file.exists(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"))) {
-    p <- ggplot(CNV_data[[e]]$log_modified_fold_change_df, aes(x=number, y=count))
-    p <- p + geom_point(colour = "#E8D172")
-    p <- p + xlab("Genomic location")
-    p <- p + scale_x_continuous(
-      breaks = unlist(chromosome_midpoints),
-      labels = paste0("chr", 1:length(chromosome_midpoints)),
-      limits = c(0,nrow(CNV_data[[e]]$log_modified_fold_change_df)), 
-      expand = c(0, 0)
+}
+
+# plot counts:
+if (!file.exists(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"))) {
+  p <- ggplot(CNV_data$log_modified_fold_change_df, aes(x=number, y=count))
+  p <- p + geom_point(colour = "#E8D172")
+  p <- p + xlab("Genomic location")
+  p <- p + scale_x_continuous(
+    breaks = unlist(chromosome_midpoints),
+    labels = paste0("chr", 1:length(chromosome_midpoints)),
+    limits = c(0,nrow(CNV_data$log_modified_fold_change_df)), 
+    expand = c(0, 0)
+  )
+  p <- p + ylab("Log10 fold change")
+  p <- p + scale_y_continuous(
+    breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+    labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
+    limits = c(min(CNV_data$log_modified_fold_change_df$count), max(CNV_data$log_modified_fold_change_df$count))
+  )
+  for (end in chromosome_ends) {
+    p <- p + geom_vline(xintercept=end)
+  }
+  for (r in 1:nrow(CNV_data$CNV_record)) {
+    print(r)
+    # create horizontal line:
+    p <- p + geom_segment(
+      x=CNV_data$CNV_record$start[r], 
+      xend=CNV_data$CNV_record$end[r], 
+      y=CNV_data$CNV_record$log_median_modified_FC[r], 
+      yend=CNV_data$CNV_record$log_median_modified_FC[r], 
+      size=1, color="red"
     )
-    p <- p + ylab("Log10 fold change")
-    p <- p + scale_y_continuous(
-      breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-      labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-      limits = c(min(CNV_data[[e]]$log_modified_fold_change_df$count), max(CNV_data[[e]]$log_modified_fold_change_df$count))
-    )
-    for (end in chromosome_ends) {
-      p <- p + geom_vline(xintercept=end)
-    }
-    for (r in 1:nrow(CNV_data[[e]]$CNV_record)) {
-      print(r)
-      # create horizontal line:
+    # create left vertical line:
+    if (r != 1) {
       p <- p + geom_segment(
-        x=CNV_data[[e]]$CNV_record$start[r], 
-        xend=CNV_data[[e]]$CNV_record$end[r], 
-        y=CNV_data[[e]]$CNV_record$log_median_modified_FC[r], 
-        yend=CNV_data[[e]]$CNV_record$log_median_modified_FC[r], 
+        x=CNV_data$CNV_record$start[r], 
+        xend=CNV_data$CNV_record$start[r], 
+        y=CNV_data$CNV_record$log_median_modified_FC[r-1], 
+        yend=CNV_data$CNV_record$log_median_modified_FC[r], 
         size=1, color="red"
       )
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=CNV_data[[e]]$CNV_record$start[r], 
-          xend=CNV_data[[e]]$CNV_record$start[r], 
-          y=CNV_data[[e]]$CNV_record$log_median_modified_FC[r-1], 
-          yend=CNV_data[[e]]$CNV_record$log_median_modified_FC[r], 
-          size=1, color="red"
-        )
-      }
     }
-    pdf(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"), width = 20)
-      print(p)
-    dev.off()
   }
+  pdf(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_median.pdf"), width = 20)
+    print(p)
+  dev.off()
 }
+
 #save.image(paste0(Robject_dir, "temp2.Rdata"))
 #load(paste0(Robject_dir, "temp2.Rdata"))
 
@@ -715,63 +723,45 @@ for (e in 1:length(CNV_data)) {
 # load non-epithelial_df:
 non_epithelial_df <- readRDS(paste0(in_Robject_dir, "2b.non_epithelial_df.Rdata"))
 
-for (e in 1:length(CNV_data)) {
-  # only keep genes in modified_df:
-  print(paste0(
-    "Number of genes in non_epithelial_df before removing genes not in modified_df = ", 
-    nrow(epithelial_df))
+# only keep genes in modified_df:
+print(paste0(
+  "Number of genes in non_epithelial_df before removing genes not in modified_df = ", 
+  nrow(epithelial_df))
+)
+non_epithelial_df <- non_epithelial_df[rownames(CNV_data$modified_df),]
+print(paste0(
+  "Dimensions of non_epithelial_df after removing genes not in modified_df = ", 
+  nrow(non_epithelial_df))
+)
+
+# bind non-epithelial df and modified_df together as new_counts:
+if (gap_or_CNV == "CNV") {
+
+  merged_CNV_data <- list(
+    CNV_record = CNV_data$CNV_record,
+    merged_df = cbind(
+      CNV_data$modified_df,
+      non_epithelial_df
+    ),
+    log_modified_fold_change_df = CNV_data$log_modified_fold_change_df
   )
-  non_epithelial_df <- non_epithelial_df[rownames(CNV_data[[e]]$modified_df),]
-  print(paste0(
-    "Dimensions of non_epithelial_df after removing genes not in modified_df = ", 
-    nrow(non_epithelial_df))
+
+} else if (gap_or_CNV == "gap") {
+
+  merged_CNV_data <- list(
+    extended_gap_record = CNV_data$extended_gap_record,
+    CNV_record = CNV_data$CNV_record,
+    merged_df = cbind(
+      CNV_data$modified_df,
+      non_epithelial_df
+    ),
+    log_modified_fold_change_df = CNV_data$log_modified_fold_change_df
   )
-  
-  # bind non-epithelial df and modified_df together as new_counts:
-  if (e==1 & gap_or_CNV == "CNV") {
-    merged_CNV_data <- list(
-      list(
-        CNV_record = CNV_data[[e]]$CNV_record,
-        merged_df = cbind(
-          CNV_data[[e]]$modified_df,
-          non_epithelial_df
-        ),
-        log_modified_fold_change_df = CNV_data[[e]]$log_modified_fold_change_df
-      )
-    )
-    } else if (e==1 & gap_or_CNV == "gap") {
-      merged_CNV_data <- list(
-        list(
-          extended_gap_record = CNV_data[[e]]$extended_gap_record,
-          CNV_record = CNV_data[[e]]$CNV_record,
-          merged_df = cbind(
-            CNV_data[[e]]$modified_df,
-            non_epithelial_df
-          ),
-          log_modified_fold_change_df = CNV_data[[e]]$log_modified_fold_change_df
-        )
-      )
-    } else {
-      merged_CNV_data <- list.append(
-        merged_CNV_data, 
-        list(
-          extended_gap_record = CNV_data[[e]]$extended_gap_record,
-          CNV_record = CNV_data[[e]]$CNV_record,
-          merged_df = cbind(
-            CNV_data[[e]]$modified_df,
-            non_epithelial_df
-          ),
-          log_modified_fold_change_df = CNV_data[[e]]$log_modified_fold_change_df
-        )
-      )
-    }
-  print("Dimensions of merged_df = ")
-  print(dim(merged_CNV_data[[e]]$merged_df))
+
 }
 
-if (gap_or_CNV == "gap") {
-  names(merged_CNV_data) <- c("gain", "loss")
-}
+print("Dimensions of merged_df = ")
+print(dim(merged_CNV_data$merged_df))
 
 
 ###################################################################################
@@ -779,6 +769,8 @@ if (gap_or_CNV == "gap") {
 ###################################################################################
 
 if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
+
+  print(paste0("noise_df does not exist, creating now..."))
 
   all_cells <- read.csv(paste0(emptydrops_dir, "01_Emptydrops_out.csv"))
   filtered_cells <- read.csv(
@@ -836,23 +828,14 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
   # select for cells to use for simulated noise dataset:
   noise_input <- outfiltered_counts[,1:noise_cell_no]
  
-  if (!file.exists(paste0(noise_dir, "/noise_params.Rdata"))) {
-
-    # calculate params from input to use for simulation:
-    splat_params <- splatEstimate(as.matrix(noise_input))
-    # reduce simulation to number of cells in simulation:
-    splat_params <- setParam(splat_params, "nGenes", nrow(merged_CNV_data[[1]]$merged_df))
-
-    saveRDS(splat_params, paste0(noise_dir, "/noise_params.Rdata"))
-
-  } else {
-
-    splat_params <- readRDS(paste0(noise_dir, "/noise_params.Rdata"))
-
-  }
+  # calculate params from input to use for simulation:
+  splat_params <- splatEstimate(as.matrix(noise_input))
+  # reduce simulation to number of cells in simulation:
+  splat_params <- setParam(splat_params, "nGenes", nrow(merged_CNV_data$merged_df))
+  saveRDS(splat_params, paste0(noise_dir, "/noise_params.Rdata"))
 
   # simulate the data:
-  sim <- splatSimulate(splat_params, batchCells = ncol(merged_CNV_data[[1]]$merged_df))
+  sim <- splatSimulate(splat_params, batchCells = ncol(merged_CNV_data$merged_df))
   noise_counts <- counts(sim)
  
   print("Table of simulated noise counts:")
@@ -941,7 +924,7 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
 
 
   # keep only genes in noise_counts:
-  rownames(noise_counts) <- rownames(merged_CNV_data[[1]]$merged_df)
+  rownames(noise_counts) <- rownames(merged_CNV_data$merged_df)
   sim_gene_chr <- gene_chr[gene_chr$symbol %in% rownames(noise_counts),]
   sim_gene_chr <- sim_gene_chr[order(sim_gene_chr$end),]
   sim_gene_chr <- sim_gene_chr[order(sim_gene_chr$seqnames),]
@@ -1003,6 +986,7 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
   saveRDS(noise_counts, paste0(noise_dir, "/noise_df.Rdata"))
 
 } else {
+  print(paste0("noise_df already exists, loading..."))
   noise_counts <- readRDS(paste0(noise_dir, "/noise_df.Rdata"))
 }
 
@@ -1015,110 +999,97 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
 ###################################################################################
 
 if (!file.exists(paste0(Robject_dir, "4.final_CNV_data.Rdata"))) {
-  for (e in 1:length(merged_CNV_data)) {
+ 
+  # ensure metadata has same cells as modified_df and label stromal cells:
+  infercnv_metadata <- infercnv_metadata[colnames(merged_CNV_data$merged_df),]
+  epithelial_metadata <- infercnv_metadata[
+    infercnv_metadata$cell_type == "Epithelial",
+  ]
+  
+  # add noise to non-downsampled counts:
+  counts_without_noise <- merged_CNV_data$merged_df
+  counts_with_noise <- merged_CNV_data$merged_df
+  
+  # create updated CNV scatterplots post-noise addition:
+  # generate mean original segment fold change vector with each value representing 
+  # a gene:
+  final_epithelial_df <- counts_with_noise[
+    ,colnames(counts_with_noise) %in% epithelial_metadata$cell_ids[
+      epithelial_metadata$cell_type == "Epithelial"
+    ]
+  ]
+  
+  final_CNV_record <- merged_CNV_data$CNV_record
+  final_CNV_record$log_median_modified_FC_post_noise <- NA
 
-    # ensure metadata has same cells as modified_df and label stromal cells:
-    infercnv_metadata <- infercnv_metadata[colnames(merged_CNV_data[[e]]$merged_df),]
-    epithelial_metadata <- infercnv_metadata[
-      infercnv_metadata$cell_type == "Epithelial",
-    ]
-    
-    # add noise to non-downsampled counts:
-    counts_without_noise <- merged_CNV_data[[e]]$merged_df
-    counts_with_noise <- merged_CNV_data[[e]]$merged_df
-    
-    # create updated CNV scatterplots post-noise addition:
-    # generate mean original segment fold change vector with each value representing 
-    # a gene:
-    final_epithelial_df <- counts_with_noise[
-      ,colnames(counts_with_noise) %in% epithelial_metadata$cell_ids[
-        epithelial_metadata$cell_type == "Epithelial"
-      ]
-    ]
-    
-    final_CNV_record <- merged_CNV_data[[e]]$CNV_record
-    final_CNV_record$log_median_modified_FC_post_noise <- NA
+  for (i in 1:nrow(final_CNV_record)) {
   
-    for (i in 1:nrow(final_CNV_record)) {
-    
-      if (final_CNV_record$start[i] != final_CNV_record$end[i]) {
-        average_original_counts <- apply(
-          epithelial_df[final_CNV_record$start[i]:final_CNV_record$end[i],], 1, mean
-        )
-      } else {
-        average_original_counts <- mean(epithelial_df[final_CNV_record$start[i],])
-      }
-    
-      # add 0.1 to all values:
-      #average_original_counts[average_original_counts == 0] <- 1e-3
-      average_original_counts <- average_original_counts + 1e-3
-      # determine median:
-      median_average_original_counts <- median(average_original_counts)
-      # divide by median to get fold change from median:
-      original_fold_change <- average_original_counts/median_average_original_counts
-      # check median of original fold change = 1:
-      median_original_fold_change <- median(original_fold_change)
-      # generate mean modified fold change from original median vector with each value 
-      # representing a gene:
-      if (final_CNV_record$start[i] != final_CNV_record$end[i]) {
-        average_modified_counts <- apply(
-          final_epithelial_df[final_CNV_record$start[i]:final_CNV_record$end[i],], 1, mean
-        )
-      } else {
-        average_modified_counts <- mean(final_epithelial_df[final_CNV_record$start[i],])
-      }
-      # add 0.1 to zero values:
-      average_modified_counts <- average_modified_counts + 1e-3
-      # divide by median to get fold change from original median and add to df for plotting:
-      modified_fold_change <- average_modified_counts/median_average_original_counts
-      # take log of the median of modified fold change to mark on plot:
-      median_modified_fold_change <- median(modified_fold_change)    
-      log_median_modified_fold_change <- log10(median_modified_fold_change)
-      # add to final_CNV_record:
-      final_CNV_record$log_median_modified_FC_post_noise[i] <- log_median_modified_fold_change
-      # take the log10 of all fold changes:
-      log_modified_fold_change <- log10(modified_fold_change)
-      # add modified fold change values to log_original_fold_change_df:
-      if (!exists("log_modified_fold_change_df")) {
-        log_modified_fold_change_df <- log_original_fold_change_df
-      }
-      log_modified_fold_change_df$count[
-        final_CNV_record$start[i]:final_CNV_record$end[i]
-      ] <- log_modified_fold_change
-    }
-  
-    # add noised data:
-    if (e==1 & gap_or_CNV == "CNV") {
-      noised_CNV_data <- list(
-        list(
-          CNV_record = final_CNV_record,
-          noised_df = counts_with_noise,
-          log_modified_fold_change_df = merged_CNV_data[[e]]$log_modified_fold_change_df,
-          infercnv_metadata = infercnv_metadata
-        )
-      )
-    } else if (e==1 & gap_or_CNV == "gap") {
-      noised_CNV_data <- list(
-        list(
-          extended_gap_record = merged_CNV_data[[e]]$extended_gap_record,
-          CNV_record = final_CNV_record,
-          noised_df = counts_with_noise,
-          log_modified_fold_change_df = merged_CNV_data[[e]]$log_modified_fold_change_df,
-          infercnv_metadata = infercnv_metadata
-        )
+    if (final_CNV_record$start[i] != final_CNV_record$end[i]) {
+      average_original_counts <- apply(
+        epithelial_df[final_CNV_record$start[i]:final_CNV_record$end[i],], 1, mean
       )
     } else {
-      noised_CNV_data <- list.append(
-        noised_CNV_data, 
-        list(
-          extended_gap_record = merged_CNV_data[[e]]$extended_gap_record,
-          CNV_record = final_CNV_record,
-          noised_df = counts_with_noise,
-          log_modified_fold_change_df = merged_CNV_data[[e]]$log_modified_fold_change_df,
-          infercnv_metadata = infercnv_metadata
-        )
-      )
+      average_original_counts <- mean(epithelial_df[final_CNV_record$start[i],])
     }
+  
+    # add 0.1 to all values:
+    #average_original_counts[average_original_counts == 0] <- 1e-3
+    average_original_counts <- average_original_counts + 1e-3
+    # determine median:
+    median_average_original_counts <- median(average_original_counts)
+    # divide by median to get fold change from median:
+    original_fold_change <- average_original_counts/median_average_original_counts
+    # check median of original fold change = 1:
+    median_original_fold_change <- median(original_fold_change)
+    # generate mean modified fold change from original median vector with each value 
+    # representing a gene:
+    if (final_CNV_record$start[i] != final_CNV_record$end[i]) {
+      average_modified_counts <- apply(
+        final_epithelial_df[final_CNV_record$start[i]:final_CNV_record$end[i],], 1, mean
+      )
+    } else {
+      average_modified_counts <- mean(final_epithelial_df[final_CNV_record$start[i],])
+    }
+    # add 0.1 to zero values:
+    average_modified_counts <- average_modified_counts + 1e-3
+    # divide by median to get fold change from original median and add to df for plotting:
+    modified_fold_change <- average_modified_counts/median_average_original_counts
+    # take log of the median of modified fold change to mark on plot:
+    median_modified_fold_change <- median(modified_fold_change)    
+    log_median_modified_fold_change <- log10(median_modified_fold_change)
+    # add to final_CNV_record:
+    final_CNV_record$log_median_modified_FC_post_noise[i] <- log_median_modified_fold_change
+    # take the log10 of all fold changes:
+    log_modified_fold_change <- log10(modified_fold_change)
+    # add modified fold change values to log_original_fold_change_df:
+    if (!exists("log_modified_fold_change_df")) {
+      log_modified_fold_change_df <- log_original_fold_change_df
+    }
+    log_modified_fold_change_df$count[
+      final_CNV_record$start[i]:final_CNV_record$end[i]
+    ] <- log_modified_fold_change
+  }
+
+  # add noised data:
+  if (gap_or_CNV == "CNV") {
+
+    noised_CNV_data <- list(
+      CNV_record = final_CNV_record,
+      noised_df = counts_with_noise,
+      log_modified_fold_change_df = merged_CNV_data$log_modified_fold_change_df,
+      infercnv_metadata = infercnv_metadata
+    )
+
+  } else if (gap_or_CNV == "gap") {
+
+    noised_CNV_data <- list(
+      extended_gap_record = merged_CNV_data$extended_gap_record,
+      CNV_record = final_CNV_record,
+      noised_df = counts_with_noise,
+      log_modified_fold_change_df = merged_CNV_data$log_modified_fold_change_df,
+      infercnv_metadata = infercnv_metadata
+    )
+
   }
 
   saveRDS(noised_CNV_data, paste0(Robject_dir, "4.final_CNV_data.Rdata"))
@@ -1132,169 +1103,130 @@ if (!file.exists(paste0(Robject_dir, "4.final_CNV_data.Rdata"))) {
 ### 10. Plot post-noise gene expression profiles ###
 ###################################################################################
 
-for (e in 1:length(noised_CNV_data)) {
-
-  if (gap_or_CNV == "gap") {
-    if (e==1) {
-      plot_dir <- paste0(plot_path, "gain/")    
-    } else {
-      plot_dir <- paste0(plot_path, "loss/") 
-    }
-    system(paste0("mkdir -p ", plot_dir))
-  } else {
-    plot_dir <- plot_path
+# plot median fold change from original median for modified data:
+if (
+  !file.exists(
+    paste0(
+      plot_dir, "3a.log_modified_fold_change_from_median_with_noise_line_only.pdf"
+      )
+    )
+) {
+  p <- ggplot(
+    noised_CNV_data$log_modified_fold_change_df, aes(x=number, y=count)
+  )
+  p <- p + scale_x_continuous(
+    breaks = unlist(chromosome_midpoints),
+    labels = paste0("chr", 1:length(chromosome_midpoints)),
+    limits = c(0,length(noised_CNV_data$log_modified_fold_change_df$count)), 
+    expand = c(0, 0)
+  )
+  p <- p + scale_y_continuous(
+      breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+      labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
+      limits = c(
+        min(noised_CNV_data$log_modified_fold_change_df$count), 
+        max(noised_CNV_data$log_modified_fold_change_df$count)
+      )
+    )
+  for (end in chromosome_ends) {
+    p <- p + geom_vline(xintercept=end)
   }
-
-  # plot median fold change from original median for modified data:
-  if (
-    !file.exists(
-      paste0(
-        plot_dir, "3a.log_modified_fold_change_from_median_with_noise_line_only.pdf"
-        )
-      )
-  ) {
-    p <- ggplot(
-      noised_CNV_data[[e]]$log_modified_fold_change_df, aes(x=number, y=count)
+  for (r in 1:nrow(noised_CNV_data$CNV_record)) {
+    print(r)
+    # create horizontal line:
+    p <- p + geom_segment(
+      x=noised_CNV_data$CNV_record$start[r], 
+      xend=noised_CNV_data$CNV_record$end[r], 
+      y=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
+      yend=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
+      size=1, color="#37841f"
     )
-    p <- p + scale_x_continuous(
-      breaks = unlist(chromosome_midpoints),
-      labels = paste0("chr", 1:length(chromosome_midpoints)),
-      limits = c(0,length(noised_CNV_data[[e]]$log_modified_fold_change_df$count)), 
-      expand = c(0, 0)
-    )
-    p <- p + scale_y_continuous(
-        breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-        labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-        limits = c(
-          min(noised_CNV_data[[e]]$log_modified_fold_change_df$count), 
-          max(noised_CNV_data[[e]]$log_modified_fold_change_df$count)
-        )
-      )
-    for (end in chromosome_ends) {
-      p <- p + geom_vline(xintercept=end)
-    }
-    for (r in 1:nrow(noised_CNV_data[[e]]$CNV_record)) {
-      print(r)
-      # create horizontal line:
+    # create left vertical line:
+    if (r != 1) {
       p <- p + geom_segment(
-        x=noised_CNV_data[[e]]$CNV_record$start[r], 
-        xend=noised_CNV_data[[e]]$CNV_record$end[r], 
-        y=noised_CNV_data[[e]]$CNV_record$log_median_modified_FC_post_noise[r], 
-        yend=noised_CNV_data[[e]]$CNV_record$log_median_modified_FC_post_noise[r], 
+        x=noised_CNV_data$CNV_record$start[r], 
+        xend=noised_CNV_data$CNV_record$start[r], 
+        y=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r-1], 
+        yend=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
         size=1, color="#37841f"
       )
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=noised_CNV_data[[e]]$CNV_record$start[r], 
-          xend=noised_CNV_data[[e]]$CNV_record$start[r], 
-          y=noised_CNV_data[[e]]$CNV_record$log_median_modified_FC_post_noise[r-1], 
-          yend=noised_CNV_data[[e]]$CNV_record$log_median_modified_FC_post_noise[r], 
-          size=1, color="#37841f"
-        )
-      }
     }
-    pdf(paste0(plot_dir, 
-      "3a.log_modified_fold_change_from_median_with_noise_line_only.pdf"), 
-      width = 20)
-      print(p)
-    dev.off()
-    
   }
+  pdf(paste0(plot_dir, 
+    "3a.log_modified_fold_change_from_median_with_noise_line_only.pdf"), 
+    width = 20)
+    print(p)
+  dev.off()
   
-  # plot counts:
-  if (
-    !file.exists(
-      paste0(plot_dir, "3b.log_modified_fold_change_from_median_with_noise.pdf")
-      )
-    ) {
-    p <- ggplot(
-      noised_CNV_data[[e]]$log_modified_fold_change_df, aes(x=number, y=count)
+}
+
+# plot counts:
+if (
+  !file.exists(
+    paste0(plot_dir, "3b.log_modified_fold_change_from_median_with_noise.pdf")
     )
-    p <- p + geom_point(colour = "#E8D172")
-    p <- p + xlab("Genomic location")
-    p <- p + scale_x_continuous(
-      breaks = unlist(chromosome_midpoints),
-      labels = paste0("chr", 1:length(chromosome_midpoints)),
-      limits = c(0,nrow(noised_CNV_data[[e]]$log_modified_fold_change_df)), 
-      expand = c(0, 0)
+  ) {
+  p <- ggplot(
+    noised_CNV_data$log_modified_fold_change_df, aes(x=number, y=count)
+  )
+  p <- p + geom_point(colour = "#E8D172")
+  p <- p + xlab("Genomic location")
+  p <- p + scale_x_continuous(
+    breaks = unlist(chromosome_midpoints),
+    labels = paste0("chr", 1:length(chromosome_midpoints)),
+    limits = c(0,nrow(noised_CNV_data$log_modified_fold_change_df)), 
+    expand = c(0, 0)
+  )
+  p <- p + ylab("Log10 fold change")
+  p <- p + scale_y_continuous(
+     breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+     labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
+     limits = c(
+      min(noised_CNV_data$log_modified_fold_change_df$count), 
+      max(noised_CNV_data$log_modified_fold_change_df$count)
     )
-    p <- p + ylab("Log10 fold change")
-    p <- p + scale_y_continuous(
-       breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-       labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-       limits = c(
-        min(noised_CNV_data[[e]]$log_modified_fold_change_df$count), 
-        max(noised_CNV_data[[e]]$log_modified_fold_change_df$count)
-      )
-     )
-    for (end in chromosome_ends) {
-      p <- p + geom_vline(xintercept=end)
-    }
-    for (r in 1:nrow(noised_CNV_data[[e]]$CNV_record)) {
-      print(r)
-      # create horizontal line:
+   )
+  for (end in chromosome_ends) {
+    p <- p + geom_vline(xintercept=end)
+  }
+  for (r in 1:nrow(noised_CNV_data$CNV_record)) {
+    print(r)
+    # create horizontal line:
+    p <- p + geom_segment(
+      x=noised_CNV_data$CNV_record$start[r], 
+      xend=noised_CNV_data$CNV_record$end[r], 
+      y=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
+      yend=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
+      size=1, color="red"
+    )
+    # create left vertical line:
+    if (r != 1) {
       p <- p + geom_segment(
-        x=noised_CNV_data[[e]]$CNV_record$start[r], 
-        xend=noised_CNV_data[[e]]$CNV_record$end[r], 
-        y=noised_CNV_data[[e]]$CNV_record$log_median_modified_FC_post_noise[r], 
-        yend=noised_CNV_data[[e]]$CNV_record$log_median_modified_FC_post_noise[r], 
+        x=noised_CNV_data$CNV_record$start[r], 
+        xend=noised_CNV_data$CNV_record$start[r], 
+        y=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r-1], 
+        yend=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
         size=1, color="red"
       )
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=noised_CNV_data[[e]]$CNV_record$start[r], 
-          xend=noised_CNV_data[[e]]$CNV_record$start[r], 
-          y=noised_CNV_data[[e]]$CNV_record$log_median_modified_FC_post_noise[r-1], 
-          yend=noised_CNV_data[[e]]$CNV_record$log_median_modified_FC_post_noise[r], 
-          size=1, color="red"
-        )
-      }
     }
-    pdf(
-      paste0(plot_dir, "3b.log_modified_fold_change_from_median_with_noise.pdf"), 
-      width = 20
-    )
-      print(p)
-    dev.off()
   }
+  pdf(
+    paste0(plot_dir, "3b.log_modified_fold_change_from_median_with_noise.pdf"), 
+    width = 20
+  )
+    print(p)
+  dev.off()
+}
   
-  if (gap_or_CNV == "gap") {
-    if (e==1) {
-      if (!file.exists(paste0(gain_out_dir, "input_matrix.txt"))) {
-        system(paste0("mkdir -p ", gain_out_dir))
-        write.table(
-          noised_CNV_data[[e]]$noised_df, 
-          paste0(gain_out_dir, "input_matrix.txt"), 
-          sep = "\t", quote = F, col.names=T, row.names=T)
-        write.table(noised_CNV_data[[e]]$infercnv_metadata, 
-          paste0(gain_out_dir, "metadata.txt"), 
-          sep = "\t", quote = F, col.names = F, row.names = F)
-      }
-    } else {
-      if (!file.exists(paste0(loss_out_dir, "input_matrix.txt"))) {
-        system(paste0("mkdir -p ", loss_out_dir))
-        write.table(noised_CNV_data[[e]]$noised_df, 
-          paste0(loss_out_dir, "input_matrix.txt"), 
-          sep = "\t", quote = F, col.names=T, row.names=T)
-        write.table(noised_CNV_data[[e]]$infercnv_metadata, 
-          paste0(loss_out_dir, "metadata.txt"), 
-          sep = "\t", quote = F, col.names = F, row.names = F)
-      }
-    }
-  } else {
-    if (!file.exists(paste0(out_dir, "input_matrix.txt"))) {
-      system(paste0("mkdir -p ", out_dir))
-      write.table(
-        noised_CNV_data[[e]]$noised_df, 
-        paste0(out_dir, "input_matrix.txt"), 
-        sep = "\t", quote = F, col.names=T, row.names=T)
-      write.table(noised_CNV_data[[e]]$infercnv_metadata, 
-        paste0(out_dir, "metadata.txt"), 
-        sep = "\t", quote = F, col.names = F, row.names = F)
-    }
-  }
+if (!file.exists(paste0(out_dir, "input_matrix.txt"))) {
+  system(paste0("mkdir -p ", out_dir))
+  write.table(
+    noised_CNV_data$noised_df, 
+    paste0(out_dir, "input_matrix.txt"), 
+    sep = "\t", quote = F, col.names=T, row.names=T)
+  write.table(noised_CNV_data$infercnv_metadata, 
+    paste0(out_dir, "metadata.txt"), 
+    sep = "\t", quote = F, col.names = F, row.names = F)
 }
 
 

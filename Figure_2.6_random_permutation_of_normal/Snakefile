@@ -1,0 +1,211 @@
+# Run command:
+# snakemake --reason --cores 180 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 18
+
+# DAG command:
+# snakemake --dag | dot -Tsvg > dag.svg
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+# define variables:
+#SAMPLES = list(range(1, 31, 1))
+SAMPLES = list([1,2])
+SAMPLES = list(map(str, SAMPLES))
+samples = '_'.join(SAMPLES)
+PERMUTATION_PROPORTIONS=list([0.01, 0.05, 0.1, 0.2, 0.3, 0.4])
+
+# normal infercnv parameters:
+normal_name = "CID4520N"
+nUMI_threshold="25000"
+nGene_threshold="5000"
+t_cells_included="TRUE"
+analysis_mode="samples"
+
+# permutate normal parameters:
+permutation_proportion="0.01"
+potential_values="0_0.5_1.5_2_3"
+neutral_signal_range = "0.97_1.03"
+
+# infercnv parameters:
+permutated_normal_name = "permutated_CID4520N"
+
+
+######
+#rule all:
+#    input:
+#        "results/infercnv/{t_cells_included}/{sample_name}/" + 
+#        "{analysis_mode}_mode/infercnv.12_denoised.png"
+######
+
+#######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
+#            permutated_normal_name=permutated_normal_name, permutation_proportion=permutation_proportion,
+#            sample=SAMPLES
+#        )
+#######
+
+######
+rule all:
+    input:
+        expand(
+        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
+            "infercnv.12_denoised.png",
+            permutated_normal_name=permutated_normal_name, permutation_proportion=permutation_proportion,
+            sample=SAMPLES, analysis_mode=analysis_mode
+        )
+####
+
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" +
+#            "final_plots/proportion_correct_calls_for_{CNV_type}_{gap_or_CNV}s.pdf",
+#            CNV_type=CNV_TYPE, gap_or_CNV=GAP_OR_CNV
+#        )
+
+rule normal_infercnv:
+    input:
+        "raw_files/seurat_objects/{normal_name}/03_seurat_object_processed.Rdata"
+
+    output:
+        "results/infercnv/t_cells_included/{normal_name}/{analysis_mode}_mode" + 
+            "/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/normal_infercnv/; " +
+        "cd logs/normal_infercnv/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {normal_name}" + 
+        " {threads}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " {t_cells_included}" + 
+        " {analysis_mode}" +  
+        "' ../../scripts/1b.normal_infercnv.R"
+
+rule permutate_normal:
+    input:
+        seurat_input = expand(
+            "raw_files/seurat_objects/{normal_name}/03_seurat_object_processed.Rdata",
+            normal_name=normal_name
+        ),
+        normal_infercnv = expand(
+            "results/infercnv/t_cells_included/{normal_name}/{analysis_mode}_mode" + 
+            "/infercnv.12_denoised.png",
+            normal_name=normal_name, analysis_mode=analysis_mode
+        )
+    output:
+        matrix = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+            "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+            "{permutation_proportion}_proportion/{sample}/input_files/metadata.txt"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/permutate_normal/{permutation_proportion}_proportion/{wildcards.sample}/; " +
+        "cd logs/permutate_normal/{permutation_proportion}_proportion/{wildcards.sample}/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {normal_name}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " {permutation_proportion}" + 
+        " {potential_values}" + 
+        " {wildcards.sample} " + 
+        " {t_cells_included}" + 
+        " {analysis_mode}" + 
+        " {neutral_signal_range}" + 
+        "' ../../../../scripts/2b.randomly_permutate_normal.R"
+
+rule permutated_normal_infercnv:
+    input:
+        matrix = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+            "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+            "{permutation_proportion}_proportion/{sample}/input_files/metadata.txt"
+    output:
+        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
+            "infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/infercnv/{permutation_proportion}_proportion/" + 
+        "{wildcards.sample}/{analysis_mode}.mode/; " +
+        "cd logs/infercnv/{permutation_proportion}_proportion/" + 
+        "{wildcards.sample}/{analysis_mode}.mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {permutated_normal_name}" + 
+        " {threads}" +
+        " {t_cells_included}" + 
+        " {analysis_mode}" + 
+        " {permutation_proportion}" +
+        " {wildcards.sample} " +
+        "' ../../../../../scripts/3b.permutated_normal_infercnv.R"
+
+#rule CNV_plot:
+#    input:
+#        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "CNV/{sample}/samples_mode/infercnv.12_denoised.png"
+#    output:
+#        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "CNV/{sample}/samples_mode/plots/infercnv_plot_with_CNV_calls.pdf"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/plot/CNV/{wildcards.sample}/{analysis_mode}.mode/; " +
+#        "cd logs/plot/CNV/{wildcards.sample}/{analysis_mode}.mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {sim_name}" + 
+#        " {t_cells_included}" + 
+#        " {wildcards.sample} " +
+#        " {analysis_mode}" + 
+#        " {neutral_signal_range}" + 
+#        " {nUMI_threshold}" +
+#        " {nGene_threshold}" + 
+#        " CNV" +
+#        " both" +
+#        "' ../../../../../scripts/4b.plot_individual_heatmap.R"
+
+#rule final_plots:
+#    input:
+#        CNV = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "CNV/{sample}/samples_mode/plots/infercnv_plot_with_CNV_calls.pdf",
+#            sample=SAMPLES
+#        ),
+#        gain_gap = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/gain/samples_mode/plots/infercnv_plot_with_gap_calls.pdf",
+#            sample=SAMPLES
+#        ),
+#        loss_gap = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/loss/samples_mode/plots/infercnv_plot_with_gap_calls.pdf",
+#            sample=SAMPLES
+#        )
+#    output:
+#        expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" +
+#            "final_plots/proportion_correct_calls_for_{CNV_type}_{gap_or_CNV}s.pdf",
+#            CNV_type=CNV_TYPE, gap_or_CNV=GAP_OR_CNV
+#        )
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/final_plots/gap/{analysis_mode}.mode/; " +
+#        "cd logs/final_plots/gap/{analysis_mode}.mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {sim_name}" + 
+#        " {t_cells_included}" + 
+#        " {samples} " +
+#        " {analysis_mode}" +
+#        "' ../../../../scripts/5.plot_final_call_proportions.R"
+
+
+
