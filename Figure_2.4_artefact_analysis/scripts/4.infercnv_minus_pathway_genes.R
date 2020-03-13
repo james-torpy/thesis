@@ -14,7 +14,7 @@ neutral_signal_range <- unlist(strsplit(args[6], split = "_"))
 
 #sample_name <- "permutated_CID4520N"
 #permutation_proportion <- 0.01
-#simulation_number <- "16"
+#simulation_number <- "1"
 #t_cells_included <- TRUE
 #analysis_mode <- "samples"
 #neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
@@ -127,19 +127,6 @@ create_extended_vector <- function(df, column) {
   }
   return(result_vector)
 }
-
-#######
-#for (i in 1:nrow(final_artefact_record)) {
-#  print(i)
-#  seg <- artefact_vector[
-#    final_artefact_record$start[i]:final_artefact_record$end[i]
-#  ]
-#  print(head(as.character(seg), 3))
-#  print(tail(as.character(seg), 3))
-#}
-#
-#######
-
 
 ################################################################################
 ### 1. Load InferCNV output and create heatmap and metadata dfs ###
@@ -303,14 +290,13 @@ if (!file.exists(paste0(plot_dir, "permutated_gene_plot.pdf"))) {
 ################################################################################
 
 if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) | 
-	!file.exists(paste0(table_dir, "artefact_counts.txt")) |
-	!file.exists(paste0(Robject_dir, "artefact_annotation.Rdata"))) {
+	!file.exists(paste0(table_dir, "artefact_counts.txt"))) {
 
   # determine average signal across all cells for each gene:
   heatmap_averages <- apply(epithelial_heatmap, 2, mean)
   
   for ( i in 1:(ncol(epithelial_heatmap)-9) ) {
-
+    print(i)
     # determine average signal for every combination of 10 adjacent genes:
     if (i == 1) {
       artefact_record <- data.frame(
@@ -342,7 +328,6 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
   }
   
   split_record <- split(artefact_record, rleid(artefact_record$type))
-
   final_artefact_record <- lapply(split_record, function(x) {
     return(
       data.frame(
@@ -353,13 +338,11 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
     )
   })
   final_artefact_record <- do.call("rbind", final_artefact_record)
-  final_artefact_record$type <- as.character(final_artefact_record$type)
 
   # fix overlapping indices by prioritising artefact annotation over 
   # no artefact:
   no_artefact_indices <- which(final_artefact_record$type == "no artefact")
   for (ind in no_artefact_indices) {
-  	print(ind)
   	# if the first non-artefact region is not at the start of the genome,
   	#  make start of non-artefact region one after the end of the previous 
   	# artefact region
@@ -370,151 +353,84 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
   	# make end of non-artefact region one before the start of the next 
   	# artefact region: 
   	if (final_artefact_record$end[ind] != ncol(epithelial_heatmap)) {
-  	  if (final_artefact_record$start[ind] < final_artefact_record$start[ind+1]) {
-        final_artefact_record$end[ind] <- final_artefact_record$start[ind+1] - 1  	  	
-  	  } else {
-  	  	final_artefact_record$type[ind] <- "remove"
-  	  	final_artefact_record$start[ind+1] <- final_artefact_record$end[ind-1] + 1
-  	  }
+      final_artefact_record$end[ind] <- final_artefact_record$start[ind+1] - 1
     }
   }
-  final_artefact_record <- final_artefact_record[
-    final_artefact_record$type != "remove",
-  ]
 
   artefact_indices <- final_artefact_record[
     final_artefact_record$type != "no artefact",
   ]
-
-  if (nrow(artefact_indices) > 0) {
-    for (m in 1:nrow(artefact_indices)) {
-      if (m==1) {
-        heatmap_artefact <- artefact_indices$start[m]:artefact_indices$end[m]
-      } else {
-        heatmap_artefact <- c(heatmap_artefact,
-          artefact_indices$start[m]:artefact_indices$end[m]
-        )
-      }   
-    }  
-
-    for (k in 1:length(chr_data$ends)) {
-      if (k==1) {
-  
-        artefact_indices$start_chr[
-          artefact_indices$start <= chr_data$ends[k]
-        ] <- names(chr_data$ends)[k]
-  
-        artefact_indices$end_chr[
-          artefact_indices$end <= chr_data$ends[k]
-        ] <- names(chr_data$ends)[k]
-  
-      } else {
-  
-        artefact_indices$start_chr[
-          artefact_indices$start <= chr_data$ends[k] & 
-          artefact_indices$start > chr_data$ends[k-1]
-        ] <- names(chr_data$ends)[k]
-  
-        artefact_indices$end_chr[
-          artefact_indices$end <= chr_data$ends[k] & 
-          artefact_indices$end > chr_data$ends[k-1]
-        ] <- names(chr_data$ends)[k]
-  
-      }
-    }
-  
-    # count gains and losses:
-    artefact_count <- data.frame(
-    	row.names = c("gain", "loss"),
-    	count = c(
-    	  length(which(final_artefact_record$type == "gain")),
-    	  length(which(final_artefact_record$type == "loss"))
-    	)
-    )
-    
-    # create artefact annotation:
-    artefact_vector <- factor(
-      create_extended_vector(final_artefact_record, "type"),
-      levels = c("no artefact", "gain", "loss")
-    )
-    cols <- c("#E5E4DF", "#BF3667", "#58B9DB")
-    names(cols) <- levels(artefact_vector)
-    
-    artefact_annotation <- HeatmapAnnotation(
-      artefact_call = artefact_vector,
-      col = list(artefact_call = cols),
-      annotation_name_side = "left",
-      annotation_legend_param = list(title = "", 
-      	labels_gp = gpar(fontsize = 12))
-    )
-    artefact_annotation@name <- "artefact"
-  
-    # write artefact results as tables:
-    write.table(
-    	final_artefact_record, 
-    	paste0(table_dir, "final_artefact_record.txt"),
-    	sep = "\t",
-    	quote = F,
-    	row.names = F,
-    	col.names = T
-    )
-  
-    write.table(
-    	artefact_count, 
-    	paste0(table_dir, "artefact_counts.txt"),
-    	sep = "\t",
-    	quote = F,
-    	row.names = T,
-    	col.names = T
-    )
-  
-    saveRDS(
-    	artefact_annotation, 
-    	paste0(Robject_dir, "artefact_annotation.Rdata")
-    )
-
-  } else if (nrow(artefact_indices) == 0) {
-
-    artefact_count <- data.frame(
-      row.names = c("gain", "loss"),
-      count = c(0, 0)
-    )
-
-    write.table(
-      artefact_count, 
-      paste0(table_dir, "artefact_counts.txt"),
-      sep = "\t",
-      quote = F,
-      row.names = T,
-      col.names = T
-    )
-
+  for (m in 1:nrow(artefact_indices)) {
+    if (m==1) {
+      heatmap_artefact <- artefact_indices$start[m]:artefact_indices$end[m]
+    } else {
+      heatmap_artefact <- c(heatmap_artefact,
+        artefact_indices$start[m]:artefact_indices$end[m]
+      )
+    }   
   }
+
+  # count gains and losses:
+  artefact_count <- data.frame(
+  	row.names = c("gain", "loss"),
+  	count = c(
+  	  length(which(final_artefact_record$type == "gain")),
+  	  length(which(final_artefact_record$type == "loss"))
+  	)
+  )
+  
+  # create artefact annotation:
+  artefact_vector <- factor(
+    create_extended_vector(final_artefact_record, "type"),
+    levels = c("no artefact", "gain", "loss")
+  )
+  cols <- c("#E5E4DF", "#BF3667", "#58B9DB")
+  names(cols) <- levels(artefact_vector)
+  
+  artefact_annotation <- HeatmapAnnotation(
+    artefact_call = artefact_vector,
+    col = list(artefact_call = cols),
+    annotation_name_side = "left",
+    annotation_legend_param = list(title = "", 
+    	labels_gp = gpar(fontsize = 12))
+  )
+  artefact_annotation@name <- "artefact"
+
+  # write artefact results as tables:
+  write.table(
+  	final_artefact_record, 
+  	paste0(table_dir, "final_artefact_record.txt"),
+  	sep = "\t",
+  	quote = F,
+  	row.names = F,
+  	col.names = T
+  )
+
+  write.table(
+  	artefact_count, 
+  	paste0(table_dir, "artefact_counts.txt"),
+  	sep = "\t",
+  	quote = F,
+  	row.names = T,
+  	col.names = T
+  )
 
 } else {
 
-  if (file.exists(paste0(table_dir, "final_artefact_record.txt"))) {
-    final_artefact_record <- read.table(
-      paste0(table_dir, "final_artefact_record.txt"),
-      sep = "\t",
-      header = T,
-      as.is = T
-    )
-  }
-
-  artefact_count <- read.table(
- 	  paste0(table_dir, "artefact_counts.txt"),
- 	  sep = "\t",
- 	  header = T,
- 	  as.is = T
+  final_artefact_record <- read.table(
+  	paste0(table_dir, "final_artefact_record.txt"),
+  	sep = "\t",
+  	header = T,
+  	as.is = T
   )
 
-  if (file.exists(paste0(table_dir, "final_artefact_record.txt"))) {
-    artefact_annotation <- readRDS(
-    	paste0(Robject_dir, "artefact_annotation.Rdata")
-    )
-  }
-  
+  artefact_count <- read.table(
+  	paste0(table_dir, "artefact_counts.txt"),
+  	sep = "\t",
+  	header = T,
+  	as.is = T
+  )
+
 }
 
 
@@ -534,40 +450,22 @@ heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)),
       c("#00106B", "white", "#680700"), space = "sRGB")
 print("Generating final heatmap...")
 
-if (sum(artefact_count) > 0) {
-  final_heatmap <- Heatmap(
-    plot_object, name = paste0("hm"), 
-    col = heatmap_cols,
-    cluster_columns = F, cluster_rows = F,
-    show_row_names = F, show_column_names = F,
-    #column_names_gp = gpar(col = "white"),
-    show_row_dend = F,
-    bottom_annotation = artefact_annotation,
-    heatmap_legend_param = list(title = "CNV\nscore", 
-    at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-    color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-    grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-    title_gp = gpar(fontsize = 18, fontface = "bold"), 
-    labels_gp = gpar(fontsize = 12)),
-    use_raster = T, raster_device = c("png")
-  )
-} else {
-  final_heatmap <- Heatmap(
-    plot_object, name = paste0("hm"), 
-    col = heatmap_cols,
-    cluster_columns = F, cluster_rows = F,
-    show_row_names = F, show_column_names = F,
-    #column_names_gp = gpar(col = "white"),
-    show_row_dend = F,
-    heatmap_legend_param = list(title = "CNV\nscore", 
-    at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-    color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-    grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-    title_gp = gpar(fontsize = 18, fontface = "bold"), 
-    labels_gp = gpar(fontsize = 12)),
-    use_raster = T, raster_device = c("png")
-  )
-}
+final_heatmap <- Heatmap(
+  plot_object, name = paste0("hm"), 
+  col = heatmap_cols,
+  cluster_columns = F, cluster_rows = F,
+  show_row_names = F, show_column_names = F,
+  #column_names_gp = gpar(col = "white"),
+  show_row_dend = F,
+  bottom_annotation = artefact_annotation,
+  heatmap_legend_param = list(title = "CNV\nscore", 
+  at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
+  color_bar = "continuous", grid_height = unit(1.5, "cm"), 
+  grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
+  title_gp = gpar(fontsize = 18, fontface = "bold"), 
+  labels_gp = gpar(fontsize = 12)),
+  use_raster = T, raster_device = c("png")
+)
 
 annotated_heatmap <- grid.grabExpr(
   draw(final_heatmap, gap = unit(6, "mm"), heatmap_legend_side = "left",
@@ -582,7 +480,7 @@ x_coord <- longest_cluster_name*0.0037
 
 
 ################################################################################
-### 9. Plot heatmap ###
+### 11. Plot heatmap ###
 ################################################################################
 
 # plot final annotated heatmap:
@@ -592,13 +490,8 @@ pdf(
 )   
   
   grid.newpage()
-  if (sum(artefact_count) > 0) {
-    pushViewport(viewport(x = 0.01, y = 0.16, width = 0.99, height = 0.78, 
-      just = c("left", "bottom")))
-  } else {
-    pushViewport(viewport(x = 0.065, y = 0.16, width = 0.934, height = 0.78, 
-      just = c("left", "bottom")))
-  }
+  pushViewport(viewport(x = 0.01, y = 0.16, width = 0.99, height = 0.78, 
+    just = c("left", "bottom")))
     grid.draw(annotated_heatmap)
     decorate_heatmap_body("hm", {
       for ( e in 1:length(chr_data$end_pos) ) {

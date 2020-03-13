@@ -1,0 +1,232 @@
+# Run command:
+# snakemake --reason --cores 100 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 10
+
+# DAG command:
+# snakemake --dag | dot -Tsvg > dag.svg
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+# define variables:
+SAMPLES = list(range(1, 31, 1))
+#SAMPLES = list([1,2])
+SAMPLES = list(map(str, SAMPLES))
+samples = '_'.join(SAMPLES)
+T_CELLS_INCLUDED = list(["t_cells_included", "t_cells_excluded"])
+
+# normal infercnv parameters:
+sample_name = "CID4520N"
+nUMI_threshold="25000"
+nGene_threshold="5000"
+analysis_mode="samples"
+
+#####
+rule all:
+    input:
+        expand(
+            "results/infercnv/{sample_name}/{t_cells_included}/" + 
+            "{analysis_mode}_mode/infercnv.12_denoised.png",
+            t_cells_included=T_CELLS_INCLUDED, sample_name=sample_name,
+            analysis_mode=analysis_mode
+        )
+#####
+
+#######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
+#            permutated_normal_name=permutated_normal_name, permutation_proportion=permutation_proportion,
+#            sample=SAMPLES
+#        )
+#######
+
+#######
+#rule all:
+#    input:
+#        expand(
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
+#            "infercnv.12_denoised.png",
+#            permutated_normal_name=permutated_normal_name, permutation_proportion=permutation_proportion,
+#            sample=SAMPLES, analysis_mode=analysis_mode
+#        )
+#####
+
+#####
+#rule all:
+#    input:
+#        expand(
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
+#            "plots/infercnv_plot_with_artefact_calls.pdf",
+#            permutated_normal_name=permutated_normal_name, permutation_proportion=PERMUTATION_PROPORTIONS,
+#            sample=SAMPLES, analysis_mode=analysis_mode
+#        )
+######
+
+#rule all:
+#    input:
+#        expand(
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "final_plots/artefact_results.png",
+#            permutated_normal_name=permutated_normal_name
+#        )
+
+#rule normal_infercnv:
+#    input:
+#        expand(
+#            "raw_files/seurat_objects/{sample_name}/03_seurat_object_processed.Rdata",
+#            sample_name=sample_name
+#        )
+#
+#    output:
+#        expand(
+#            "results/infercnv/{t_cells_included}/{sample_name}/{analysis_mode}_mode" + 
+#            "/infercnv.12_denoised.png",
+#            sample_name=sample_name, analysis_mode=analysis_mode
+#        )
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; " + 
+#        "mkdir -p logs/normal_infercnv/; " +
+#        "cd logs/normal_infercnv/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {sample_name}" + 
+#        " {threads}" + 
+#        " {nUMI_threshold}" +
+#        " {nGene_threshold}" + 
+#        " {t_cells_included}" + 
+#        " {analysis_mode}" +  
+#        "' ../../scripts/1b.normal_infercnv.R"
+
+rule normal_infercnv:
+    input:
+        "raw_files/seurat_objects/{sample_name}/03_seurat_object_processed.Rdata",
+    output:
+        "results/infercnv/{sample_name}/{t_cells_included}/{analysis_mode}_mode" + 
+            "/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/normal_infercnv/{sample_name}/{wildcards.t_cells_included}/{analysis_mode}_mode/; " +
+        "cd logs/normal_infercnv/{sample_name}/{wildcards.t_cells_included}/{analysis_mode}_mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sample_name}" + 
+        " {threads}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " {wildcards.t_cells_included}" + 
+        " {analysis_mode}" +  
+        "' ../../../../../scripts/1.normal_infercnv.R"
+
+#rule plot_normal:
+#    input:
+#        seurat_input = expand(
+#            "raw_files/seurat_objects/{normal_name}/03_seurat_object_processed.Rdata",
+#            normal_name=normal_name
+#        ),
+#        normal_infercnv = expand(
+#            "results/infercnv/t_cells_included/{normal_name}/{analysis_mode}_mode" + 
+#            "/infercnv.12_denoised.png",
+#            normal_name=normal_name, analysis_mode=analysis_mode
+#        )
+#    output:
+#        matrix = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
+#        metadata = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/input_files/metadata.txt"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/permutate_normal/{wildcards.permutation_proportion}_proportion/{wildcards.sample}/; " +
+#        "cd logs/permutate_normal/{wildcards.permutation_proportion}_proportion/{wildcards.sample}/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {normal_name}" + 
+#        " {nUMI_threshold}" +
+#        " {nGene_threshold}" + 
+#        " {wildcards.permutation_proportion}" + 
+#        " {potential_values}" + 
+#        " {wildcards.sample} " + 
+#        " {t_cells_included}" + 
+#        " {analysis_mode}" + 
+#        " {neutral_signal_range}" + 
+#        "' ../../../../scripts/2b.randomly_permutate_normal.R"
+#
+#rule permutated_normal_infercnv:
+#    input:
+#        matrix = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
+#        metadata = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/input_files/metadata.txt"
+#    output:
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
+#            "infercnv.12_denoised.png"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/infercnv/{wildcards.permutation_proportion}_proportion/" + 
+#        "{wildcards.sample}/{analysis_mode}.mode/; " +
+#        "cd logs/infercnv/{wildcards.permutation_proportion}_proportion/" + 
+#        "{wildcards.sample}/{analysis_mode}.mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {permutated_normal_name}" + 
+#        " {threads}" +
+#        " {t_cells_included}" + 
+#        " {analysis_mode}" + 
+#        " {wildcards.permutation_proportion}" +
+#        " {wildcards.sample} " +
+#        "' ../../../../../scripts/3b.permutated_normal_infercnv.R"
+#
+#rule permutated_normal_plot:
+#    input:
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
+#            "infercnv.12_denoised.png"
+#    output:
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
+#            "plots/infercnv_plot_with_artefact_calls.pdf"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/plot/{wildcards.permutation_proportion}/{wildcards.sample}/{analysis_mode}.mode/; " +
+#        "cd logs/plot/{wildcards.permutation_proportion}/{wildcards.sample}/{analysis_mode}.mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {permutated_normal_name}" + 
+#        " {wildcards.permutation_proportion}" + 
+#        " {wildcards.sample} " +
+#        " {t_cells_included}" +         
+#        " {analysis_mode}" + 
+#        " {neutral_signal_range}" + 
+#        "' ../../../../../scripts/4b.plot_individual_heatmap.R"
+#
+#rule final_plot:
+#    input:
+#        expand(
+#            "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
+#            "plots/infercnv_plot_with_artefact_calls.pdf",
+#            permutated_normal_name=permutated_normal_name, permutation_proportion=PERMUTATION_PROPORTIONS,
+#            sample=SAMPLES, analysis_mode=analysis_mode
+#        )
+#    output:
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+#            "final_plots/artefact_results.png"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/final_plot/{analysis_mode}.mode/; " +
+#        "cd logs/final_plot/{analysis_mode}.mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {permutated_normal_name}" + 
+#        " {t_cells_included}" +
+#        " {permutation_proportions}" + 
+#        " {samples}" +
+#        " {analysis_mode}" +
+#        "' ../../../scripts/5.plot_final_call_proportions.R"
+
+
+

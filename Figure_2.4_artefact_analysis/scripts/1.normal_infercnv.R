@@ -3,7 +3,7 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.6_random_permutation_of_normal"
+subproject_name <- "Figure_2.4_artefact_analysis"
 sample_name <- args[1]
 print(paste0("Sample name = ", sample_name))
 numcores <- as.numeric(args[2])
@@ -12,7 +12,7 @@ nUMI_threshold <- as.numeric(args[3])
 print(paste0("nUMI_threshold = ", nUMI_threshold))
 nGene_threshold <- as.numeric(args[4])
 print(paste0("nGene_threshold = ", nGene_threshold))
-include_t_cells <- as.logical(args[5])
+include_t_cells <- args[5]
 print(paste0("Include T-cells? ", include_t_cells))
 analysis_mode <- args[6]
 print(paste0("Analysis mode = ", analysis_mode))
@@ -21,7 +21,7 @@ print(paste0("Analysis mode = ", analysis_mode))
 #numcores <- 6
 #nUMI_threshold <- 25000
 #nGene_threshold <- 5000
-#include_t_cells <- TRUE
+#include_t_cells <- "t_cells_excluded"
 #analysis_mode <- "samples"
 
 print(paste0("Project name = ", project_name))
@@ -44,22 +44,20 @@ func_dir <- paste0(project_dir, "scripts/functions/")
 
 in_dir <- paste0(project_dir, "raw_files/seurat_objects/", sample_name, "/")
 
-if (include_t_cells) {
-  out_path <- paste0(results_dir, "infercnv/t_cells_included/")
-  Robject_dir <- paste0(out_path, sample_name, "/Rdata/")
-  plot_dir <- paste0(out_path, sample_name, "/plots/")
-  out_dir <- paste0(out_path, sample_name, "/", analysis_mode, "_mode/")
-} else {
-  out_path <- paste0(results_dir, "infercnv/t_cells_included/")
-  Robject_dir <- paste0(out_path, sample_name, "/Rdata/")
-  plot_dir <- paste0(out_path, sample_name, "/plots/")
-  out_dir <- paste0(out_path, sample_name, "/", analysis_mode, "_mode/")
-}
-input_dir <- paste0(out_path, sample_name, "/input_files/")
+common_Robject_dir <- paste0(results_dir, "infercnv/", sample_name, "/Rdata/")
+common_plot_dir <- paste0(results_dir, "infercnv/", sample_name, "/plots/")
 
-system(paste0("mkdir -p ", out_dir))
+out_path <- paste0(results_dir, "infercnv/", sample_name, "/", include_t_cells, 
+  "/")
+out_dir <- paste0(out_path, analysis_mode, "_mode/")
+Robject_dir <- paste0(out_dir, "/Rdata/")
+plot_dir <- paste0(out_dir, "/plots/")
+
+input_dir <- paste0(out_path, "/input_files/")
+
 system(paste0("mkdir -p ", Robject_dir))
 system(paste0("mkdir -p ", plot_dir))
+system(paste0("mkdir -p ", out_dir))
 system(paste0("mkdir -p ", input_dir))
 
 setwd(out_dir)
@@ -84,9 +82,9 @@ prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"
 # files and filter for high coverage cells  ###
 ################################################################################
 
-if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) | 
-  !file.exists(paste0(Robject_dir, "/1b.original_non_epithelial_df.Rdata")) |
-  !file.exists(paste0(Robject_dir, "/1c.original_infercnv_metadata.Rdata"))
+if (!file.exists(paste0(common_Robject_dir, "/1a.original_epithelial_df.Rdata")) | 
+  !file.exists(paste0(common_Robject_dir, "/1b.original_non_epithelial_df.Rdata")) |
+  !file.exists(paste0(common_Robject_dir, "/1c.original_infercnv_metadata.Rdata"))
 ) {
 
   # load seurat object:
@@ -105,7 +103,7 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
     count_df, for_infercnv=T)
   seurat_10X <- infercnv_metadata$seurat
   print(paste0("Cell types are: ", unique(infercnv_metadata$metadata$cell_type)))
-  saveRDS(infercnv_metadata, paste0(Robject_dir, "/1c.original_infercnv_metadata.Rdata"))
+  saveRDS(infercnv_metadata, paste0(common_Robject_dir, "/1c.original_infercnv_metadata.Rdata"))
   saveRDS(seurat_10X, paste0(in_dir, "04_seurat_object_annotated.Rdata"))
   
   # only keep cells in metadata df:
@@ -156,7 +154,7 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
     ]
   )
 
-  saveRDS(non_epithelial_df, paste0(Robject_dir, "/1b.original_non_epithelial_df.Rdata"))
+  saveRDS(non_epithelial_df, paste0(common_Robject_dir, "/1b.original_non_epithelial_df.Rdata"))
 
   # create density plots of nUMI and nGene:
   QC <- data.frame(
@@ -166,31 +164,31 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
   )
   QC <- QC[colnames(epithelial_df),]
   nUMI_density_plot <- density(QC$nUMI)
-  pdf(paste0(plot_dir, "nUMI_density_plot.pdf"))
+  pdf(paste0(common_plot_dir, "nUMI_density_plot.pdf"))
     plot(nUMI_density_plot, main=NA, xlab = "nUMI")
   dev.off()
-  png(paste0(plot_dir, "nUMI_density_plot.png"))
+  png(paste0(common_plot_dir, "nUMI_density_plot.png"))
     plot(nUMI_density_plot, main=NA, xlab = "nUMI")
   dev.off()
   nGene_density_plot <- density(QC$nGene)
-  pdf(paste0(plot_dir, "nGene_density_plot.pdf"))
+  pdf(paste0(common_plot_dir, "nGene_density_plot.pdf"))
     plot(nGene_density_plot, main=NA, xlab = "nGene")
   dev.off()
-  png(paste0(plot_dir, "nGene_density_plot.png"))
+  png(paste0(common_plot_dir, "nGene_density_plot.png"))
     plot(nGene_density_plot, main=NA, xlab = "nGene")
   dev.off()
   log_nUMI_density_plot <- density(log10(QC$nUMI))
-  pdf(paste0(plot_dir, "log10_nUMI_density_plot.pdf"))
+  pdf(paste0(common_plot_dir, "log10_nUMI_density_plot.pdf"))
     plot(log_nUMI_density_plot, main=NA, xlab = "log10 nUMI")
   dev.off()
-  png(paste0(plot_dir, "log10_nUMI_density_plot.png"))
+  png(paste0(common_plot_dir, "log10_nUMI_density_plot.png"))
     plot(log_nUMI_density_plot, main=NA, xlab = "log10 nUMI")
   dev.off()
   log_nGene_density_plot <- density(log10(QC$nGene))
-  pdf(paste0(plot_dir, "log10_nGene_density_plot.pdf"))
+  pdf(paste0(common_plot_dir, "log10_nGene_density_plot.pdf"))
     plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
   dev.off()
-  png(paste0(plot_dir, "log10_nGene_density_plot.png"))
+  png(paste0(common_plot_dir, "log10_nGene_density_plot.png"))
     plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
   dev.off()
   # filter out cells with nUMI < nUMI_threshold and nGene < nGene_threshold
@@ -202,18 +200,18 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
   epithelial_df <- epithelial_df[
     ,colnames(epithelial_df) %in% cells_to_keep
   ]
-  saveRDS(epithelial_df, paste0(Robject_dir, "/1a.original_epithelial_df.Rdata"))
+  saveRDS(epithelial_df, paste0(common_Robject_dir, "/1a.original_epithelial_df.Rdata"))
   
   p <- ggplot(QC, aes(x=nUMI, y=nGene))
   p <- p + geom_point()
   p <- p + xlab("nUMI")
   p <- p + ylab("nGene")
   p <- p + theme(legend.title = element_blank())
-  pdf(paste0(plot_dir, "QC_quad_plot.pdf"), 
+  pdf(paste0(common_plot_dir, "QC_quad_plot.pdf"), 
     width = 10, height = 6)
     print(p)
   dev.off()
-  png(paste0(plot_dir, "QC_quad_plot.png"), 
+  png(paste0(common_plot_dir, "QC_quad_plot.png"), 
     width = 450, height = 270)
     print(p)
   dev.off()
@@ -221,29 +219,29 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
   print("Determining total count...")
   total_counts <- apply(epithelial_df, 2, sum)
   total_count_density_plot <- density(total_counts, bw="SJ")
-  pdf(paste0(plot_dir, "total_count_density_plot.pdf"))
+  pdf(paste0(common_plot_dir, "total_count_density_plot.pdf"))
     plot(total_count_density_plot, main=NA, xlab = "Total counts")
   dev.off()
-  png(paste0(plot_dir, "total_count_density_plot.png"))
+  png(paste0(common_plot_dir, "total_count_density_plot.png"))
     plot(total_count_density_plot, main=NA, xlab = "Total counts")
   dev.off()
   # create log10 total count density quad plot:
   log_total_count_density_plot <- density(log10(total_counts), bw="SJ")
-  pdf(paste0(plot_dir, "log10_total_count_density_plot.pdf"))
+  pdf(paste0(common_plot_dir, "log10_total_count_density_plot.pdf"))
     plot(log_total_count_density_plot, main=NA, xlab = "Total counts")
   dev.off()
-  png(paste0(plot_dir, "log10_total_count_density_plot.png"))
+  png(paste0(common_plot_dir, "log10_total_count_density_plot.png"))
     plot(log_total_count_density_plot, main=NA, xlab = "Total counts")
   dev.off()
   
 } else {
 
-  epithelial_df <- readRDS(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata"))
+  epithelial_df <- readRDS(paste0(common_Robject_dir, "/1a.original_epithelial_df.Rdata"))
   non_epithelial_df <- readRDS(
-    paste0(Robject_dir, "/1b.original_non_epithelial_df.Rdata")
+    paste0(common_Robject_dir, "/1b.original_non_epithelial_df.Rdata")
   )
   infercnv_metadata <- readRDS(
-    paste0(Robject_dir, "/1c.original_infercnv_metadata.Rdata")
+    paste0(common_Robject_dir, "/1c.original_infercnv_metadata.Rdata")
   )
 
 }
@@ -317,13 +315,47 @@ if (
 
   non_epithelial_df <- non_epithelial_df[rownames(epithelial_df),]
 
-  # subset genes and cells:
-  print(
-    paste0(
-      "Dimensions of non-epithelial df = ", 
-        paste(as.character(dim(non_epithelial_df)), collapse=",")
+  # exclude t-cells from analysis if necessary:
+  if (include_t_cells == "t_cells_excluded") {
+
+    print(
+      paste0(
+        "No. of non-epithelial cells before removing T-cells = ", 
+          nrow(infercnv_metadata$metadata[
+            grep("pithelial", infercnv_metadata$metadata$cell_type, invert = T),
+          ])
+      )
     )
-  )
+
+    infercnv_metadata$metadata <- infercnv_metadata$metadata[
+      grep("[t,T]_[c,C]ell*", infercnv_metadata$metadata$cell_type, invert = T),
+    ]
+
+    non_epithelial_df <- non_epithelial_df[
+      ,colnames(non_epithelial_df) %in% infercnv_metadata$metadata$cell_id[
+        grep("[t,T]_[c,C]ell*", infercnv_metadata$metadata$cell_type, invert = T)
+      ]
+    ]
+
+    print(
+      paste0(
+        "No. of non-epithelial cells after removing T-cells = ", 
+          nrow(infercnv_metadata$metadata[
+            grep("pithelial", infercnv_metadata$metadata$cell_type, invert = T),
+          ])
+      )
+    )
+
+  } else if (include_t_cells == "t_cells_included"){
+
+    print(
+      paste0(
+        "Dimensions of non-epithelial df = ", 
+          paste(as.character(dim(non_epithelial_df)), collapse=",")
+      )
+    )
+
+  }
 
   combined_df <- cbind(
     epithelial_df,

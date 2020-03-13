@@ -26,13 +26,13 @@ print(paste0("Analysis mode = ", analysis_mode))
 #subproject_name <- "Figure_2.6_random_permutation_of_normal"
 #sample_name <- "permutated_CID4520N"
 #t_cells_included <- TRUE
-#permutation_proportions <- strsplit("0.01_0.05_0.1_0.2_0.3_0.4", "_")[[1]]
-##permutation_proportions <- strsplit("0.01_0.05", "_")[[1]]
+##permutation_proportions <- strsplit("0.01_0.05_0.1_0.2_0.3_0.4", "_")[[1]]
+#permutation_proportions <- strsplit("0.01_0.05", "_")[[1]]
 #simulation_numbers <- as.character(
 #  as.numeric(
-#    strsplit("1_30", "_")[[1]][1]
+#    strsplit("1_2", "_")[[1]][1]
 #  ):as.numeric(
-#    strsplit("1_30", "_")[[1]][2]
+#    strsplit("1_2", "_")[[1]][2]
 #  )
 #)
 #analysis_mode <- "samples"
@@ -57,9 +57,8 @@ if (t_cells_included) {
     sample_name, "/")
 }
 
-plot_dir <- paste0(in_path, "final_plots/")
-table_dir <- paste0(in_path, "tables/")
-system(paste0("mkdir -p ", table_dir))
+out_dir <- paste0(in_path, "final_plots/")
+system(paste0("mkdir -p ", out_dir))
 
 # convert permutation_proportions to list:
 permutation_list <- as.list(permutation_proportions)
@@ -118,30 +117,23 @@ final_counts <- lapply(split_counts3, function(x) {
   res_df <- data.frame(
     Proportion = x$Proportion[1],
     Type = x$Type[1],
-    Count = round(mean(x$Count), 0),
+    Count = mean(x$Count),
     SE = sd(x$Count)/sqrt(nrow(x))
   )
 
 })
 final_count_df <- do.call("rbind", final_counts)
 levels(final_count_df$Type) <- c("gain", "loss")
-final_count_df$Proportion <- as.character(final_count_df$Proportion)
-
-write.table(
-  final_count_df, 
-  paste0(table_dir, "final_counts.txt"),
-  sep = "\t",
-  row.names = F,
-  col.names = T,
-  quote = F
-)
 
 cols <- c("#BF3667", "#58B9DB")
 
-p <- ggplot(final_count_df, aes(x = Proportion, y = Count, group = Type)) 
+p <- ggplot(final_count_df, aes(x = Proportion, y = Count)) 
 p <- p + geom_line(aes(color = Type))
-p <- p + geom_errorbar(aes(ymin=Count-SE, ymax=Count+SE, color = Type))
+p <- p + geom_errorbar(aes(ymin=Count-SE, ymax=Count+SE))
 p <- p + scale_color_manual(values = cols)
+p <- p + scale_x_continuous(
+  breaks = c(0, as.numeric(permutation_proportions))
+)
 p <- p + scale_y_continuous(
   breaks = seq(
     min(plot_counts$Count),
@@ -151,24 +143,23 @@ p <- p + scale_y_continuous(
 p <- p + theme(
   panel.grid.minor = element_blank(),
   axis.title.x = element_text(size = 9),
-  axis.title.y = element_text(size = 9),
+  axis.title.y = element_blank(),
   legend.title = element_blank()
 )
-p <- p + ylab("Number of artefacts detected")
-p <- p + xlab("Proportion of genes permutated")
+p <- p + xlab("Number of artefacts")
 
 pdf(
-  paste0(plot_dir, "artefact_results.pdf"), 
+  paste0(out_dir, "artefact_results.pdf"), 
   width = 7, height = 5
 )
   print(p)
 dev.off()
 
 png(
-  paste0(plot_dir, "artefact_results.png"), 
+  paste0(out_dir, "artefact_results.png"), 
   width = 7, height = 5, units = "in", res = 300
 )
   print(p)
 dev.off()
 
-print(paste0("All output plots in", plot_dir))
+print(paste0("All output plots in", out_dir))

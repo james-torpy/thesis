@@ -796,7 +796,7 @@ if (gap_or_CNV == "CNV") {
   call_annot_indices$call <- gsub("_", " ", call_annot_indices$call)
   # create annotation of all calls:
   call_annotation_vector <- factor(create_extended_vector(feature_indices, "call"))
-  levels(call_annotation_vector) <- c("CNV called", "VNC not called", "non-gap")
+  levels(call_annotation_vector) <- c("CNV called", "CNV not called", "non-gap")
 
   cols <- c("#F6DC15", "#7CBA61", "#E7E4D3")
   names(cols) <- levels(call_annotation_vector)

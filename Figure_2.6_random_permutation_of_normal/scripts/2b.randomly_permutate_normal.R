@@ -51,7 +51,7 @@ print(neutral_signal_range)
 #nGene_threshold <- 5000
 #print(paste0("nGene_threshold = ", nGene_threshold))
 # proportion of genes to be randomly permuated:
-#permutation_proportion <- 0.01
+#permutation_proportion <- 0.0025
 #print(paste0("permutation proportion = ", permutation_proportion))
 # range of values which could be substituted:
 #potential_values <- as.numeric(
@@ -137,6 +137,10 @@ plot_dir <- paste0(permutated_out_path, "/plots/")
 system(paste0("mkdir -p ", plot_dir))
 table_dir <- paste0(permutated_out_path, "/tables/")
 system(paste0("mkdir -p ", table_dir))
+
+prop_table_dir <- paste0(out_path, permutation_proportion, 
+  "_proportion/tables/")
+system(paste0("mkdir -p ", prop_table_dir))
 
 if (t_cells_included) {
   out_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
@@ -560,7 +564,8 @@ if (!file.exists(paste0(common_plot_dir, "1.log_original_fold_change_from_median
 ################################################################################
 
 if (
-  !file.exists(paste0(Robject_dir, "2.initial_permutation_data.Rdata"))
+  !file.exists(paste0(Robject_dir, "2.initial_permutation_data.Rdata")) | 
+  !file.exists(paste0(prop_table_dir, "gene_numbers.txt"))
 ) {
 
   # determine number of genes to permutate:
@@ -667,10 +672,31 @@ if (
     permutation_data, paste0(Robject_dir, "/2.initial_permutation_data.Rdata")
   )
 
+  gene_numbers <- data.frame(
+    row.names = c("permutated_genes", "total_genes"),
+    number = c(nrow(permutation_data$log_modified_fold_change_df), ncol(modified_df))
+  )
+  print(gene_numbers)
+  write.table(
+    gene_numbers, 
+    paste0(prop_table_dir, "gene_numbers.txt"),
+    sep = "\t",
+    quote = F,
+    row.names = T,
+    col.names = F
+  )
+
 } else {
 
   permutation_data <- readRDS(
     paste0(Robject_dir, "/2.initial_permutation_data.Rdata")
+  )
+
+  gene_numbers <- read.table(
+    paste0(prop_table_dir, "gene_numbers.txt"),
+    sep = "\t",
+    header = F,
+    as.is = T
   )
 
 }
@@ -716,7 +742,7 @@ if (
   mock_orig_indices[
     mock_orig_indices == nrow(epithelial_df)
   ] <- mock_orig_indices[
-    mock_orig_indices < nrow(epithelial_df)
+    mock_orig_indices == nrow(epithelial_df)
   ] - 1
 
   for (m in 1:length(mock_orig_indices)) {
@@ -818,7 +844,11 @@ if (
     print("Writing InferCNV input metadata...")
     write.table(as.matrix(merged_permutation_data$infercnv_metadata), 
       paste0(out_dir, "metadata.txt"), 
-      sep = "\t", quote = F, col.names = F, row.names = F)
+      sep = "\t", 
+      quote = F, 
+      col.names = F, 
+      row.names = F
+    )
   }
   
   saveRDS(
