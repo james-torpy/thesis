@@ -1,0 +1,298 @@
+# Run command:
+# snakemake --reason --cores 160 --cluster "qsub -pe smp 10 -N fig2.2.smk -b y -j y -V -P TumourProgression" -j 16
+
+# DAG command:
+# snakemake --dag | dot -Tsvg > dag.svg
+
+# to change when no longer subsetting:
+# comment out subset line in 1.prepare_normal.R
+# change nUMI_threshold to 25000
+# change nGene_threshold to 5000
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+# define variables:
+SAMPLES = list(range(1, 31, 1))
+#SAMPLES = [1]
+SAMPLES = list(map(str, SAMPLES))
+SAMPLES = ['filtered_normal'] + ['sim' + s for s in SAMPLES]
+
+#DENOISING_VALS = ['no', '1', '1.5', '2']
+DENOISING_VALS = ['1.5']
+
+# prepare_normal parameters:
+ncores = "10"
+
+# simulate cancer parameters:
+nUMI_threshold = "25000"
+nGene_threshold = "5000"
+CNV_no_range = "10_50"
+CNV_lengths = "20_50_75_100_150_150_200_200_250_250_300_300_350_400_450_500_550_600_650_700_750_800"
+CNV_multipliers = "3_2_1.5_0.5_0"
+noise_cell_no = "5000"
+
+# infercnv parameters:
+analysis_mode="samples"
+
+# plot heatmap parameters:
+min_CNV_proportion="0.5"
+
+rule all:
+    input:
+        "results/infercnv/CID4520N/normal/no_denoising/samples_mode/" + 
+            "plots/infercnv_plot.pdf",
+    	expand(
+            "results/infercnv/CID4520N/normal/{denoise_val}_denoising/samples_mode/" + 
+            "plots/infercnv_plot.pdf",
+            denoise_val=DENOISING_VALS
+        ),
+        expand(
+            "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
+            "plots/infercnv_plot.pdf",
+            sample=SAMPLES
+        ),
+        expand(
+        	"results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "plots/infercnv_plot.pdf",
+            sample=SAMPLES, denoise_val=DENOISING_VALS
+        )
+
+######
+#rule all:
+#    input:
+#        normal = expand(
+#            "results/infercnv/CID4520N/normal/input_files/input_matrix.txt"
+#        ),
+#        sim = expand(
+#            "results/infercnv/CID4520N/{sample}/input_files/input_matrix.txt",
+#            sample=SAMPLES
+#        )
+######
+#####
+#rule all:
+#    input:
+#        normal_no_denoise = expand(
+#            "results/infercnv/CID4520N/normal/no_denoising/samples_mode/" + 
+#            "infercnv.png"
+#        )
+#        ,
+#        normal = expand(
+#            "results/infercnv/CID4520N/normal/{denoise_val}_denoising/samples_mode/" + 
+#            "infercnv.12_denoised.pdf",
+#            denoise_val=DENOISING_VALS
+#        ),
+#        sim_no_denoise = expand(
+#            "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
+#            "infercnv.png",
+#            sample=SAMPLES
+#        ),
+#        sim = expand(
+#            "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+#            "infercnv.12_denoised.pdf",
+#            sample=SAMPLES, denoise_val=DENOISING_VALS
+#        )
+#####
+
+
+####################################################################################
+### Normal no noise ###
+####################################################################################
+
+rule prepare_normal:
+    input:
+        "raw_files/seurat_objects/CID4520N/03_seurat_object_processed.Rdata"
+    output:
+        "results/infercnv/CID4520N/normal/input_files/input_matrix.txt"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/prepare_normal/; " +
+        "cd logs/prepare_normal/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " CID4520N" + 
+        "' ../../scripts/1.prepare_normal.R"
+
+rule normal_infercnv_no_denoise:
+    input:
+        "results/infercnv/CID4520N/normal/input_files/input_matrix.txt"
+    output:
+        "results/infercnv/CID4520N/normal/no_denoising/samples_mode/" + 
+        "infercnv.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/infercnv/normal/no_denoising/samples_mode/; " +
+        "cd logs/infercnv/normal/no_denoising/samples_mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " CID4520N" + 
+        " {threads}" + 
+        " samples" + 
+        " normal" + 
+        " no" +             
+        "' ../../../../../scripts/3.infercnv.R"
+
+rule normal_plot_no_denoise:
+    input:
+        "results/infercnv/CID4520N/normal/no_denoising/samples_mode/" + 
+        "infercnv.png"
+    output:
+        "results/infercnv/CID4520N/normal/no_denoising/samples_mode/" + 
+            "plots/infercnv_plot.pdf"
+    threads: 6
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/plot/normal/no_denoising/samples_mode/; " +
+        "cd logs/plot/normal/no_denoising/samples_mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " CID4520N" + 
+        " normal" + 
+        " no" + 
+        " samples" + 
+        " {min_CNV_proportion}" + 
+        "' ../../../../../scripts/4.plot_heatmap.R"
+
+#rule normal_infercnv:
+#    input:
+#        "results/infercnv/CID4520N/normal/input_files/input_matrix.txt"
+#    output:
+#        "results/infercnv/CID4520N/normal/{denoise_val}_denoising/samples_mode/" + 
+#        "infercnv.png"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; " + 
+#        "mkdir -p logs/infercnv/normal/{wildcards.denoise_val}_denoising/samples_mode/; " +
+#        "cd logs/infercnv/normal/{wildcards.denoise_val}_denoising/samples_mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " CID4520N" + 
+#        " {threads}" + 
+#        " samples" + 
+#        " normal" + 
+#        " {wildcards.denoise_val}" +             
+#        "' ../../../../../scripts/3.infercnv.R"
+
+#rule normal_plot:
+#    input:
+#        "results/infercnv/CID4520N/normal/{denoise_val}_denoising/samples_mode/" + 
+#        "infercnv.png"
+#    output:
+#        "results/infercnv/CID4520N/normal/{denoise_val}_denoising/samples_mode/" + 
+#            "plots/infercnv_plot.pdf"
+#    threads: 6
+#    shell:
+#        "module load briglo/R/3.6.0; " + 
+#        "mkdir -p logs/plot/normal/{wildcards.denoise_val}_denoising/samples_mode/; " +
+#        "cd logs/plot/normal/{wildcards.denoise_val}_denoising/samples_mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " CID4520N" + 
+#        " normal" + 
+#        " {wildcards.denoise_val}" + 
+#        " samples" + 
+#        " {min_CNV_proportion}" + 
+#        "' ../../../../../scripts/4.plot_heatmap.R"
+
+
+####################################################################################
+### Remaining datasets ###
+####################################################################################
+
+rule cancer_sim:
+    input:
+        "results/infercnv/CID4520N/normal/input_files/input_matrix.txt"
+    output:
+        "results/infercnv/CID4520N/{sample}/input_files/input_matrix.txt"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/simulate_cancer/{wildcards.sample}/; " +
+        "cd logs/simulate_cancer/{wildcards.sample}/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " CID4520N" + 
+        " {nUMI_threshold}" + 
+        " {nGene_threshold}" + 
+        " {CNV_no_range}" + 
+        " {CNV_lengths} " + 
+        " {CNV_multipliers}" + 
+        " {wildcards.sample}" + 
+        " {noise_cell_no}" + 
+        "' ../../../scripts/2.simulate_cancer.R"
+
+#rule sim_infercnv_no_denoise:
+#    input:
+#        "results/infercnv/CID4520N/{sample}/input_files/input_matrix.txt"
+#    output:
+#        "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
+#        "infercnv.png"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; " + 
+#        "mkdir -p logs/infercnv/{wildcards.sample}/no_denoising/samples_mode/; " +
+#        "cd logs/infercnv/{wildcards.sample}/no_denoising/samples_mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " CID4520N" + 
+#        " {threads}" + 
+#        " samples" + 
+#        " {wildcards.sample}" + 
+#        " no" +             
+#        "' ../../../../../scripts/3.infercnv.R"
+
+#rule sim_plot_no_denoise:
+#    input:
+#        "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
+#        "infercnv.png"
+#    output:
+#        "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
+#            "plots/infercnv_plot.pdf"
+#    threads: 6
+#    shell:
+#        "module load briglo/R/3.6.0; " + 
+#        "mkdir -p logs/plot/{wildcards.sample}/no_denoising/samples_mode/; " +
+#        "cd logs/plot/{wildcards.sample}/no_denoising/samples_mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " CID4520N" + 
+#        " {wildcards.sample}" + 
+#        " no" + 
+#        " samples" + 
+#        " {min_CNV_proportion}" + 
+#        "' ../../../../../scripts/4.plot_heatmap.R"
+
+rule infercnv:
+    input:
+        "results/infercnv/CID4520N/{sample}/input_files/input_matrix.txt"
+    output:
+        "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+        "infercnv.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/infercnv/{wildcards.sample}/{wildcards.denoise_val}_denoising/samples_mode/; " +
+        "cd logs/infercnv/{wildcards.sample}/{wildcards.denoise_val}_denoising/samples_mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " CID4520N" + 
+        " {threads}" + 
+        " samples" + 
+        " {wildcards.sample}" + 
+        " {wildcards.denoise_val}" +             
+        "' ../../../../../scripts/3.infercnv.R"
+
+rule plot:
+    input:
+        "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+        "infercnv.png"
+    output:
+        "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "plots/infercnv_plot.pdf"
+    threads: 6
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/plot/{wildcards.sample}/{wildcards.denoise_val}_denoising/samples_mode/; " +
+        "cd logs/plot/{wildcards.sample}/{wildcards.denoise_val}_denoising/samples_mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " CID4520N" + 
+        " {wildcards.sample}" + 
+        " {wildcards.denoise_val}" + 
+        " samples" + 
+        " {min_CNV_proportion}" + 
+        "' ../../../../../scripts/4.plot_heatmap.R"
+
+
