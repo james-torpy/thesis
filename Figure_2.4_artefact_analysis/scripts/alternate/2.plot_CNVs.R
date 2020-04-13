@@ -17,29 +17,35 @@ print(paste0("Analysis mode of normal InferCNV run = ",
 remove_cell_types <- args[3]
 print("Cell types removed:")
 print(remove_cell_types)
-min_artefact_proportion <- as.numeric(args[4])
+neutral_signal_range <- unlist(strsplit(args[4], split = "_"))
+print("Neutral signal range = ")
+print(neutral_signal_range)
+min_artefact_proportion <- as.numeric(args[5])
 print("Minimum artefact proportion = ")
 print(min_artefact_proportion)
-min_artefact_length <- as.numeric(args[5])
+min_artefact_length <- as.numeric(args[6])
 print("Minimum artefact length = ")
 print(min_artefact_length)
 
-#project_name <- "thesis"
-#subproject_name <- "Figure_2.4_artefact_analysis"
-#sample_name <- "CID4520N"
-#print(paste0("sample name = ", sample_name))
-#analysis_mode <- "samples"
-#print(paste0("Analysis mode of normal InferCNV run = ", 
-#  analysis_mode, "_mode"))
-#remove_cell_types <- "T_cells"
-#print("Cell types removed:")
-#min_artefact_proportion <- 0.5
-#print("Minimum artefact proportion = ")
-#print(min_artefact_proportion)
-#min_artefact_length <- 10
-#print("Minimum artefact length = ")
-#print(min_artefact_length)
-#neutral_signal_range <- c(0.97, 1.03)
+project_name <- "thesis"
+subproject_name <- "Figure_2.4_artefact_analysis"
+sample_name <- "CID4520N"
+print(paste0("sample name = ", sample_name))
+analysis_mode <- "samples"
+print(paste0("Analysis mode of normal InferCNV run = ", 
+  analysis_mode, "_mode"))
+remove_cell_types <- "Endothelial"
+print("Cell types removed:")
+neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
+print("Neutral signal range = ")
+print(neutral_signal_range)
+min_artefact_proportion <- 0.5
+print("Minimum artefact proportion = ")
+print(min_artefact_proportion)
+min_artefact_length <- 10
+print("Minimum artefact length = ")
+print(min_artefact_length)
+remove_cell_types <- "No"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -66,7 +72,7 @@ func_dir <- paste0(project_dir, "scripts/functions/")
 results_dir <- paste0(project_dir, "results/")
 
 in_dir <- paste0(results_dir, "infercnv/", sample_name, "/", 
-  remove_cell_types, "_removed/", analysis_mode, "_mode/")
+  analysis_mode, "_mode/")
 input_dir <- paste0(results_dir, "infercnv/", sample_name, 
   "/input_files/")
 
@@ -371,7 +377,7 @@ final_heatmap <- Heatmap(
   show_row_dend = F,
   bottom_annotation = artefact_annotation,
   heatmap_legend_param = list(title = "CNV\nscore", 
-  at = c(round(min(na_less_vector), 2), 1, round(max(na_less_vector), 2)),
+  at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
   color_bar = "continuous", grid_height = unit(1.5, "cm"), 
   grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
   title_gp = gpar(fontsize = 18, fontface = "bold"), 

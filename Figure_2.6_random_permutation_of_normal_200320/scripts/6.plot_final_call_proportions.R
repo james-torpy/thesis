@@ -47,7 +47,8 @@ project_dir <- paste0(home_dir, "projects/",
   project_name, "/", subproject_name, "/")
 results_dir <- paste0(project_dir, "results/")
 func_dir <- paste0(project_dir, "scripts/functions/")
-col_dir <- paste0(home_dir, "/R/colour_palettes/")
+col_dir <- paste0(home_dir, "R/colour_palettes/")
+perm_path <- paste0(results_dir, "permutated_CID4520N/")
 
 if (t_cells_included) {
   in_path <- paste0(results_dir, "infercnv/t_cells_included/", 
@@ -60,6 +61,11 @@ if (t_cells_included) {
 plot_dir <- paste0(in_path, "final_plots/")
 table_dir <- paste0(in_path, "tables/")
 system(paste0("mkdir -p ", table_dir))
+
+
+####################################################################################
+### 1. Load data ###
+####################################################################################
 
 # convert permutation_proportions to list:
 permutation_list <- as.list(permutation_proportions)
@@ -127,38 +133,127 @@ final_count_df <- do.call("rbind", final_counts)
 levels(final_count_df$Type) <- c("gain", "loss")
 final_count_df$Proportion <- as.character(final_count_df$Proportion)
 
+if (!file.exists(paste0(table_dir, "final_counts.txt"))) {
+  write.table(
+    final_count_df, 
+    paste0(table_dir, "final_counts.txt"),
+    sep = "\t",
+    row.names = F,
+    col.names = T,
+    quote = F
+  )
+}
+
+
+####################################################################################
+### 2. Record metadata ###
+####################################################################################
+
+# fetch artefact lengths and permutation numbers:
+for (i in 1:length(simulation_numbers)) {
+
+  permutation_metadata <- lapply(permutation_list, function(x) {
+    
+    # load artefact lengths:
+    print(paste0("Fetching artefact lengths for simulation ", 
+      simulation_numbers[i], " with ", x, " of genes permutated..."))
+
+    in_dir <- paste0(in_path, x, "_proportion/", simulation_numbers[i], "/", 
+      analysis_mode, "_mode/tables/")
+    artefact_lengths <- read.table(
+      paste0(in_dir, "artefact_lengths.txt"),
+      sep = "\t",
+      header = T,
+      as.is = T
+    )
+
+    # load permuatation records:
+    print(paste0("Fetching number genes permutated for simulation ", 
+      simulation_numbers[i], " with ", x, " of genes permutated..."))
+    perm_dir <- paste0(perm_path, x, "_proportion/", simulation_numbers[i], 
+      "/Rdata/")
+    permutation_record <- readRDS(paste0(perm_dir, 
+    	"3.final_permutation_data.Rdata"))
+
+    return(
+      data.frame(
+        proportion = x,
+      	mean_artefact_length = mean(artefact_lengths$length),
+      	permutation_number = nrow(permutation_record$permutation_record)
+      )
+    )
+
+  })
+  names(permutation_metadata) <- unlist(permutation_list)
+
+  if (i==1) {
+  	metadata_df <- do.call("rbind", permutation_metadata)
+  } else {
+  	metadata_df <- rbind(
+  	  metadata_df,
+  	  do.call("rbind", permutation_metadata)
+  	)
+  }
+  
+}
+
+split_metadata <- split(metadata_df, metadata_df$proportion)
+mean_metadata <- lapply(split_metadata, function(x) {
+  return(
+    data.frame(
+      proportion = x$proportion[1],
+      mean_artefact_length = mean(x$mean_artefact_length),
+      permutation_number = x$permutation_number[1]
+    )
+  )
+})
+final_metadata <- do.call("rbind", mean_metadata)
+
 write.table(
-  final_count_df, 
-  paste0(table_dir, "final_counts.txt"),
+  final_metadata,
+  paste0(table_dir, "mean_artefect_length_and_no_genes_permuatated.txt"),
   sep = "\t",
-  row.names = F,
-  col.names = T,
-  quote = F
+  quote = F,
+  row.names = T,
+  col.names = T
 )
+
+
+####################################################################################
+### 3. Plot artefact numbers ###
+####################################################################################
 
 cols <- c("#BF3667", "#58B9DB")
 
 p <- ggplot(final_count_df, aes(x = Proportion, y = Count, group = Type)) 
 p <- p + geom_line(aes(color = Type))
-p <- p + geom_errorbar(aes(ymin=Count-SE, ymax=Count+SE, color = Type))
+p <- p + geom_errorbar(aes(ymin = Count-SE, ymax = Count+SE, color = Type))
 p <- p + scale_color_manual(values = cols)
+p <- p + scale_x_discrete(
+  labels = paste0(
+    final_count_df$Proportion[c(TRUE, FALSE)], 
+    "\n(", final_metadata$permutation_number, ")")
+)
 p <- p + scale_y_continuous(
   breaks = seq(
     min(plot_counts$Count),
-    max(plot_counts$Count)
+    max(plot_counts$Count),
+    5
   )
 )
 p <- p + theme(
   panel.grid.minor = element_blank(),
-  axis.title.x = element_text(size = 9),
-  axis.title.y = element_text(size = 9),
+  axis.title.x = element_text(size = 11),
+  axis.title.y = element_text(size = 11),
+  axis.text.x = element_text(size = 10),
+  axis.text.y = element_text(size = 10),
   legend.title = element_blank()
 )
 p <- p + ylab("Number of artefacts detected")
 p <- p + xlab("Proportion of genes permutated")
 
 pdf(
-  paste0(plot_dir, "artefact_results.pdf"), 
+  paste0(plot_dir, "artefact_results_test.pdf"), 
   width = 7, height = 5
 )
   print(p)

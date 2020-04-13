@@ -7,13 +7,13 @@ sample_name <- args[1]
 sim_name <- args[2]
 denoise_value <- args[3]
 analysis_mode <- args[4]
-min_CNV_proportion <- args[5]
+min_CNV_proportion <- as.numeric(args[5])
 
 #sample_name <- "CID4520N"
-#sim_name <- "sim1"
-#denoise_value <- "no"
+#sim_name <- "sim2"
+#denoise_value <- "1.5"
 #analysis_mode <- "samples"
-#min_CNV_proportion <- "0.5"
+#min_CNV_proportion <- as.numeric("0.5")
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -29,6 +29,7 @@ library(dplyr)
 library(cowplot)
 library(GenomicRanges)
 library(ggplot2)
+library(data.table)
   
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(Polychrome, lib.loc=lib_loc)
@@ -97,9 +98,6 @@ create_extended_vector <- function(accuracy_df, column) {
   return(result_vector)
 }
 
-#get_false_positives <- dget(paste0(func_dir, 
-#  "get_false_positives.R"))
-
 fetch_chromosome_boundaries <- dget(paste0(func_dir, 
   "fetch_chromosome_boundaries.R"))
 
@@ -161,24 +159,44 @@ if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
 
 if (sim_name == "normal" | sim_name == "filtered_normal") {
 
-  ################################################################################
-  ### 3. Calculate mean of absolute CNV values per cell  ###
-  ################################################################################
 
-  CNV_means <- apply(epithelial_heatmap, 1, function(x) mean(abs(x)))
-  mean_CNV_df <- data.frame(
-    cell_id = names(CNV_means),
-    score = CNV_means
+  ################################################################################
+  ### 2. Calculate mean fold difference from CNV-neutral value per cell  ###
+  ################################################################################
+  # determine neutral value (based on sd denoising):
+  score_table <- table(round(unlist(epithelial_heatmap), 6))
+  if (denoise_value == "no") {
+    neutral_value <- mean(unlist(epithelial_heatmap))
+  } else {
+    neutral_value <- as.numeric(
+      names(score_table)[which.max(score_table)]
+    )
+  }
+  CNV_fd <- apply(epithelial_heatmap, 1, function(x) mean(abs(neutral_value-x)))
+  overall_CNV_score <- round(mean(CNV_fd), 5)
+  write.table(
+    overall_CNV_score,
+    paste0(table_dir, "overall_mean_CNV_score.txt"),
+    sep = "\t",
+    quote = F,
+    col.names = F,
+    row.names = F
+  )
+
+  #CNV_means <- apply(epithelial_heatmap, 1, function(x) mean(abs(x)))
+  CNV_fd <- data.frame(
+    cell_id = names(CNV_fd),
+    score = CNV_fd
   )
   write.table(
-    mean_CNV_df,
+    CNV_fd,
     paste0(table_dir, "mean_CNV_score_per_cell.txt"),
     sep = "\t",
     quote = F,
     col.names = T,
     row.names = F
   )
-  overall_CNV_score <- round(mean(CNV_means), 5)
+  
 
 } else {
 
@@ -352,66 +370,68 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
   ### 4. Create simulated CNV annotation  ###
   ################################################################################
   
-  p <- ggplot(log_modified_fold_change_df, 
-    aes(x=number, y=count))
-  p <- p + scale_x_continuous(
-    limits = c(
-      0,length(log_modified_fold_change_df$count)
-    ), 
-    expand = c(0, 0),
-    breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
-    labels = CNV_indices$length[CNV_indices$ticks == "include"]
-  )
-  p <- p + scale_y_continuous(
-    breaks = c(-3, -2, -1, 0, 1),
-    limits = c(-3, 1)
-  )
-  for (c_end in chr_data$ends) {
-    p <- p + geom_vline(xintercept=c_end)
-  }
-  for (r in 1:nrow(CNV_indices)) {
-    print(r)
-    # create horizontal line:
-    p <- p + geom_segment(
-      x=CNV_indices$start[r], 
-      xend=CNV_indices$end[r], 
-      y=CNV_indices$log_median_modified_FC[r], 
-      yend=CNV_indices$log_median_modified_FC[r], 
-      size=1, color="#37841f"
+    p <- ggplot(log_modified_fold_change_df, 
+      aes(x=number, y=count))
+    p <- p + scale_x_continuous(
+      limits = c(
+        0,length(log_modified_fold_change_df$count)
+      ), 
+      expand = c(0, 0),
+      breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
+      labels = CNV_indices$length[CNV_indices$ticks == "include"]
     )
-  
-    # create left vertical line:
-    if (r != 1) {
+    p <- p + scale_y_continuous(
+      breaks = c(-4, -3, -2, -1, 0, 1, 2),
+      limits = c(
+        min(CNV_indices$log_median_modified_FC), 
+        max(CNV_indices$log_median_modified_FC)
+      )
+    )
+    for (c_end in chr_data$ends) {
+      p <- p + geom_vline(xintercept=c_end)
+    }
+    for (r in 1:nrow(CNV_indices)) {
+      # create horizontal line:
       p <- p + geom_segment(
         x=CNV_indices$start[r], 
-        xend=CNV_indices$start[r], 
-        y=CNV_indices$log_median_modified_FC[r-1], 
+        xend=CNV_indices$end[r], 
+        y=CNV_indices$log_median_modified_FC[r], 
         yend=CNV_indices$log_median_modified_FC[r], 
         size=1, color="#37841f"
       )
-    }
-  }
-  # create 0 line:
-  p <- p + geom_segment(
-    x=CNV_indices$start[1],
-    xend=CNV_indices$end[
-      nrow(CNV_indices)
-    ],
-    y=0,
-    yend=0
-  )
-  # remove axis labels:
-  p <- p + theme(
-    axis.title.x=element_blank(),
-    axis.title.y=element_blank(),
-    axis.text.y=element_blank(),
-    axis.ticks.y=element_blank()
-  )
-  grid_sim_plot <- ggplotGrob(p)
-  dev.off()
-  
-  if (!file.exists(paste0(plot_dir, "sim_CNV_plot.pdf"))) {
     
+      # create left vertical line:
+      if (r != 1) {
+        p <- p + geom_segment(
+          x=CNV_indices$start[r], 
+          xend=CNV_indices$start[r], 
+          y=CNV_indices$log_median_modified_FC[r-1], 
+          yend=CNV_indices$log_median_modified_FC[r], 
+          size=1, color="#37841f"
+        )
+      }
+    }
+    # create 0 line:
+    p <- p + geom_segment(
+      x=CNV_indices$start[1],
+      xend=CNV_indices$end[
+        nrow(CNV_indices)
+      ],
+      y=0,
+      yend=0
+    )
+    # remove axis labels:
+    p <- p + theme(
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      axis.text.y=element_blank(),
+      axis.ticks.y=element_blank()
+    )
+    grid_sim_plot <- ggplotGrob(p)
+    dev.off()
+
+  if (!file.exists(paste0(plot_dir, "sim_CNV_plot.pdf"))) {
+
     pdf(paste0(plot_dir, "sim_CNV_plot.pdf"))
       grid.draw(grid_sim_plot)
     dev.off()
@@ -432,7 +452,7 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
   CNV_indices_list <- split(CNV_indices, CNV_indices$index)
 
   # determine neutral value (based on sd denoising):
-  score_table <- table(round(unlist(epithelial_heatmap), 3))
+  score_table <- table(round(unlist(epithelial_heatmap), 6))
   if (denoise_value == "no") {
     neutral_value <- mean(unlist(epithelial_heatmap))
   } else {
@@ -444,14 +464,14 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
   # plot distribution of average epithelial CNV signal to determine thresholds
   # for gains and losses:
   average_epithelial <- apply(epithelial_heatmap, 2, mean)
-  # create density plot of average CNV values:
-  if (!file.exists(paste0(plot_dir, "epithelial_CNV_density_plot.png"))) {
-    average_epithelial_density_plot <- density(average_epithelial, bw="SJ")
-    pdf(paste0(plot_dir, "epithelial_CNV_density_plot.pdf"))
-      plot(average_epithelial_density_plot, main=NA, xlab = "CNV signal")
+  # create histogram of average CNV values:
+  if (!file.exists(paste0(plot_dir, "epithelial_CNV_histogram.png"))) {
+    average_epithelial_histogram <- hist(average_epithelial)
+    pdf(paste0(plot_dir, "epithelial_CNV_histogram.pdf"))
+      plot(average_epithelial_histogram, main=NA, xlab = "CNV signal")
     dev.off()
-    png(paste0(plot_dir, "epithelial_CNV_density_plot.png"))
-      plot(average_epithelial_density_plot, main=NA, xlab = "CNV signal")
+    png(paste0(plot_dir, "epithelial_CNV_histogram.png"))
+      plot(average_epithelial_histogram, main=NA, xlab = "CNV signal")
     dev.off()
   }
 
@@ -465,37 +485,6 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
     dev.off()
   }
   
-
-
-#    neutral_range <- c(
-#      as.numeric(
-#        names(score_table)[which.max(score_table)-1]
-#      ),
-#      as.numeric(
-#        names(score_table)[which.max(score_table)+1]
-#      )
-#    )
-  
-  
-#  # determine range of mean epithelial signal across all neutral regions:
-#  neutral_indices <- CNV_indices[CNV_indices$type == "neutral",]
-#  
-#  for (r in 1:nrow(neutral_indices)) {
-#    print(r)
-#    if (r==1) {
-#      neutral_signal <- average_epithelial[
-#        neutral_indices$start[r]:neutral_indices$end[r]
-#      ]
-#    } else {
-#      neutral_signal <- c(
-#        neutral_signal,
-#        average_epithelial[
-#          neutral_indices$start[r]:neutral_indices$end[r]
-#        ]
-#      )
-#    }
-#  }
-  
   
   ################################################################################
   ### 6. Determine accuracy calls  ###
@@ -504,15 +493,6 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
   if (!file.exists(
     paste0(Robject_dir, "accuracy_calls.Rdata")
   )) {
-
-#    if (denoise_value == "no") {
-#      signal_mean <- mean(unlist(epithelial_heatmap))
-#      signal_sd <- sd(unlist(epithelial_heatmap))
-#      neutral_range <- c(
-#        signal_mean - signal_sd,
-#        signal_mean + signal_sd
-#      )
-#    }
     
     CNV_indices_list <- split(CNV_indices, 1:nrow(CNV_indices))
   
@@ -527,50 +507,21 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
         accuracy_call = NA
       )
   
-      # determine infercnv call based on CNV-neutral signal range:
-#      if (denoise_value == "no") {
-#
-#        for (j in 1:nrow(CNV_gene_df)) {
-#
-#          scores <- round(epithelial_heatmap[,rownames(CNV_gene_df)[j]], 3)
-#  
-#          if (
-#            length(which(scores < neutral_range[1])) >= length(scores)*min_CNV_proportion
-#          ) {
-#            CNV_gene_df$infercnv_call[j] <- "loss"
-#          } else if (
-#            length(which(scores > neutral_range[2])) >= length(scores)/2*min_CNV_proportion
-#          ) {
-#            CNV_gene_df$infercnv_call[j] <- "gain"
-#          } else {
-#            CNV_gene_df$infercnv_call[j] <- "neutral"
-#          }
-#  
-#        }
-#
-#      } else {
-
-        for (j in 1:nrow(CNV_gene_df)) {
-
-          scores <- round(epithelial_heatmap[,rownames(CNV_gene_df)[j]], 3)
-  
-          if (
-            length(which(scores < neutral_value)) >= length(scores)*min_CNV_proportion
-          ) {
-            CNV_gene_df$infercnv_call[j] <- "loss"
-          } else if (
-            length(which(scores > neutral_value)) >= length(scores)/2*min_CNV_proportion
-          ) {
-            CNV_gene_df$infercnv_call[j] <- "gain"
-          } else {
-            CNV_gene_df$infercnv_call[j] <- "neutral"
-          }
-  
+      for (j in 1:nrow(CNV_gene_df)) {
+        scores <- round(epithelial_heatmap[,rownames(CNV_gene_df)[j]], 6)
+        if (
+          length(which(scores < neutral_value)) >= length(scores)*min_CNV_proportion
+        ) {
+          CNV_gene_df$infercnv_call[j] <- "loss"
+        } else if (
+          length(which(scores > neutral_value)) >= length(scores)/2*min_CNV_proportion
+        ) {
+          CNV_gene_df$infercnv_call[j] <- "gain"
+        } else {
+          CNV_gene_df$infercnv_call[j] <- "neutral"
         }
+      }
 
-#      }
-      
-  
       # determine accuracy call based on expected and called CNV status:
       CNV_gene_df$accuracy_call[
         CNV_gene_df$CNV_type != "neutral" & 
@@ -698,7 +649,7 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
       sep = "\t",
       quote = F,
       col.names = T,
-      row.names = F
+      row.names = T
     )
   
   } else {
@@ -720,7 +671,9 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
   # create annotation of true/false positives/negatives:
   accuracy_annotation_vector <- CNV_accuracy_df$accuracy_call
   
-  cols <- c("#7CBA61", "#9DC9DC", "#B488B4", 
+#  cols <- c("#7CBA61", "#9DC9DC", "#B488B4", 
+#    "#F6DC15", "#C02456")
+  cols <- c("#430F82", "#7CBA61", "#B488B4", 
     "#F6DC15", "#C02456")
   names(cols) <- c("true_negative", "false_negative", "true_positive",  
     "false_positive", "wrong_call")
@@ -733,6 +686,22 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
       labels_gp = gpar(fontsize = 12))
   )
   accuracy_annotation@name <- "accuracy"
+
+#######
+#  annotated_heatmap <- grid.grabExpr(
+#  draw(accuracy_annotation)
+#)
+#
+#dev.off()
+#
+#pdf(paste0(plot_dir, "annot_test.pdf"), height = 13, width = 20)   
+#grid.newpage()
+#    pushViewport(viewport(x = 0.01, y = 0.16, width = 0.99, height = 0.78, 
+#      just = c("left", "bottom")))
+#      grid.draw(annotated_heatmap)
+#    popViewport()
+#dev.off()
+#######
 
 }
 
@@ -753,45 +722,69 @@ heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)),
       c("#00106B", "white", "#680700"), space = "sRGB")
 print("Generating final heatmap...")
 
+# choose min and max InferCNV values for colour scheme:
+for (r in 1:10) {
+  if (!(round(min(na_less_vector), r) == round(max(na_less_vector), r))) {
+    legend_lims <- c(round(min(na_less_vector), r), round(max(na_less_vector), r))
+    break()
+  }
+}
+
 if (sim_name == "normal" | sim_name == "filtered_normal") {
   final_heatmap <- Heatmap(
-    plot_object, name = paste0("hm"), 
+    plot_object, 
+    name = paste0("hm"),
     col = heatmap_cols,
-    cluster_columns = F, cluster_rows = F,
-    show_row_names = F, show_column_names = F,
+    cluster_columns = F, 
+    cluster_rows = F,
+    show_row_names = F, 
+    show_column_names = F,
     show_row_dend = F,
-    heatmap_legend_param = list(title = "CNV\nscore", 
-    at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-    color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-    grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-    title_gp = gpar(fontsize = 18, fontface = "bold"), 
-    labels_gp = gpar(fontsize = 12)),
-    use_raster = T, raster_device = c("png")
+    heatmap_legend_param = list(
+      title = "CNV\nscore", 
+      at = legend_lims,
+      color_bar = "continuous", 
+      grid_height = unit(1.5, "cm"), 
+      grid_width = unit(1.5, "cm"), 
+      legend_direction = "horizontal",
+      title_gp = gpar(fontsize = 18, fontface = "bold"), 
+      labels_gp = gpar(fontsize = 12)
+    ),
+    use_raster = T, 
+    raster_device = c("png")
   )
 } else {
     final_heatmap <- Heatmap(
-    plot_object, name = paste0("hm"), 
-    col = heatmap_cols,
-    cluster_columns = F, cluster_rows = F,
-    show_row_names = F, show_column_names = F,
-    show_row_dend = F,
-    bottom_annotation = accuracy_annotation,
-    heatmap_legend_param = list(title = "CNV\nscore", 
-    at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-    color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-    grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-    title_gp = gpar(fontsize = 18, fontface = "bold"), 
-    labels_gp = gpar(fontsize = 12)),
-    use_raster = T, raster_device = c("png")
-  )
+      plot_object, 
+      name = paste0("hm"), 
+      col = heatmap_cols,
+      cluster_columns = F, 
+      cluster_rows = F,
+      show_row_names = F, 
+      show_column_names = F,
+      show_row_dend = F,
+      bottom_annotation = accuracy_annotation,
+      heatmap_legend_param = list(
+        title = "CNV\nscore", 
+        at = legend_lims,
+        color_bar = "continuous", 
+        grid_height = unit(1.5, "cm"), 
+        grid_width = unit(1.5, "cm"), 
+        legend_direction = "horizontal",
+        title_gp = gpar(fontsize = 18, 
+        fontface = "bold"), 
+        labels_gp = gpar(fontsize = 12)
+      ),
+      use_raster = T, 
+      raster_device = c("png")
+    )
 }
-
 
 annotated_heatmap <- grid.grabExpr(
   draw(final_heatmap, gap = unit(6, "mm"), heatmap_legend_side = "left",
   annotation_legend_side = "left")
 )
-dev.off()
+
 
 # determine where starting co-ordinates for heatmap are based upon longest cluster name
 # (0.00604 units per character):
@@ -906,3 +899,219 @@ write.table(epithelial_metadata, paste0(table_dir, "epithelial_metadata.txt"),
   sep="\t", quote=F, row.names=F, col.name=T)
 
 print(paste0("Heatmap created, output in ", plot_dir))
+
+
+
+#################################################################################
+#### 12. Plot average signal vs accuracy annotation ###
+#################################################################################
+#
+#if (!file.exists(paste0(plot_dir, "accuracy_vs_signal_plot.png"))) {
+#
+#  # calculate mean signal per gene:
+#  mean_signal <- apply(epithelial_heatmap, 2, mean)
+#  
+#  # split mean signal by 100 gene intervals:
+#  number_divisions <- ceiling(length(mean_signal)/100)
+#  for (i in 1:number_divisions) {
+#    if (i==1) {
+#      split_vector <- rep(i, 100)
+#    } else {
+#      split_vector <- c(split_vector, rep(i, 100))
+#    }
+#  }
+#  
+#  # calculate how many elements less in the last split group and remove:
+#  missing_elements <- (number_divisions*100)-length(mean_signal)
+#  split_vector <- split_vector[1:(length(split_vector)-missing_elements)]
+#  
+#  # split mean signal:
+#  signal_per_100 <- unlist(
+#    lapply(
+#      split(mean_signal, split_vector), mean
+#    )
+#  )
+#  # add start and end co-ordinates and scale signal values:
+#  signal_df <- data.frame(
+#    start = ((as.numeric(names(signal_per_100))-1)*100)+1,
+#    end = as.numeric(names(signal_per_100))*100,
+#    mean_signal = round(signal_per_100, 3)
+#  )
+#  # adjust last end co-ordinate for missing values:
+#  signal_df$end[nrow(signal_df)] <- length(mean_signal)
+#  
+#  # collapse entries with the same mean signal:
+#  split_df <- split(signal_df, rleid(signal_df$mean_signal))
+#  collapsed_signal_df <- do.call(
+#    "rbind",
+#    lapply(split_df, function(x) {
+#      return(
+#        data.frame(
+#          start = x$start[1],
+#          end = x$end[nrow(x)],
+#          mean_signal = x$mean_signal[1]
+#        )
+#      )
+#    }) 
+#  )
+#  
+#  # label loss and gain signal:
+#  collapsed_signal_df$type[
+#    collapsed_signal_df$mean_signal == neutral_value
+#  ] <- "neutral"
+#  collapsed_signal_df$type[
+#    collapsed_signal_df$mean_signal > neutral_value
+#  ] <- "gain"
+#  collapsed_signal_df$type[
+#    collapsed_signal_df$mean_signal < neutral_value
+#  ] <- "loss"
+#
+#  signal_vector <- create_extended_vector(collapsed_signal_df, "mean_signal")
+#  signal_df <- data.frame(
+#  	index = seq_along(1:length(signal_vector)),
+#  	signal = signal_vector
+#  )
+#
+#  # determine midpoints of chromosomes:
+#  chr_data$midpoints <- chr_data$ends-floor(chr_data$lengths/2)
+#  
+#  
+#  # plot CNV signal across genome:
+#  p <- ggplot(signal_df, aes(x=index, y=signal))
+#
+##  p <- p + scale_y_continuous(
+##    breaks = c(y_lim[1], 1, y_lim[2]),
+##    limits = c(y_lim[1], y_lim[2]),
+##    labels = c(y_lim[1], 1, y_lim[2])
+##  )
+##  p <- p + scale_x_continuous(
+##    limits = c(
+##      0, collapsed_signal_df$end[nrow(collapsed_signal_df)]
+##    ), 
+##    expand = c(0, 0),
+##    breaks = chr_data$midpoints,
+##    labels = seq(1, 22)
+##  )
+#  
+#  for (c_end in chr_data$ends) {
+#    p <- p + geom_vline(xintercept=c_end, color="#A0A0A0", size = 0.2)
+#  }
+#  
+#  for (r in 1:nrow(collapsed_signal_df)) {
+#  
+#    # make gains red, losses blue and neutral regions black:
+#    if (collapsed_signal_df$type[r] == "neutral") {
+#      temp_col <- "#777777"
+#    } else if (collapsed_signal_df$type[r] == "gain") {
+#      temp_col <- "#BF3667"
+#    } else if (collapsed_signal_df$type[r] == "loss") {
+#      temp_col <- "#58B9DB"
+#    }
+#  
+#    # create horizontal line:
+#    p <- p + geom_segment(
+#      x=collapsed_signal_df$start[r], 
+#      xend=collapsed_signal_df$end[r], 
+#      y=collapsed_signal_df$mean_signal[r], 
+#      yend=collapsed_signal_df$mean_signal[r], 
+#      size=0.6, color=temp_col
+#    )
+#  
+#    if (collapsed_signal_df$type[r] != "neutral") {
+#      # create left vertical line:
+#      if (r != 1) {
+#        p <- p + geom_segment(
+#          x=collapsed_signal_df$start[r], 
+#          xend=collapsed_signal_df$start[r], 
+#          y=1, 
+#          yend=collapsed_signal_df$mean_signal[r], 
+#          size=0.6, color=temp_col
+#        )
+#      }
+#      # create left vertical line:
+#      if (r != nrow(collapsed_signal_df)) {
+#        p <- p + geom_segment(
+#          x=collapsed_signal_df$end[r], 
+#          xend=collapsed_signal_df$end[r], 
+#          y=1, 
+#          yend=collapsed_signal_df$mean_signal[r], 
+#          size=0.6, color=temp_col
+#        )
+#      }
+#    }
+#  }
+#  
+##  # remove axis labels:
+##  p <- p + theme(
+##    axis.title.x=element_blank(),
+##  #  axis.text.x=element_blank(),
+##    axis.ticks.x=element_blank()
+##  )
+##  
+##  # label y-axis:
+##  p <- p + ylab("Mean CNV signal")
+#
+#  print(paste0("Creating accuracy vs signal plot..."))
+#
+#  	accuracy_vs_signal_plot <- ggplotGrob(p)
+#  dev.off()
+#  
+#  pdf(paste0(plot_dir, "accuracy_vs_signal_plot_test1.pdf"), width = 20)
+#    grid.draw(accuracy_vs_signal_plot)
+#  dev.off()
+##  png(paste0(plot_dir, "accuracy_vs_signal_plot.png"), 
+##    width = 20,
+##    height = 10,
+##    units = "in",
+##    res = 300
+##  )
+##    grid.draw(accuracy_vs_signal_plot)
+##  dev.off()
+#  
+#
+#
+#
+#
+#  # plot artefact plot with detected artefact annotation:
+#  annotation_grid <- grid.grabExpr(
+#    draw(artefact_annotation)
+#  )
+#  dev.off()
+#  
+##  pdf(paste0(plot_dir, "annotated_artefact_level_plot.pdf"), width = 20)
+##  
+##    grid.newpage()
+##      pushViewport(viewport(x = 0.065, y = 0.16, width = 0.934, height = 0.78, 
+##        just = c("left", "bottom")))
+##        grid.draw(artefact_level_plot)
+##      popViewport()
+##      pushViewport(viewport(x = 0.106, y = 0.1, 
+##        width = 0.89, height = 0.12, just = c("left", "bottom")))
+##        grid.draw(annotation_grid)
+##      popViewport()
+##  
+##  dev.off()
+#
+#  print(paste0("Creating annotated artefact level plot file..."))
+#  png(
+#    paste0(plot_dir, "annotated_artefact_level_plot.png"), 
+#    width = 20,
+#    height = 10,
+#    units = "in",
+#    res = 300
+#  )
+#  
+#    grid.newpage()
+#      pushViewport(viewport(x = 0.065, y = 0.16, width = 0.934, height = 0.78, 
+#        just = c("left", "bottom")))
+#        grid.draw(artefact_level_plot)
+#      popViewport()
+#      pushViewport(viewport(x = 0.106, y = 0.1, 
+#        width = 0.89, height = 0.12, just = c("left", "bottom")))
+#        grid.draw(annotation_grid)
+#      popViewport()
+#  
+#  dev.off()
+#
+#}
+

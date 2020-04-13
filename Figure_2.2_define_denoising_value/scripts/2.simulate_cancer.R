@@ -89,7 +89,7 @@ print(paste0("Noise input cell number = ", noise_cell_no))
 #    )
 #  )
 #)
-#sim_name <- "sim20"
+#sim_name <- "sim17"
 #noise_cell_no <- 5000
 
 print(paste0("Project name = ", project_name))
@@ -586,7 +586,7 @@ if (sim_name != "filtered_normal") {
         # generate mean original segment fold change vector with each value representing 
         # a gene:
         average_original_counts <- apply(
-          epithelial_df[CNV_record$start[i]:CNV_record$end[i],], 1, mean
+          filtered_epithelial_df[CNV_record$start[i]:CNV_record$end[i],], 1, mean
         )
         # add 0.1 to all values:
         #average_original_counts[average_original_counts == 0] <- 1e-3
@@ -613,7 +613,15 @@ if (sim_name != "filtered_normal") {
     
         # add to CNV_record:
         CNV_record$log_median_modified_FC[i] <- log_median_modified_fold_change
-    
+
+        ###
+#        if (is.na(CNV_record$log_median_modified_FC[i])) {
+#          print(i)
+#          print("NA found")
+#          break()
+#        }
+        ###
+
         # take the log10 of all fold changes:
         log_modified_fold_change <- log10(modified_fold_change)
     
@@ -737,9 +745,12 @@ if (sim_name != "filtered_normal") {
       expand = c(0, 0)
     )
     p <- p + scale_y_continuous(
-      breaks = c(-4, -3, -2, -1, 0, 1),
-      labels = c("-4", "-3", "-2", "-1", "0", "1"),
-      limits = c(-4, 1)
+      breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+      labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
+      limits = c(
+        min(log_modified_fold_change_df$count), 
+        max(log_modified_fold_change_df$count)
+      )
     )
     for (end in chromosome_ends) {
       p <- p + geom_vline(xintercept=end)
@@ -786,8 +797,11 @@ if (sim_name != "filtered_normal") {
     p <- p + scale_y_continuous(
       breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
       labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-      limits = c(min(log_modified_fold_change_df$count), max(log_modified_fold_change_df$count))
-    )
+      limits = c(
+          min(log_modified_fold_change_df$count), 
+          max(log_modified_fold_change_df$count)
+        )
+      )
     for (end in chromosome_ends) {
       p <- p + geom_vline(xintercept=end)
     }
@@ -955,13 +969,6 @@ if (sim_name != "filtered_normal") {
     input_mid_genes <- input_mid_genes[naturalsort(names(input_mid_genes))]
     input_mid_ind <- match(input_mid_genes, rownames(outfiltered_counts))
   
-  
-    ######
-  
-    # plot log10 fold-difference from median of noise for all genes in both the input
-    # and simulated noise counts, adding lines for overall median and median per 100 genes
-    # respectively
-  
     input_means <- apply(noise_input, 1, mean)
     input_means <- input_means[input_means < 0.9]
     input_df <- data.frame(
@@ -994,9 +1001,6 @@ if (sim_name != "filtered_normal") {
         yend=max(input_df$input), 
         size=0.3, color="#B066B2"
       )
-  
-      # create median line:
-  
   
     }
   
@@ -1068,12 +1072,7 @@ if (sim_name != "filtered_normal") {
     pdf(paste0(noise_dir, "log10_noise_sim_scatterplot.pdf"))
       p2
     dev.off()
-  
-    ######
-  
-  
-  
-    
+
     saveRDS(noise_counts, paste0(noise_dir, "/noise_df.Rdata"))
   
   } else {
@@ -1122,9 +1121,9 @@ if (sim_name != "filtered_normal") {
  
     if (final_CNV_record$start[i] != final_CNV_record$end[i]) {
       average_original_counts <- apply(
-        epithelial_df[final_CNV_record$start[i]:final_CNV_record$end[i],], 1, mean)
+        filtered_epithelial_df[final_CNV_record$start[i]:final_CNV_record$end[i],], 1, mean)
     } else {
-      average_original_counts <- mean(as.numeric(epithelial_df[final_CNV_record$start[i],]))
+      average_original_counts <- mean(as.numeric(filtered_epithelial_df[final_CNV_record$start[i],]))
     }
   
     # add 0.1 to all values:
@@ -1183,7 +1182,10 @@ if (sim_name != "filtered_normal") {
     p <- p + scale_y_continuous(
         breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
         labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-        limits = c(min(log_modified_fold_change_df$count), max(log_modified_fold_change_df$count))
+        limits = c(
+          min(log_modified_fold_change_df$count), 
+          max(log_modified_fold_change_df$count)
+        )
       )
     for (end in chromosome_ends) {
       p <- p + geom_vline(xintercept=end)

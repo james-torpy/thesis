@@ -9,22 +9,19 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_accuracy_vs_coverage_smk_dev"
+subproject_name <- "Figure_2.2_define_denoising_value"
 sample_name <- args[1]
 print(paste0("sample name = ", sample_name))
-subset_data <- as.logical(args[2])
-print(paste0("subset_data = ", subset_data))
-nUMI_threshold <- as.numeric(args[3])
+nUMI_threshold <- as.numeric(args[2])
 print(paste0("nUMI_threshold = ", nUMI_threshold))
-nGene_threshold <- as.numeric(args[4])
+nGene_threshold <- as.numeric(args[3])
 print(paste0("nGene_threshold = ", nGene_threshold))
-CNV_type <- args[5]
 # range of number of CNVs per simulation, chosen randomly
 # defines number of CNV loop iterations with one CNV added per iteration:
 CNV_no_range <- as.numeric(
   unlist(
     strsplit(
-      args[6],
+      args[4],
       split = "_"
     )
   )
@@ -35,7 +32,7 @@ print(paste0("Range of CNVs possible = ", CNV_no_range))
 CNV_lengths <- as.numeric(
   unlist(
     strsplit(
-      args[7],
+      args[5],
       split = "_"
     )
   )
@@ -46,86 +43,82 @@ print(paste0("Possible CNV lengths = ", CNV_lengths))
 CNV_multipliers <- as.numeric(
   unlist(
     strsplit(
-      args[8],
+      args[6],
       split = "_"
     )
   )
 )
 print(paste0("Possible CNV multipliers = ", CNV_multipliers))
 
-downsample <- as.logical(args[9])
+downsample <- as.logical(args[7])
 print(paste0("Downsample = ", downsample))
 
 downsample_proportions <- as.numeric(
   unlist(
     strsplit(
-      args[10],
+      args[8],
       split = "_"
     )
   )
 )
 print(paste0("Proportions to downsample to = ", downsample_proportions))
 
-simulation_number <- as.numeric(args[11])
+simulation_number <- as.numeric(args[9])
 print(paste0("Simulation number = ", simulation_number))
 
-noise_cell_no <- as.numeric(args[12])
+noise_cell_no <- as.numeric(args[10])
 print(paste0("Noise input cell number = ", noise_cell_no))
 
-#project_name <- "thesis"
-#subproject_name <- "Figure_2.2_accuracy_vs_coverage"
-#sample_name <- "CID4520N"
-#subset_data <- FALSE
-#nUMI_threshold <- 25000
-#nGene_threshold <- 5000
-#CNV_type <- "both"
-## range of number of CNVs per simulation, chosen randomly
-## defines number of CNV loop iterations with one CNV added per iteration:
-#CNV_no_range <- as.numeric(
-#  unlist(
-#    strsplit(
-#      "10_50",
-#      split = "_"
-#    )
-#  )
-#)
-## range of lengths of CNVs, chosen randomly:
-#CNV_lengths <- as.numeric(
-#  unlist(
-#    strsplit(
-#      "20_50_75_100_150_150_200_200_250_250_300_300_350_400_450_500_550_600_650_700_750_800",
-#      split = "_"
-#    )
-#  )
-#)
-## vector of possible gain/loss multipliers, chosen randomly:
-#CNV_multipliers <- as.numeric(
-#  unlist(
-#    strsplit(
-#      "3_2_1.5_0.5_0",
-#      split = "_"
-#    )
-#  )
-#)
-#downsample <- TRUE
-#downsample_proportions <- as.numeric(
-#  unlist(
-#    strsplit(
-##      "0.5",
-#      "0.9_0.8_0.7_0.6_0.5_0.4_0.3_0.2_0.15_0.1_0.05",
-#      split = "_"
-#    )
-#  )
-#)
-#simulation_number <- 1
-#noise_cell_no <- 5000
-
-RStudio <- FALSE
+project_name <- "thesis"
+subproject_name <- "Figure_2.2_define_denoising_value"
+sample_name <- "CID4520N"
+subset_data <- FALSE
+nUMI_threshold <- 25000
+nGene_threshold <- 5000
+# range of number of CNVs per simulation, chosen randomly
+# defines number of CNV loop iterations with one CNV added per iteration:
+CNV_no_range <- as.numeric(
+  unlist(
+    strsplit(
+      "10_50",
+      split = "_"
+    )
+  )
+)
+# range of lengths of CNVs, chosen randomly:
+CNV_lengths <- as.numeric(
+  unlist(
+    strsplit(
+      "20_50_75_100_150_150_200_200_250_250_300_300_350_400_450_500_550_600_650_700_750_800",
+      split = "_"
+    )
+  )
+)
+# vector of possible gain/loss multipliers, chosen randomly:
+CNV_multipliers <- as.numeric(
+  unlist(
+    strsplit(
+      "3_2_1.5_0.5_0",
+      split = "_"
+    )
+  )
+)
+downsample <- TRUE
+downsample_proportions <- as.numeric(
+  unlist(
+    strsplit(
+#      "0.5",
+      "0.9_0.8_0.7_0.6_0.5_0.4_0.3_0.2_0.15_0.1_0.05",
+      split = "_"
+    )
+  )
+)
+simulation_number <- 1
+noise_cell_no <- 5000
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
-print(paste0("Subset data? ", as.character(subset_data)))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(Seurat)
@@ -137,304 +130,155 @@ library(splatter, lib.loc = lib_loc)
 library(ggplot2)
 library(org.Hs.eg.db)
 
-if (RStudio) {
-  home_dir <- "/Users/jamestorpy/clusterHome/"
-} else {
-  home_dir <- "/share/ScratchGeneral/jamtor/"
-}
+home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", 
   project_name, "/", subproject_name, "/")
 ref_dir <- paste0(project_dir, "refs/")
 func_dir <- paste0(project_dir, "scripts/functions/")
 results_dir <- paste0(project_dir, "results/")
-in_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
-  sample_name, "/")
-annot_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
-  sample_name, "/input_files/")
-if (subset_data) {
-  noise_dir <- paste0(results_dir, "cancer_simulation/", sample_name, 
-    "_cancer_sim/noise_generation/subset/")
-} else {
-  noise_dir <- paste0(results_dir, "cancer_simulation/", sample_name, 
-    "_cancer_sim/noise_generation/")
-}
+annot_dir <- paste0(results_dir, "infercnv/", sample_name, 
+  "/normal/input_files/")
+
+raw_dir <- paste0(project_dir, "raw_files/")
+seurat_dir <- paste0(raw_dir, "seurat_objects/", sample_name, "/")
+emptydrops_dir <- paste0(raw_dir, "/emptydrops/", sample_name, "/")
+normal_dir <- paste0(results_dir, "infercnv/", sample_name, 
+  "/normal/input_files/")
+annot_dir <- paste0(results_dir, "infercnv/", sample_name, 
+  "/normal/Rdata/")
+
+sim_path <- paste0(results_dir, "cancer_simulation/", sample_name, "/")
+noise_dir <- paste0(sim_path, "noise_generation/")
 system(paste0("mkdir -p ", noise_dir))
 
-atlas_dir <- "/paella/TumourProgressionGroupTemp/projects/brca_mini_atlas/"
-indiv_atlas_dir <- paste0(atlas_dir, 
-  "analysis/Jun2019_final_primary_set/01_individual_samples/output")
-emptydrops_dir <- paste0(indiv_atlas_dir, "/seurat_", sample_name, "/Output/EmptyDrops/")
-
-sim_out_path <- paste0(results_dir, "cancer_simulation/", sample_name, 
-	"_cancer_sim/")
-if (subset_data) {
-  sim_out_path <- paste0(sim_out_path, "subset/")
-}
-common_Robject_dir <- paste0(sim_out_path, "Rdata/")
+common_Robject_dir <- paste0(sim_path, "Rdata/")
 system(paste0("mkdir -p ", common_Robject_dir))
-common_plot_dir <- paste0(sim_out_path, "plots/")
+common_plot_dir <- paste0(sim_path, "plots/")
 system(paste0("mkdir -p ", common_plot_dir))
-common_table_dir <- paste0(sim_out_path, "tables/")
+common_table_dir <- paste0(sim_path, "tables/")
 system(paste0("mkdir -p ", common_table_dir))
 
-Robject_dir <- paste0(sim_out_path, CNV_type, "/", simulation_number, "/Rdata/")
+Robject_dir <- paste0(sim_path, "/sim", simulation_number, "/Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
-plot_dir <- paste0(sim_out_path, CNV_type, "/", simulation_number, "/plots/")
+plot_dir <- paste0(sim_path, "/sim", simulation_number, "/plots/")
 system(paste0("mkdir -p ", plot_dir))
-table_dir <- paste0(sim_out_path, CNV_type, "/", simulation_number, "/tables/")
+table_dir <- paste0(sim_path, "/sim", simulation_number, "/tables/")
 system(paste0("mkdir -p ", table_dir))
 
-out_path <- paste0(results_dir, "infercnv/t_cells_included/", sample_name, 
-  "_cancer_sim/")
-out_dir <- paste0(out_path, CNV_type, "/", simulation_number, "/")
-
-if (subset_data == TRUE) {
-  out_dir <- gsub(
-    paste0(CNV_type, "/", simulation_number, "/"), 
-    paste0("subset/", CNV_type, "/", simulation_number, "/"),
-    out_dir
-  )
-}
+out_dir <- paste0(results_dir, "infercnv/", sample_name, "/sim", 
+  simulation_number, "/input_files/")
 system(paste0("mkdir -p ", out_dir))
-
-original_dir <- paste0(out_path, "original/input_files/")
-system(paste0("mkdir -p ", original_dir))
 
 print(paste0("Sample directory = ", in_dir))
 print(paste0("Reference directory = ", ref_dir))
 print(paste0("Output directory = ", out_dir))
 print(paste0("Plot directory = ", plot_dir))
 print(paste0("Table directory = ", table_dir))
-print(paste0("Original directory = ", original_dir))
-
-CNV_no <- sample(seq(CNV_no_range[1], CNV_no_range[2]), 1)
 
 print(paste0("Generating simulated cancer data set from ", sample_name))
 print(paste0("Filtering out cells with less than ", nUMI_threshold, " UMIs and ",
   nGene_threshold, " genes"))
+
+
+################################################################################
+### 0. Define functions and choose seeds ###
+################################################################################
+
+# choose and record seeds:
+if (file.exists(paste0(table_dir, "random_seed_record.txt"))) {
+  seed_record <- read.table(
+    paste0(table_dir, "random_seed_record.txt"),
+    sep = "\t",
+    header = T,
+    as.is = T
+  )
+} else {
+  seed_record <- data.frame(
+    row.names = c("CNV_no", "start_position", "length", "multiplier", "UMI_downsample",
+      "gene_downsample"),
+    seed = sample(1:999, 6)
+  )
+  write.table(
+    seed_record, 
+    paste0(table_dir, "random_seed_record.txt"),
+    sep = "\t",
+    row.names = T,
+    col.names = T,
+    quote = F
+  )
+}
+
+set.seed(seed_record["CNV_no",])
+CNV_no <- sample(seq(CNV_no_range[1], CNV_no_range[2]), 1)
 print(paste0(
   "Adding ", CNV_no, " CNVs ",
   "with lengths between ", CNV_lengths[1], " and ", CNV_lengths[length(CNV_lengths)]
 ))
-print(paste0("Each sample will be downsampled to the following proportions:"))
-paste(downsample_proportions, collapse = ", ")
-
-
-################################################################################
-### 0. Define functions ###
-################################################################################
-
-prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"))
 
 
 ###################################################################################
-### 1. Fetch counts matrix from normal sample, create original infercnv input files 
-# and plot nUMI and nGene ###
+### 1. Prepare input data ###
 ###################################################################################
 
-if (!file.exists(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))) {
-  # load seurat object:
-  seurat_10X <- readRDS(paste0(in_dir, "03_seurat_object_processed.Rdata"))
-  
-  # create raw matrix input file and subset if necessary:
-  count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
-  print(
-    paste0(
-      "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
-    )
-  )
+if (
+  !file.exists(paste0(common_Robject_dir, "/1a.epithelial_df.Rdata")) | 
+  !file.exists(paste0(common_Robject_dir, "/1b.non_epithelial_df.Rdata")) | 
+  !file.exists(paste0(common_Robject_dir, "/1c.metadata.Rdata")) |
+  !file.exists(paste0(common_Robject_dir, "/1d.gene_annotation.Rdata"))
+) {
 
-  # create metadata df:
-  print("Creating inferCNV metadata file...")
-  infercnv_metadata <- prepare_infercnv_metadata(seurat_10X, subset_data=subset_data, 
-    count_df, for_infercnv=T)
-  seurat_10X <- infercnv_metadata$seurat
-  print(paste0("Cell types are: ", unique(infercnv_metadata$metadata$cell_type)))
-
-  saveRDS(infercnv_metadata, paste0(in_dir, "metadata.Rdata"))
-  saveRDS(seurat_10X, paste0(in_dir, "04_seurat_object_annotated.Rdata"))
-  
-  # only keep cells in metadata df:
-  print(paste0("No cells in count df before filtering for those in metadata df = ", 
-      ncol(count_df)))
-  count_df <- count_df[,colnames(count_df) %in% infercnv_metadata$metadata$cell_ids]
-  print(paste0("No cells in count df after filtering for those in metadata df = ", 
-      ncol(count_df)))
-
-  # save original infercnv input files:
-  if (!file.exists(paste0(original_dir, "input_matrix.txt"))) {
-    write.table(count_df, paste0(original_dir, "input_matrix.txt"), quote=F,
-      sep="\t", col.names=T, row.names=T)
-    write.table(infercnv_metadata$metadata, paste0(original_dir, "metadata.txt"), sep = "\t",
-      quote = F, col.names = F, row.names = F)
-  }
-
-  epithelial_df <- count_df[
-    ,as.character(infercnv_metadata$metadata$cell_ids[grep("pithelial", infercnv_metadata$metadata$cell_type)])
-  ]
-
-  print(
-    paste0(
-      "Dimensions of epithelial df = ", paste(as.character(dim(epithelial_df)), collapse=",")
-    )
-  )
-
-  # create density plots of nUMI and nGene:
-  QC <- data.frame(
-    row.names = colnames(epithelial_df),
-    nUMI = apply(epithelial_df, 2, sum),
-    nGene = apply(epithelial_df, 2, function(x) length(x[x!=0]))
-  )
-  QC <- QC[colnames(epithelial_df),]
-  nUMI_density_plot <- density(QC$nUMI)
-  pdf(paste0(common_plot_dir, "nUMI_density_plot.pdf"))
-    plot(nUMI_density_plot, main=NA, xlab = "nUMI")
-  dev.off()
-  png(paste0(common_plot_dir, "nUMI_density_plot.png"))
-    plot(nUMI_density_plot, main=NA, xlab = "nUMI")
-  dev.off()
-  nGene_density_plot <- density(QC$nGene)
-  pdf(paste0(common_plot_dir, "nGene_density_plot.pdf"))
-    plot(nGene_density_plot, main=NA, xlab = "nGene")
-  dev.off()
-  png(paste0(common_plot_dir, "nGene_density_plot.png"))
-    plot(nGene_density_plot, main=NA, xlab = "nGene")
-  dev.off()
-  log_nUMI_density_plot <- density(log10(QC$nUMI))
-  pdf(paste0(common_plot_dir, "log10_nUMI_density_plot.pdf"))
-    plot(log_nUMI_density_plot, main=NA, xlab = "log10 nUMI")
-  dev.off()
-  png(paste0(common_plot_dir, "log10_nUMI_density_plot.png"))
-    plot(log_nUMI_density_plot, main=NA, xlab = "log10 nUMI")
-  dev.off()
-  log_nGene_density_plot <- density(log10(QC$nGene))
-  pdf(paste0(common_plot_dir, "log10_nGene_density_plot.pdf"))
-    plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
-  dev.off()
-  png(paste0(common_plot_dir, "log10_nGene_density_plot.png"))
-    plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
-  dev.off()
-  # filter out cells with nUMI < nUMI_threshold and nGene < nGene_threshold
-  print(paste0("Number of cells before filtering out low coverage: ",
-    nrow(QC)))
-  cells_to_keep <- rownames(QC)[QC$nUMI > nUMI_threshold & QC$nGene > nGene_threshold]
-  print(paste0("Number of cells after filtering out low coverage: ",
-    length(cells_to_keep)))
-  epithelial_df <- epithelial_df[
-    ,colnames(epithelial_df) %in% cells_to_keep
-  ]
-  saveRDS(epithelial_df, paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))
-
-  
-  p <- ggplot(QC, aes(x=nUMI, y=nGene))
-  p <- p + geom_point()
-  p <- p + xlab("nUMI")
-  p <- p + ylab("nGene")
-  p <- p + theme(legend.title = element_blank())
-  pdf(paste0(common_plot_dir, "QC_quad_plot.pdf"), 
-    width = 10, height = 6)
-    print(p)
-  dev.off()
-  png(paste0(common_plot_dir, "QC_quad_plot.png"), 
-    width = 450, height = 270)
-    print(p)
-  dev.off()
-  # create total count density quad plot:
-  print("Determining total count...")
-  total_counts <- apply(epithelial_df, 2, sum)
-  total_count_density_plot <- density(total_counts, bw="SJ")
-  pdf(paste0(common_plot_dir, "total_count_density_plot.pdf"))
-    plot(total_count_density_plot, main=NA, xlab = "Total counts")
-  dev.off()
-  png(paste0(common_plot_dir, "total_count_density_plot.png"))
-    plot(total_count_density_plot, main=NA, xlab = "Total counts")
-  dev.off()
-  # create log10 total count density quad plot:
-  log_total_count_density_plot <- density(log10(total_counts), bw="SJ")
-  pdf(paste0(common_plot_dir, "log10_total_count_density_plot.pdf"))
-    plot(log_total_count_density_plot, main=NA, xlab = "Total counts")
-  dev.off()
-  png(paste0(common_plot_dir, "log10_total_count_density_plot.png"))
-    plot(log_total_count_density_plot, main=NA, xlab = "Total counts")
-  dev.off()
-  
-} else {
-  epithelial_df <- readRDS(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))
-}
-
-
-################################################################################
-### 2. Format annotation and counts matrices ###
-################################################################################
-
-if (!file.exists(paste0(common_Robject_dir, 
-  "/1b.epithelial_df.Rdata")) | !file.exists(paste0(common_Robject_dir, 
-  "/1c.gene_annotation.Rdata"))) {
-
-  # load in gene annotation and determine chromosome lengths:
-  gene_annotation <- read.table(
-    paste0(ref_dir, "infercnv_gene_order.txt"),
-    header = F,
+  # load normal counts matrix and split into epithelial and non-epithelial dfs:
+  count_df <- read.table(
+    paste0(normal_dir, "input_matrix.txt"),
     sep = "\t",
+    header = T,
     as.is = T
   )
-  colnames(gene_annotation) <- c("symbol", "chromosome", "start", "end")
   
-  # subset gene annotation and epithelial_df so they contain the same genes:
-  rownames(gene_annotation) <- gene_annotation$symbol
-
-  genes_not_in_gene_annotation <- rownames(epithelial_df)[
-    !(rownames(epithelial_df) %in% rownames(gene_annotation))
-  ]
-  print(paste0(length(genes_not_in_gene_annotation), 
-    " genes not present in InferCNV gene annotation but present in ", sample_name, 
-    " counts matrix"))
+  metadata <- read.table(
+    paste0(normal_dir, "metadata.txt"),
+    sep = "\t",
+    header = F,
+    as.is = T
+  )
+  colnames(metadata) <- c("cell_ids", "cell_types")
   
-  genes_not_in_epithelial_df <- rownames(gene_annotation)[
-    !(rownames(gene_annotation) %in% rownames(epithelial_df))
+  epithelial_df <- count_df[
+    , colnames(count_df) %in% metadata$cell_ids[metadata$cell_types == "Epithelial"]
   ]
-  print(paste0(length(genes_not_in_epithelial_df), " genes not present in ", sample_name, 
-    " counts matrix but present in InferCNV gene annotation"))
+  non_epithelial_df <- count_df[
+    , colnames(count_df) %in% metadata$cell_ids[metadata$cell_types == "Non_epithelial"]
+  ]
   
-  print("Removing genes not present in both InferCNV gene annotation and counts matrix...")
-  gene_annotation <- gene_annotation[
-    rownames(gene_annotation) %in% rownames(epithelial_df),
-  ]
-  epithelial_df <- epithelial_df[rownames(epithelial_df) %in% rownames(gene_annotation),]
-
-  print(paste0("Gene numbers of InferCNV gene annotation and counts matrix are now ",
-    nrow(gene_annotation), " and ", nrow(epithelial_df), " respectively"))
-
-  # remove genes in chromosomes M, X, Y:
-  print("Removing genes from chromosomes M, X, Y...")
-  gene_annotation <- gene_annotation[
-    !(gene_annotation$chromosome %in% c("chrM", "chrX", "chrY")),
-  ]
-  epithelial_df <- epithelial_df[
-    gene_annotation$symbol[!(gene_annotation$chromosome %in% c("chrM", "chrX", "chrY"))],
-  ]
-
-  print(paste0("Gene numbers of InferCNV gene annotation and counts matrix are now ",
-    nrow(gene_annotation), " and ", nrow(epithelial_df), " respectively"))
+  print("count_df dimensions:")
+  print(dim(count_df))
+  print("epithelial_df dimensions:")
+  print(dim(epithelial_df))
+  print("non_epithelial_df dimensions:")
+  print(dim(non_epithelial_df))
   
-  # number genes in gene annotation:
-  gene_annotation$number <- seq(1, nrow(gene_annotation))
+  # load gene annotation data:
+  gene_annotation <- readRDS(paste0(annot_dir, "2c.gene_annotation.Rdata"))
 
-  saveRDS(epithelial_df, paste0(common_Robject_dir, "/1b.epithelial_df.Rdata"))
-  saveRDS(gene_annotation, paste0(common_Robject_dir, 
-    "/1c.gene_annotation.Rdata"))
-
+  # save data:
+  saveRDS(epithelial_df, paste0(common_Robject_dir, "/1a.epithelial_df.Rdata"))
+  saveRDS(non_epithelial_df, paste0(common_Robject_dir, "/1b.non_epithelial_df.Rdata"))
+  saveRDS(metadata, paste0(common_Robject_dir, "/1c.metadata.Rdata"))
+  saveRDS(gene_annotation, paste0(common_Robject_dir, "/1d.gene_annotation.Rdata"))
+  
 } else {
 
-  epithelial_df <- readRDS(paste0(common_Robject_dir, "/1b.epithelial_df.Rdata"))
-  gene_annotation <- readRDS(paste0(common_Robject_dir, 
-    "/1c.gene_annotation.Rdata"))
-
+  # load data:
+  epithelial_df <- readRDS(paste0(common_Robject_dir, "/1a.epithelial_df.Rdata"))
+  non_epithelial_df <- readRDS(paste0(common_Robject_dir, "/1b.non_epithelial_df.Rdata"))
+  metadata <- readRDS(paste0(common_Robject_dir, "/1c.metadata.Rdata"))
+  gene_annotation <- readRDS(paste0(common_Robject_dir, "/1d.gene_annotation.Rdata"))
+  
 }
 
 
 ################################################################################
-### 3. Prepare chromosome information ###
+### 2. Prepare chromosome information ###
 ################################################################################
 
 # determine chromosome information:
@@ -471,7 +315,7 @@ chromosome_midpoints <- lapply(chromosome_coords, function(x) x[floor(length(x)/
 
 
 ################################################################################
-### 4. Plot average fold difference from median ###
+### 3. Plot average fold difference from median ###
 ################################################################################
 
 # generate average original counts vector with each value representing a gene:
@@ -537,38 +381,43 @@ if (!file.exists(paste0(common_plot_dir, "1.log_original_fold_change_from_median
 
 }
 
-#save.image(paste0(Robject_dir, "temp.Rdata"))
-#rm(list=ls())
-#simulation_number <- 1
-#CNV_type <- "both"
-#Robject_dir <- paste0("/share/ScratchGeneral/jamtor/projects/thesis/Figure_2.2_accuracy_vs_coverage/results/cancer_simulation/CID4520N_cancer_sim/",
-#  CNV_type, "/", simulation_number, "/Rdata/")
-#load(paste0(Robject_dir, "temp.Rdata"))
-
-
 ################################################################################
-### 5. Add CNVs to df, determine fold change from original median of each 
+### 4. Add CNVs to df, determine fold change from original median of each 
 # gene and median fold change for each CNV region ###
 ################################################################################
-
-######
-#rm(CNV_record)
-#rm(modified_df)
-#rm(log_modified_fold_change_df)
-######
 
 # determine total gene length of genome to ensure total CNV length < 0.4 x 
 # genome length to comply with InferCNV assumptions:
 genome_length <- nrow(epithelial_df)
 
-if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rdata")) | 
+if (
+  !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rdata")) | 
   !file.exists(paste0(Robject_dir, "/2b.pre_noise_log_modified_fold_change_df.Rdata")) |
   !file.exists(paste0(Robject_dir, "/2c.CNV_record.Rdata")) | 
-  !file.exists(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata")) ) {
+  !file.exists(paste0(Robject_dir, "simulated_CNV_plot_data.Rdata"))
+) {
 
   print("Adding CNVs to dataset...")
   writeLines("\n")
 
+  # choose random indices for start positions:
+  set.seed(seed_record["start_position",])
+  gene_no <- nrow(epithelial_df)
+  random_starts <- sample(1:gene_no, 1000)
+
+  # choose random indices for lengths:
+  set.seed(seed_record["length",])
+  random_lengths <- CNV_lengths[
+    sample(1:length(CNV_lengths), 1000, replace=T)
+  ]
+
+   # choose random indices for multipliers:
+  set.seed(seed_record["multiplier",])
+  random_multipliers <- CNV_multipliers[
+    sample(1:length(CNV_multipliers), CNV_no, replace = T)
+  ]
+
+  r=1
   for (i in 1:CNV_no) {
 
   	if (exists("CNV_record")) {
@@ -587,11 +436,10 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
 
       repeat {
         # choose start position at random:
-        gene_no <- nrow(epithelial_df)
-        start_position <- sample(1:gene_no, 1)
+        start_position <- random_starts[r]
       
         # choose CNV length at random:
-        CNV_length <- CNV_lengths[sample(1:length(CNV_lengths), 1)]
+        CNV_length <- random_lengths[r]
         end_position <- start_position+CNV_length
         CNV_region <- start_position:end_position
       
@@ -626,10 +474,12 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
         } else {
           print("Region overlaps with end of genome, trying different region...")
         }
+
+        r <<- r+1
       }
     
       # choose CNV multiplier at random:
-      CNV_multiplier <- CNV_multipliers[sample(1:length(CNV_multipliers), 1)]
+      CNV_multiplier <- random_multipliers[i]
   
       # record region so no future CNVs overlap:
       if (!(exists("CNV_record"))) {
@@ -812,7 +662,7 @@ if ( !file.exists(paste0(Robject_dir, "/2a.pre_noise_simulated_epithelial_df.Rda
 
 
 ################################################################################
-### 6. Create modified counts and line CNV plots ###
+### 5. Create modified counts and line CNV plots ###
 ################################################################################
 
 # plot median fold change from original median for modified data:
@@ -833,7 +683,6 @@ if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_me
     p <- p + geom_vline(xintercept=end)
   }
   for (r in 1:nrow(final_CNV_record)) {
-    print(r)
     # create horizontal line:
     p <- p + geom_segment(
       x=final_CNV_record$start[r], 
@@ -906,85 +755,73 @@ if (!file.exists(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_me
   dev.off()
 }
 
-#save.image(paste0(Robject_dir, "temp2.Rdata"))
-#load(paste0(Robject_dir, "temp2.Rdata"))
-
 
 ################################################################################
-### 7. Bind new epithelial and original stromal counts and check against 
+### 6. Bind new epithelial and original stromal counts and check against 
 # metadata ###
 ################################################################################
 
-if (!exists("count_df")) {
-  # load seurat object:
-  seurat_10X <- readRDS(paste0(in_dir, "04_seurat_object_annotated.Rdata"))
-  # create raw matrix input file and subset if necessary:
-  count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
+if (!exists("non_epithelial_df")) {
+
+  count_df <- read.table(
+    paste0(normal_dir, "input_matrix.txt"),
+    sep = "\t",
+    header = T,
+    as.is = T
+  )
+
+  metadata <- read.table(
+    paste0(normal_dir, "metadata.txt"),
+    sep = "\t",
+    header = F,
+    as.is = T
+  )
+  colnames(metadata) <- c("cell_ids", "cell_types")
+  
+  epithelial_df <- count_df[
+    , colnames(count_df) %in% metadata$cell_ids[metadata$cell_types == "Epithelial"]
+  ]
+  non_epithelial_df <- count_df[
+    , colnames(count_df) %in% metadata$cell_ids[metadata$cell_types == "Non_epithelial"]
+  ]
+  
+  print("count_df dimensions:")
+  print(dim(count_df))
+  print("epithelial_df dimensions:")
+  print(dim(epithelial_df))
+  print("non_epithelial_df dimensions:")
+  print(dim(non_epithelial_df))
+
+} else {
+
+  print("non_epithelial_df dimensions:")
+  print(dim(non_epithelial_df))
+
 }
 
-# only keep genes in both count and modified_df:
-print(paste0(
-  "Number of genes in count_df before removing genes not in modified_df = ", 
-  nrow(count_df))
-)
-count_df <- count_df[rownames(modified_df),]
-print(paste0(
-  "Dimensions of count_df after removing genes not in modified_df = ", 
-  nrow(count_df))
-)
-
-if (!exists("infercnv_metadata")) {
-  infercnv_metadata <- readRDS(paste0(in_dir, "metadata.Rdata"))
+if (!exists("metadata")) {
+  metadata <- read.table(
+    paste0(normal_dir, "metadata.txt"),
+    sep = "\t",
+    header = F,
+    as.is = T
+  )
 }
 
-print(
-  paste0(
-    "Columns in stromal part of count_df = ", 
-    ncol(
-      count_df[
-        ,as.character(infercnv_metadata$metadata$cell_ids[
-          grep("pithelial", infercnv_metadata$metadata$cell_type, invert = T)
-          ]
-        )
-      ]
-    )
-  )
-)
-print(paste0("Columns in modified_df = ", ncol(modified_df)))
+# bind non_epithelial_df and modified_df together as new_counts:
+print("modified_df dimensions:")
+print(dim(modified_df))
 
-# bind non-epithelial count_df and modified_df together as new_counts:
-temp_non_epithelial_df <- count_df[
-  ,as.character(infercnv_metadata$metadata$cell_ids[
-    grep("pithelial", infercnv_metadata$metadata$cell_type, invert = T)
-    ]
-  )
-]
 new_counts <- cbind(
   modified_df,
-  temp_non_epithelial_df
+  non_epithelial_df
 )
-print(paste0("Columns in new_counts = ", ncol(new_counts)))
-
-# isolate epithelial cells into df:
-temp_epithelial_df <- count_df[
-  ,as.character(infercnv_metadata$metadata$cell_ids[
-    grep("pithelial", infercnv_metadata$metadata$cell_type)
-    ]
-  )
-]
-
-# only keep cells in cell_annotation:
-new_counts <- new_counts[
-  ,colnames(new_counts) %in% as.character(infercnv_metadata$metadata$cell_ids)
-]
-print(paste0(
-  "Columns in new_counts after removing cells not in cell_annotation = ", 
-  ncol(new_counts))
-)
+print("New_counts dimensions: ")
+print(dim(new_counts))
 
 
 ###################################################################################
-### 8. Simulate noise dataset from noise counts and add to simulated cancer df ###
+### 7. Simulate noise dataset from noise counts ###
 ###################################################################################
 
 if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
@@ -993,8 +830,8 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
   filtered_cells <- read.csv(
     paste0(emptydrops_dir, "02_emptydrops_filtered_cell_ids.csv")
   )
-  raw_10X <- readRDS(paste0(in_dir, "01_Read10X_raw_data.Rdata"))
-  seurat_10X <- readRDS(paste0(in_dir, "03_seurat_object_processed.Rdata"))
+  raw_10X <- readRDS(paste0(seurat_dir, "01_Read10X_raw_data.Rdata"))
+  seurat_10X <- readRDS(paste0(seurat_dir, "03_seurat_object_processed.Rdata"))
   
   # isolate outfiltered cells from raw counts matrix:
   outfiltered_cells <- all_cells[!(all_cells$X %in% filtered_cells$cell_ids),]
@@ -1034,7 +871,7 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
   count_sums <- colSums(outfiltered_counts)
   outfiltered_counts <- outfiltered_counts[,count_sums != 0]
   outfiltered_counts <- outfiltered_counts[,1:noise_cell_no]
- outfiltered_means <- apply(outfiltered_counts, 2, mean)
+  outfiltered_means <- apply(outfiltered_counts, 2, mean)
   if (!file.exists(paste0(noise_dir, "outfiltered_count_density_plot.pdf"))) {
     outfiltered_count_density_plot <- density(as.vector(outfiltered_means))
     pdf(paste0(noise_dir, "outfiltered_count_density_plot.pdf"))
@@ -1104,6 +941,13 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
   input_mid_genes <- input_mid_genes[naturalsort(names(input_mid_genes))]
   input_mid_ind <- match(input_mid_genes, rownames(outfiltered_counts))
 
+
+  ######
+
+  # plot log10 fold-difference from median of noise for all genes in both the input
+  # and simulated noise counts, adding lines for overall median and median per 100 genes
+  # respectively
+
   input_means <- apply(noise_input, 1, mean)
   input_means <- input_means[input_means < 0.9]
   input_df <- data.frame(
@@ -1113,6 +957,9 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
 
   # log10 the count values:
   input_df$input <- log10(input_df$input+1e-4)
+
+  # determine the median to mark on plot:
+  orig_median <- median(input_df$input)
   
   p1 <- ggplot(input_df, aes(x=number, y=input))
   p1 <- p1 + geom_point()
@@ -1131,8 +978,11 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
       xend=ind,
       y=min(input_df$input), 
       yend=max(input_df$input), 
-      size=0.3, color="red"
+      size=0.3, color="#B066B2"
     )
+
+    # create median line:
+
 
   }
 
@@ -1185,8 +1035,6 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
     sim_df_rownames <- gsub("-|_", "", rownames(sim_df))
     sim_end_gene <- gsub("-|_", "", sim_end_genes[g])
     ind <- grep(paste0("\\b", sim_end_gene, "\\b"), sim_df_rownames)
-#    names(ind) <- rownames(outfiltered_counts)[ind]
-#    ind <- ind[grep("-|_", names(ind), invert=T)]
     
     # create chromosome end vertical line:
     p2 <- p2 + geom_segment(
@@ -1206,6 +1054,11 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
   pdf(paste0(noise_dir, "log10_noise_sim_scatterplot.pdf"))
     p2
   dev.off()
+
+  ######
+
+
+
   
   saveRDS(noise_counts, paste0(noise_dir, "/noise_df.Rdata"))
 
@@ -1213,18 +1066,20 @@ if (!file.exists(paste0(noise_dir, "/noise_df.Rdata"))) {
   noise_counts <- readRDS(paste0(noise_dir, "/noise_df.Rdata"))
 }
 
-#save.image(paste0(Robject_dir, "temp3.Rdata"))
-#load(paste0(Robject_dir, "temp3.Rdata"))
+
+###################################################################################
+### 8. Add noise to simulated counts ###
+###################################################################################
 
 # ensure metadata has same cells as modified_df and label stromal cells:
-epithelial_metadata <- infercnv_metadata$metadata[
-  grep("pithelial", infercnv_metadata$metadata$cell_type),
+epithelial_metadata <- metadata$metadata[
+  grep("pithelial", metadata$metadata$cell_type),
 ]
 epithelial_metadata <- epithelial_metadata[colnames(modified_df),]
 
 epithelial_metadata$cell_type <- "Epithelial"
-non_epithelial_metadata <- infercnv_metadata$metadata[
-  grep("pithelial", infercnv_metadata$metadata$cell_type, invert = T),
+non_epithelial_metadata <- metadata$metadata[
+  grep("pithelial", metadata$metadata$cell_type, invert = T),
 ]
 non_epithelial_metadata$cell_type <- "Non_epithelial"
 metadata_df <- rbind(
@@ -1298,6 +1153,11 @@ for (i in 1:nrow(final_CNV_record)) {
     final_CNV_record$start[i]:final_CNV_record$end[i]
   ] <- log_modified_fold_change
 }
+
+
+###################################################################################
+### 10. Plot post-noise gene expression profiles ###
+###################################################################################
 
 # plot median fold change from original median for modified data:
 if (!file.exists(paste0(plot_dir, "3a.log_modified_fold_change_from_median_with_noise_line_only.pdf"))) {
@@ -1401,40 +1261,90 @@ if (!file.exists(paste0(no_downsample_dir, "input_matrix.txt"))) {
 
 
 ################################################################################
-### 9. Downsample new counts and save ###
+### 11. Downsample new counts and save ###
 ################################################################################
 
 if (downsample) {
+
+  # downsample by UMI:
   library(DropletUtils, lib.loc = lib_loc)
 
   print("Total counts before downsampling:")
   print(sum(as.vector(new_counts)))
 
+  # choose seeds for downsampling:
+  set.seed(seed_record["UMI_downsample",])
+  random_UMI_seeds <- sample(1:999, length(downsample_proportions))
+
+  m=1
   for (proportion in downsample_proportions) {
 
     # downsample simulated dataset with noise added:
-    print(paste0("Downsampling counts by ", proportion, "..."))
-    downsampled_counts_with_noise <- downsampleMatrix(
+    print(paste0("Downsampling counts to ", proportion, " total UMIs..."))
+
+    set.seed(random_UMI_seeds[m])
+    downsampled_counts <- downsampleMatrix(
       nondownsampled_counts_with_noise, proportion, bycol=T
     )
     print("Total counts after downsampling:")
-    print(sum(as.vector(downsampled_counts_with_noise)))
+    print(sum(as.vector(downsampled_counts)))
 
     downsample_dir <- paste0(out_dir, proportion, 
       "_downsampling/input_files/")
     system(paste0("mkdir -p ", downsample_dir))
     write.table(
-      downsampled_counts_with_noise, paste0(downsample_dir, "input_matrix.txt"), 
+      downsampled_counts, paste0(downsample_dir, "input_matrix.txt"), 
       quote=F, sep="\t", col.names=T, row.names=T)
     write.table(metadata_df, paste0(downsample_dir, "metadata.txt"), sep = "\t",
       quote = F, col.names = F, row.names = F)
+
+    m <<- m+1
   
   }
+
+  # choose seeds for downsampling:
+  set.seed(seed_record["gene_downsample",])
+  random_gene_seeds <- sample(1:999, length(downsample_proportions))
+
+  s=1
+  for (proportion in downsample_proportions) {
+
+    original_gene_no <- nrow(nondownsampled_counts_with_noise)
+    downsampled_gene_no <- original_gene_no*proportion
+    to_remove_no <- original_gene_no - downsampled_gene_no
+
+    print("Total genes before downsampling:")
+    print(original_gene_no)
+
+    # downsample simulated dataset with noise added:
+    print(paste0("Downsampling counts to ", proportion, " total genes..."))
+
+    set.seed(random_gene_seeds[s])
+    gene_downsampled_counts <- nondownsampled_counts_with_noise[
+      -sample(1:original_gene_no, to_remove_no),
+    ]
+
+    print("Total genes after downsampling:")
+    print(nrow(gene_downsampled_counts))
+
+    gene_downsample_dir <- paste0(out_dir, proportion, 
+      "_gene_downsampling/input_files/")
+    system(paste0("mkdir -p ", gene_downsample_dir))
+    write.table(
+      gene_downsampled_counts, paste0(gene_downsample_dir, "input_matrix.txt"), 
+      quote=F, sep="\t", col.names=T, row.names=T)
+    write.table(metadata_df, paste0(gene_downsample_dir, "metadata.txt"), sep = "\t",
+      quote = F, col.names = F, row.names = F)
+
+    s <<- s+1
+  
+  }
+
 }
 
 
 ################################################################################
-### 7. Convert PDF to PNG ###
+### 12. Convert PDF to PNG ###
 ################################################################################
 
 #system(paste0("for p in ", plot_dir, 

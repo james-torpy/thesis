@@ -95,6 +95,7 @@ if (denoise_value == "no") {
       )
     )
   )
+  system("touch ./infercnv.png")
 } else {
   system.time(
     infercnv_output <- try(

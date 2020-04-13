@@ -32,10 +32,7 @@ print("possible permutation values: ")
 print(potential_values)
 simulation_number <- as.numeric(args[6])
 print(paste0("Simulation number = ", simulation_number))
-t_cells_included <- as.logical(args[7])
-print(paste0("T-cells included in normal InferCNV run? ", 
-  t_cells_included))
-analysis_mode <- args[8]
+analysis_mode <- args[7]
 print(paste0("Analysis mode of normal InferCNV run = ", 
   analysis_mode, "_mode"))
 neutral_signal_range <- unlist(strsplit(args[9], split = "_"))
@@ -51,7 +48,7 @@ print(neutral_signal_range)
 #nGene_threshold <- 5000
 #print(paste0("nGene_threshold = ", nGene_threshold))
 # proportion of genes to be randomly permuated:
-#permutation_proportion <- 0.0025
+#permutation_proportion <- 0.005
 #print(paste0("permutation proportion = ", permutation_proportion))
 # range of values which could be substituted:
 #potential_values <- as.numeric(
@@ -66,17 +63,12 @@ print(neutral_signal_range)
 #print(potential_values)
 #simulation_number <- 1
 #print(paste0("Simulation number = ", simulation_number))
-#t_cells_included <- TRUE
-#print(paste0("T-cells included in normal InferCNV run? ", 
-#  t_cells_included))
 #analysis_mode <- "samples"
 #print(paste0("Analysis mode of normal InferCNV run = ", 
 #  analysis_mode, "_mode"))
 #neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
 #print("Neutral signal range = ")
 #print(neutral_signal_range)
-
-RStudio <- FALSE
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -95,30 +87,19 @@ library(data.table)
 library(ComplexHeatmap, lib.loc = lib_loc)
 library(circlize, lib.loc = lib_loc)
 
-if (RStudio) {
-  home_dir <- "/Users/jamestorpy/clusterHome/"
-} else {
-  home_dir <- "/share/ScratchGeneral/jamtor/"
-}
+home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", 
   project_name, "/", subproject_name, "/")
 ref_dir <- paste0(project_dir, "refs/")
 func_dir <- paste0(project_dir, "scripts/functions/")
 results_dir <- paste0(project_dir, "results/")
 
-in_dir <- paste0(project_dir, "/raw_files/seurat_objects/",
-  sample_name, "/")
-
-if (t_cells_included) {
-  normal_path <- paste0(results_dir, "infercnv/t_cells_included/", 
-    "/", sample_name, "/")
-} else {
-  normal_path <- paste0(results_dir, "infercnv/t_cells_excluded", 
-    "/", sample_name, "/")
-}
-normal_Robject_dir <- paste0(normal_path, "Rdata/")
-normal_input_dir <- paste0(normal_path, "input_files/")
-normal_infercnv_dir <- paste0(normal_path, analysis_mode, "_mode/")
+in_dir <- paste0(results_dir, "infercnv/", sample_name, 
+  "/filtered/input_files/")
+artefact_dir <- paste0(results_dir, "/infercnv/", sample_name, 
+  "/filtered/Rdata/")
+normal_Robject_dir <- paste0(results_dir, "/infercnv/", sample_name, 
+  "/Rdata/")
 
 out_path <- paste0(results_dir, "permutated_", sample_name, "/")
 
@@ -130,7 +111,7 @@ common_table_dir <- paste0(out_path, "tables/")
 system(paste0("mkdir -p ", common_table_dir))
 
 permutated_out_path <- paste0(out_path, permutation_proportion, 
-  "_proportion/", simulation_number, "/")
+  "_proportion/", simulation_number)
 Robject_dir <- paste0(permutated_out_path, "/Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
 plot_dir <- paste0(permutated_out_path, "/plots/")
@@ -142,15 +123,10 @@ prop_table_dir <- paste0(out_path, permutation_proportion,
   "_proportion/tables/")
 system(paste0("mkdir -p ", prop_table_dir))
 
-if (t_cells_included) {
-  out_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
-    "permutated_", sample_name, "/", permutation_proportion, 
-    "_proportion/", simulation_number, "/input_files/")
-} else {
-  out_dir <- paste0(results_dir, "infercnv/t_cells_excluded/",  
-    "permutated_", sample_name, "/", permutation_proportion, 
-    "_proportion/", simulation_number, "/input_files/")
-}
+out_dir <- paste0(results_dir, "infercnv/", 
+  "permutated_", sample_name, "/", permutation_proportion, 
+  "_proportion/", simulation_number, "/input_files/")
+
 
 system(paste0("mkdir -p ", out_dir))
 
@@ -172,7 +148,6 @@ print(paste0("Filtering out cells with less than ", nUMI_threshold, " UMIs and "
 ### 0. Define functions and choose seeds ###
 ################################################################################
 
-prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"))
 fetch_chromosome_boundaries <- dget(paste0(func_dir, 
   "fetch_chromosome_boundaries.R"))
 #introduce_permuatations <- dget(paste0(func_dir, "introduce_permutations.R"))
@@ -202,230 +177,68 @@ if (file.exists(paste0(table_dir, "random_seed_record.txt"))) {
 
 
 ###################################################################################
-### 1. Determine artefact regions from normal InferCNV output to be removed from
-# the dataset before random permutation ###
-###################################################################################
-
-if (
-  !file.exists(
-    paste0(common_Robject_dir, "0a.normal_artefact_record.Rdata")
-  ) | 
-  !file.exists(
-    paste0(common_Robject_dir, "0b.normal_artefact_genes.Rdata")
-  )
-) {
-
-  # load normal infercnv output:
-  print("Loading normal InferCNV output files...")
-  normal_infercnv <- as.data.frame(t(read.table(paste0(normal_infercnv_dir, 
-    "infercnv.12_denoised.observations.txt"))))
-  
-  # determine average signal across all cells for each gene:
-  normal_averages <- apply(normal_infercnv, 2, mean)
-  
-  for ( i in 1:(ncol(normal_infercnv)-9) ) {
-    print(i)
-    # determine average signal for every combination of 10 adjacent genes:
-    if (i == 1) {
-      artefact_record <- data.frame(
-        start = i,
-        end = i+9,
-        average_signal = mean(normal_averages[i:(i+9)]),
-        type = "no_CNV"
-      )
-    } else {
-      artefact_record <- rbind(
-        artefact_record,
-        data.frame(
-          start = i,
-          end = i+9,
-          average_signal = mean(normal_averages[i:(i+9)]),
-          type = "no_CNV"
-        )
-      )
-    }
-    artefact_record$type <- as.character(artefact_record$type)
-  
-    # report segment type:
-    if (artefact_record$average_signal[i] < neutral_signal_range[1]) {
-      artefact_record$type[i] <- "loss"
-    } else if (artefact_record$average_signal[i] > neutral_signal_range[2]) {
-      artefact_record$type[i] <- "gain"
-    }
-  
-  }
-
-  split_record <- split(artefact_record, rleid(artefact_record$type))
-  final_artefact_record <- lapply(split_record, function(x) {
-    return(
-      data.frame(
-        start = x$start[1],
-        end = x$end[nrow(x)],
-        type = x$type[1]
-      )
-    )
-  })
-  final_artefact_record <- do.call("rbind", final_artefact_record)
-
-  artefact_indices <- final_artefact_record[final_artefact_record$type != "no_CNV",]
-
-  for (m in 1:nrow(artefact_indices)) {
-    if (m==1) {
-      normal_artefact <- artefact_indices$start[m]:artefact_indices$end[m]
-    } else {
-      normal_artefact <- c(normal_artefact,
-        artefact_indices$start[m]:artefact_indices$end[m]
-      )
-    }   
-  }
-
-  # identify non-artefact genes:
-  artefact_genes <- colnames(normal_infercnv)[normal_artefact]
-  filtered_infercnv <- normal_infercnv[
-    , !(colnames(normal_infercnv) %in% artefact_genes)
-  ]
-
-  print(
-    paste0(
-      "Dimensions of filtered_infercnv = ", 
-        paste(as.character(dim(filtered_infercnv)), collapse=",")
-    )
-  )
-
-  # plot artefact-free normal heatmap:
-  # fetch chromosome info:
-  chr_data <- fetch_chromosome_boundaries(filtered_infercnv, ref_dir)
-  
-  # prepare df for plotting:
-  plot_object <- filtered_infercnv
-  colnames(plot_object) <- rep("la", ncol(plot_object))
-  plot_object <- as.matrix(plot_object)
-  
-  # define heatmap colours:
-  na_less_vector <- unlist(plot_object)
-  na_less_vector <- na_less_vector[!is.na(na_less_vector)]
-  heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
-        c("#00106B", "white", "#680700"), space = "sRGB")
-
-  print("Generating filtered normal heatmap...")
-
-  final_heatmap <- Heatmap(
-    plot_object, name = paste0("hm"), 
-    col = heatmap_cols,
-    cluster_columns = F, cluster_rows = F,
-    show_row_names = F, show_column_names = F,
-    #column_names_gp = gpar(col = "white"),
-    show_row_dend = F,
-    heatmap_legend_param = list(title = "CNV\nscore", 
-    at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-    color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-    grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-    title_gp = gpar(fontsize = 18, fontface = "bold"), 
-    labels_gp = gpar(fontsize = 12)),
-    use_raster = T, raster_device = c("png")
-  )
-
-  annotated_heatmap <- grid.grabExpr(
-    draw(final_heatmap, gap = unit(6, "mm"), heatmap_legend_side = "left")
-  )
-  dev.off()
-
-  # plot final annotated heatmap:
-  pdf(
-    paste0(common_plot_dir, "filtered_normal_infercnv_plot.pdf"), 
-    height = 13, width = 20
-  )   
-    
-    grid.newpage()
-    pushViewport(viewport(x = 0.01, y = 0.16, width = 0.99, height = 0.78, 
-      just = c("left", "bottom")))
-      grid.draw(annotated_heatmap)
-      decorate_heatmap_body("hm", {
-        for ( e in 1:length(chr_data$end_pos) ) {
-          grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
-            gp = gpar(lwd = 1, col = "#383838"))
-          grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
-        }
-      })
-    popViewport()
-  
-  dev.off()
-
-  saveRDS(
-    final_artefact_record, 
-    paste0(common_Robject_dir, "0a.normal_artefact_record.Rdata")
-  )
-  saveRDS(
-    artefact_genes, 
-    paste0(common_Robject_dir, "0b.normal_artefact_genes.Rdata")
-  )
-
-} else {
-
-  final_artefact_record <- readRDS(
-    paste0(common_Robject_dir, "0a.normal_artefact_record.Rdata")
-  )
-  artefact_genes <- readRDS(
-    paste0(common_Robject_dir, "0b.normal_artefact_genes.Rdata")
-  )
-
-}
-
-
-###################################################################################
-### 2. Fetch counts matrix from normal sample, create original infercnv input files 
+### 1. Fetch counts matrix from normal sample, create original infercnv input files 
 # and plot nUMI and nGene ###
 ###################################################################################
 
 if (
-  !file.exists(paste0(common_Robject_dir, "1a.epithelial_df.Rdata")) |
-  !file.exists(paste0(common_Robject_dir, "1b.non_epithelial_df.Rdata")) |
-  !file.exists(paste0(common_Robject_dir, "1c.metadata.Rdata"))
+  !file.exists(paste0(Robject_dir, "1a.epithelial_df.Rdata")) |
+  !file.exists(paste0(Robject_dir, "1b.non_epithelial_df.Rdata")) |
+  !file.exists(paste0(Robject_dir, "1c.gene_annotation.Rdata")) | 
+  !file.exists(paste0(Robject_dir, "1d.metadata.Rdata"))
 ) {
   
-  epithelial_df <- readRDS(paste0(normal_Robject_dir, "2a.epithelial_df.Rdata"))
-  non_epithelial_df <- readRDS(paste0(normal_Robject_dir, "2b.non_epithelial_df.Rdata"))
-  gene_annotation <- readRDS(paste0(normal_Robject_dir, "2c.gene_annotation.Rdata"))
+  normal_matrix <- read.table(
+    paste0(in_dir, "input_matrix.txt"),
+    sep = "\t",
+    header = T,
+    as.is = T
+  )
   infercnv_metadata <- read.table(
-    paste0(normal_input_dir, "metadata.txt"),
+    paste0(in_dir, "metadata.txt"),
     sep = "\t",
     header = F,
     as.is = T
   )
   colnames(infercnv_metadata) <- c("cell_ids", "cell_types")
+  gene_annotation <- readRDS(
+    paste0(normal_Robject_dir, "2c.gene_annotation.Rdata")
+  )
+  gene_annotation <- gene_annotation[rownames(normal_matrix),]
 
-  # remove artefact regions:
-  epithelial_df <- epithelial_df[
-    !(rownames(epithelial_df) %in% artefact_genes),
-  ] 
+  # ensure artefact regions are removed:
+  artefact_genes <- readRDS(
+    paste0(artefact_dir, "0b.normal_artefact_genes.Rdata")
+  )
+  filtered_infercnv <- normal_matrix[
+    !(rownames(normal_matrix) %in% artefact_genes),
+  ]
+
+  epithelial_df <- filtered_infercnv[, colnames(filtered_infercnv) %in% 
+    infercnv_metadata$cell_ids[infercnv_metadata$cell_types == "Epithelial"]
+  ]
+  non_epithelial_df <- filtered_infercnv[, colnames(filtered_infercnv) %in% 
+    infercnv_metadata$cell_ids[infercnv_metadata$cell_types == "Non_epithelial"]
+  ]
+
   print(
     paste0(
-      "Dimensions of epithelial df after filtering out initial artefacts = ", 
+      "Dimensions of epithelial df = ", 
         paste(as.character(dim(epithelial_df)), collapse=",")
     )
   )
-
-  non_epithelial_df <- non_epithelial_df[
-    !(rownames(non_epithelial_df) %in% artefact_genes),
-  ]
   print(
     paste0(
       "Dimensions of non-epithelial df = ", 
         paste(as.character(dim(non_epithelial_df)), collapse=",")
     )
   )
-
-  gene_annotation <- gene_annotation[
-    !(gene_annotation$symbol %in% artefact_genes),
-  ]
   print(
     paste0(
-      "Dimensions of gene annotation = ", 
+      "Dimensions of gene_annotation = ", 
         paste(as.character(dim(gene_annotation)), collapse=",")
     )
   )
-
   print(
     paste0(
       "Dimensions of infercnv metadata = ", 
@@ -457,7 +270,7 @@ if (
 
 
 ################################################################################
-### 3. Prepare chromosome information ###
+### 2. Prepare chromosome information ###
 ################################################################################
 
 # determine chromosome information:
@@ -485,7 +298,7 @@ chromosome_midpoints <- lapply(chromosome_coords, function(x) x[floor(length(x)/
 
 
 ################################################################################
-### 4. Plot average fold difference from median ###
+### 3. Plot average fold difference from median ###
 ################################################################################
 
 # generate average original counts vector with each value representing a gene:
@@ -568,115 +381,116 @@ if (
   !file.exists(paste0(prop_table_dir, "gene_numbers.txt"))
 ) {
 
-  # determine number of genes to permutate:
-  gene_no <- nrow(epithelial_df)
-  permutation_gene_no <- round(permutation_proportion*gene_no, 0)
+  if (permutation_proportion != 0) {
 
-  # choose random indices for positions of permutations:
-  set.seed(seed_record["permutation_indices",])
-  permutation_record <- data.frame(
-    indices = sample(1:gene_no, permutation_gene_no)
-  )
-
-  # choose permutation values to multiply counts by:
-  set.seed(seed_record["potential_values",])
-  permutation_record$values <- sample(
-    potential_values, 
-    permutation_gene_no,
-    replace = T
-  )
-
-  # order by indices:
-  permutation_record <- permutation_record[order(permutation_record$indices),]
-  # add gene names:
-  permutation_record$genes <- rownames(epithelial_df)[permutation_record$indices]
-
-  # check portion of epithelial_df corresponding to permutation indices:
-  for (i in 1:3) {
-    eg <- data.frame(
-      head(epithelial_df[permutation_record$indices,][i,], 20)
+    # determine number of genes to permutate:
+    gene_no <- nrow(epithelial_df)
+    permutation_gene_no <- round(permutation_proportion*gene_no, 0)
+  
+    # choose random indices for positions of permutations:
+    set.seed(seed_record["permutation_indices",])
+    permutation_record <- data.frame(
+      indices = sample(1:gene_no, permutation_gene_no)
     )
-    colnames(eg) <- rownames(epithelial_df)[permutation_record$indices][i]
-    print("E.g. portions of original epithelial_df to be changed: ")
-    print(eg)
+  
+    # choose permutation values to multiply counts by:
+    set.seed(seed_record["potential_values",])
+    permutation_record$values <- sample(
+      potential_values, 
+      permutation_gene_no,
+      replace = T
+    )
+  
+    # order by indices:
+    permutation_record <- permutation_record[order(permutation_record$indices),]
+    # add gene names:
+    permutation_record$genes <- rownames(epithelial_df)[permutation_record$indices]
+  
+    # if any genes corresponding with permutation indices are zero, 
+    # substitute with 1:
+    modified_df <- epithelial_df
+    modified_df[permutation_record$indices,][
+      modified_df[permutation_record$indices,] == 0
+    ] <- 1
+  
+    # multiply columns of permutation indices by the corresponding 
+    # permutation values:
+    modified_df[permutation_record$indices,] <- 
+      modified_df[permutation_record$indices,] * permutation_record$values
+  
+    # generate mean original fold change vector with each value representing 
+    # a gene:
+    average_original_counts <- apply(epithelial_df, 1, mean)
+    # add 0.1 to all values:
+    #average_original_counts[average_original_counts == 0] <- 1e-3
+    average_original_counts <- average_original_counts + 1e-4
+    # determine median:
+    median_average_original_counts <- median(average_original_counts)
+    # divide by median to get fold change from median:
+    original_fold_change <- average_original_counts/median_average_original_counts
+    # check median of original fold change = 1:
+    median_original_fold_change <- median(original_fold_change)
+    # generate mean modified fold change from original median vector with each value 
+    # representing a gene:
+    average_modified_counts <- apply(modified_df, 1, mean)
+    # add 0.1 to all values to account for zeros:
+    average_modified_counts <- average_modified_counts + 1e-4
+    # divide by median to get fold change from original median and add to df for plotting:
+    modified_fold_change <- average_modified_counts/median_average_original_counts
+    # take log of the median of modified fold change to mark on plot:
+    median_modified_fold_change <- median(modified_fold_change)    
+    log_median_modified_fold_change <- log10(median_modified_fold_change)
+    # take the log10 of all fold changes:
+    log_modified_fold_change <- log10(modified_fold_change)
+    # add modified fold change values to log_original_fold_change_df:
+    log_modified_fold_change_df <- log_original_fold_change_df
+    log_modified_fold_change_df$count <- log_modified_fold_change
+  
+    permutation_data <- list(
+      permutation_record,
+      modified_df,
+      log_modified_fold_change_df,
+      log_median_modified_fold_change
+    )
+    names(permutation_data) <- c("permutation_record", "modified_df", 
+      "log_modified_fold_change_df", "log_median_modified_fold_change")
+  
+    print(
+      paste0(
+        "Dimensions of modified_df = ", 
+          paste(as.character(dim(modified_df)), collapse=",")
+      )
+    )
+
+    gene_numbers <- data.frame(
+      row.names = c("permutated_genes", "total_genes"),
+      number = c(ncol(modified_df), nrow(permutation_data$log_modified_fold_change_df))
+    )
+    print(gene_numbers)
+
+  } else {
+
+    print("Permutation proportion = 0, not permutating any genes")
+
+    permutation_data <- list(
+      epithelial_df,
+      log_original_fold_change_df,
+      log_median_original_fold_change
+    )
+    names(permutation_data) <- c("modified_df", 
+      "log_modified_fold_change_df", "log_median_modified_fold_change")
+
+    gene_numbers <- data.frame(
+      row.names = c("permutated_genes", "total_genes"),
+      number = c(0, ncol(epithelial_df))
+    )
+  
   }
-
-  # if any genes corresponding with permutation indices are zero, 
-  # substitute with 1:
-  modified_df <- epithelial_df
-  modified_df[permutation_record$indices,][
-    modified_df[permutation_record$indices,] == 0
-  ] <- 1
-
-  # multiply columns of permutation indices by the corresponding 
-  # permutation values:
-  modified_df[permutation_record$indices,] <- 
-    modified_df[permutation_record$indices,] * permutation_record$values
-
-  # check portion of modified_df corresponding to permutation indices:
-  for (i in 1:3) {
-    print(paste0("Check the following portion was multiplied by ", 
-      permutation_record$values[i], ":"))
-    eg <- data.frame(
-      head(modified_df[permutation_record$indices,][i,], 20)
-    )
-    colnames(eg) <- rownames(modified_df)[permutation_record$indices][i]
-    print(eg)
-  }
-
-  # generate mean original fold change vector with each value representing 
-  # a gene:
-  average_original_counts <- apply(epithelial_df, 1, mean)
-  # add 0.1 to all values:
-  #average_original_counts[average_original_counts == 0] <- 1e-3
-  average_original_counts <- average_original_counts + 1e-4
-  # determine median:
-  median_average_original_counts <- median(average_original_counts)
-  # divide by median to get fold change from median:
-  original_fold_change <- average_original_counts/median_average_original_counts
-  # check median of original fold change = 1:
-  median_original_fold_change <- median(original_fold_change)
-  # generate mean modified fold change from original median vector with each value 
-  # representing a gene:
-  average_modified_counts <- apply(modified_df, 1, mean)
-  # add 0.1 to all values to account for zeros:
-  average_modified_counts <- average_modified_counts + 1e-4
-  # divide by median to get fold change from original median and add to df for plotting:
-  modified_fold_change <- average_modified_counts/median_average_original_counts
-  # take log of the median of modified fold change to mark on plot:
-  median_modified_fold_change <- median(modified_fold_change)    
-  log_median_modified_fold_change <- log10(median_modified_fold_change)
-  # take the log10 of all fold changes:
-  log_modified_fold_change <- log10(modified_fold_change)
-  # add modified fold change values to log_original_fold_change_df:
-  log_modified_fold_change_df <- log_original_fold_change_df
-  log_modified_fold_change_df$count <- log_modified_fold_change
-
-  permutation_data <- list(
-    permutation_record,
-    modified_df,
-    log_modified_fold_change_df,
-    log_median_modified_fold_change
-  )
-  names(permutation_data) <- c("permutation_record", "modified_df", 
-    "log_modified_fold_change_df", "log_median_modified_fold_change")
-
-  print(
-    paste0(
-      "Dimensions of modified_df = ", 
-        paste(as.character(dim(modified_df)), collapse=",")
-    )
-  )
 
   saveRDS(
     permutation_data, paste0(Robject_dir, "/2.initial_permutation_data.Rdata")
   )
 
-  gene_numbers <- data.frame(
-    row.names = c("permutated_genes", "total_genes"),
-    number = c(nrow(permutation_data$log_modified_fold_change_df), ncol(modified_df))
-  )
-  print(gene_numbers)
   write.table(
     gene_numbers, 
     paste0(prop_table_dir, "gene_numbers.txt"),
@@ -807,15 +621,6 @@ if (
   !file.exists(paste0(Robject_dir, "3.final_permutation_data.Rdata"))
 ) {
 
-  # change all infercnv metadata cell type labels to either "Epithelial" 
-  # or "Non-epithelial":
-  infercnv_metadata$cell_type[
-    grep("pithelial", infercnv_metadata$cell_type)
-  ] <- "Epithelial"
-  infercnv_metadata$cell_type[
-    grep("pithelial", infercnv_metadata$cell_type, invert = T)
-  ] <- "Non_epithelial"
-
   merged_permutation_data <- list(
     permutation_record = permutation_data$permutation_record,
     merged_df = cbind(
@@ -833,7 +638,7 @@ if (
   print("Final dimensions of merged_df = ")
   print(dim(merged_permutation_data$merged_df))
   print("Final dimensions of infercnv_metadata = ")
-  print(dim(merged_permutation_data$infercnv_metadata ))
+  print(dim(merged_permutation_data$infercnv_metadata))
     
   if (!file.exists(paste0(out_dir, "input_matrix.txt"))) {
     print("Writing InferCNV input matrix...")

@@ -12,23 +12,19 @@ nUMI_threshold <- as.numeric(args[3])
 print(paste0("nUMI_threshold = ", nUMI_threshold))
 nGene_threshold <- as.numeric(args[4])
 print(paste0("nGene_threshold = ", nGene_threshold))
-include_t_cells <- as.logical(args[5])
-print(paste0("Include T-cells? ", include_t_cells))
-analysis_mode <- args[6]
+analysis_mode <- args[5]
 print(paste0("Analysis mode = ", analysis_mode))
 
 #sample_name <- "CID4520N"
 #numcores <- 6
 #nUMI_threshold <- 25000
 #nGene_threshold <- 5000
-#include_t_cells <- TRUE
 #analysis_mode <- "samples"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
 print(paste0("Number cores = ", numcores))
-print(paste0("Include T cells? ", as.character(include_t_cells)))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(Seurat)

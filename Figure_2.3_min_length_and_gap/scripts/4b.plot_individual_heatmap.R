@@ -14,18 +14,18 @@ nUMI_threshold <- as.numeric(args[6])
 nGene_threshold <- as.numeric(args[7])
 gap_or_CNV <- args[8]
 CNV_type <- args[9]
-min_gap_length <- as.numeric(args[10])
+min_CNV_proportion <- as.numeric(args[10])
 
 #sample_name <- "CID4520N_cancer_sim"
 #t_cells_included <- TRUE
-#simulation_number <- "13"
+#simulation_number <- "1"
 #analysis_mode <- "samples"
 #neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
 #nUMI_threshold <- 25000
 #nGene_threshold <- 5000
-#gap_or_CNV <- "CNV"
-#CNV_type <- "both"
-#min_gap_length <- 30
+#gap_or_CNV <- "gap"
+#CNV_type <- "gain"
+#min_CNV_proportion <- as.numeric("0.5")
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -38,7 +38,7 @@ print(paste0("nUMI threshold = ", nUMI_threshold))
 print(paste0("nGene threshold = ", as.character(nGene_threshold)))
 print(paste0("Gap or CNV = ", gap_or_CNV))
 print(paste0("CNV type = ", CNV_type))
-print(paste0("Min. gap length = ", min_gap_length))
+print(paste0("Min. CNV proportion required for call = ", min_CNV_proportion))
 
 library(Seurat)
 library(RColorBrewer)
@@ -400,7 +400,6 @@ for (c_end in chr_data$ends) {
   p <- p + geom_vline(xintercept=c_end)
 }
 for (r in 1:nrow(CNV_indices)) {
-  print(r)
   # create horizontal line:
   p <- p + geom_segment(
     x=CNV_indices$start[r], 
@@ -448,7 +447,7 @@ if (!file.exists(paste0(plot_dir, "sim_CNV_plot.pdf"))) {
 
 
 ################################################################################
-### 5. Determine neutral regions  ###
+### 5. Determine neutral value  ###
 ################################################################################
 
 # record gain or loss in each genomic segment:
@@ -463,58 +462,20 @@ CNV_indices_list <- split(CNV_indices, CNV_indices$index)
 # for gains and losses:
 average_epithelial <- apply(epithelial_heatmap, 2, mean)
 # create density plot of average CNV values:
-if (!file.exists(paste0(plot_dir, "epithelial_CNV_density_plot.png"))) {
-  average_epithelial_density_plot <- density(average_epithelial, bw="SJ")
-  pdf(paste0(plot_dir, "epithelial_CNV_density_plot.pdf"))
-    plot(average_epithelial_density_plot, main=NA, xlab = "CNV signal")
+if (!file.exists(paste0(plot_dir, "epithelial_CNV_histogram.png"))) {
+  average_epithelial_histogram <- density(average_epithelial, bw="SJ")
+  pdf(paste0(plot_dir, "epithelial_CNV_histogram.pdf"))
+    plot(average_epithelial_histogram, main=NA, xlab = "CNV signal")
   dev.off()
-  png(paste0(plot_dir, "epithelial_CNV_density_plot.png"))
-    plot(average_epithelial_density_plot, main=NA, xlab = "CNV signal")
+  png(paste0(plot_dir, "epithelial_CNV_histogram.png"))
+    plot(average_epithelial_histogram, main=NA, xlab = "CNV signal")
   dev.off()
-}
-# determine range of mean epithelial signal across all neutral regions:
-neutral_indices <- CNV_indices[CNV_indices$type == "neutral",]
-
-for (r in 1:nrow(neutral_indices)) {
-  print(r)
-  if (r==1) {
-    neutral_signal <- average_epithelial[
-      neutral_indices$start[r]:neutral_indices$end[r]
-    ]
-  } else {
-    neutral_signal <- c(
-      neutral_signal,
-      average_epithelial[
-        neutral_indices$start[r]:neutral_indices$end[r]
-      ]
-    )
-  }
 }
 
-# create density plot of neutral signal:
-if (!file.exists(paste0(plot_dir, "filtered_neutral_density_plot.png"))) {
-  neutral_signal_density_plot <- density(neutral_signal, bw="SJ")
-  pdf(paste0(plot_dir, "neutral_signal_density_plot.pdf"))
-    plot(neutral_signal_density_plot, main=NA, xlab = "Neutral signal")
-  dev.off()
-  png(paste0(plot_dir, "neutral_signal_density_plot.png"))
-    plot(neutral_signal_density_plot, main=NA, xlab = "Neutral signal")
-  dev.off()
-  
-  # define neutral signal as neutral_signal_range[1] < x < neutral_signal_range[2]:
-  filtered_neutral_density_plot <- density(
-    neutral_signal[
-      neutral_signal > neutral_signal_range[1] & neutral_signal < neutral_signal_range[2]
-    ],
-    bw="SJ",
-  )
-  pdf(paste0(plot_dir, "filtered_neutral_density_plot.pdf"))
-    plot(filtered_neutral_density_plot, main=NA, xlab = "Neutral signal")
-  dev.off()
-  png(paste0(plot_dir, "filtered_neutral_density_plot.png"))
-    plot(filtered_neutral_density_plot, main=NA, xlab = "Neutral signal")
-  dev.off()
-}
+score_table <- table(round(unlist(epithelial_heatmap), 6))
+neutral_value <- as.numeric(
+  names(score_table)[which.max(score_table)]
+)
 
 
 ################################################################################
@@ -545,65 +506,56 @@ if (gap_or_CNV == "CNV") {
     for (r in 1:nrow(feature_indices)) {
 
       heatmap_segment <- epithelial_heatmap[,feature_indices[r,]$start:feature_indices[r,]$end]
-      cell_means <- apply(heatmap_segment, 1, mean)
+      #cell_means <- apply(heatmap_segment, 1, mean)
 
       if (feature_indices[r,]$type == "gain") {
 
-        correct_cell_no <- length(
-          which(
-            cell_means > neutral_signal_range[2]
-          )
-        )
-        total_no <- length(cell_means)
-        proportion_correct <- correct_cell_no/total_no
-        if (proportion_correct >= 0.7) {
-          feature_indices$call[r] <- "feature_called"
-          print(paste0("CNV present for gain length ", feature_indices$length[r]))
-        } else {
-          feature_indices$call[r] <- "feature_not_called"
-        }
-      } else if (feature_indices[r,]$type == "loss") {
-        correct_cell_no <- length(
-          which(
-            cell_means < neutral_signal_range[1]
-          )
-        )
-        total_no <- length(cell_means)
-        proportion_correct <- correct_cell_no/total_no
-        if (proportion_correct >= 0.7) {
-          feature_indices$call[r] <- "feature_called"
-          print(paste0("CNV present for loss length ", feature_indices$length[r]))
-        } else {
-          feature_indices$call[r] <- "feature_not_called"
-        }
-      }
-    }
+        proportion_genes <- apply(heatmap_segment, 2, function(x) {
+          if (length(which(round(x, 6) > neutral_value)) > length(x)*min_CNV_proportion) {
+            return("feature_called")
+          } else {
+            return("feature_not_called")
+          }
+        })
 
-#    # annotate all loss ranges with mean signal >= lower range of 
-#    # neutral_ranges as "feature_not_called":
-#    feature_indices$call[
-#      feature_indices$multiplier == 0 & 
-#      feature_indices$mean_signal >= neutral_signal_range[1]
-#    ] <- "feature_not_called"
-#    # annotate all loss ranges with mean signal < lower range of 
-#    # neutral_ranges as "feature_called":
-#    feature_indices$call[
-#      feature_indices$multiplier == 0 & 
-#      feature_indices$mean_signal < neutral_signal_range[1]
-#    ] <- "feature_called"
-#   
-#    # annotate all gain ranges with mean signal <= upper range of 
-#    # neutral_ranges as "feature_not_called":
-#    feature_indices$call[
-#      feature_indices$multiplier == 3 & 
-#      feature_indices$mean_signal <= neutral_signal_range[2]
-#    ] <- "feature_not_called"
-#    # annotate all gain ranges with mean signal > upper range of 
-#    # neutral_ranges as "feature_called":
-#    feature_indices$call[
-#      feature_indices$multiplier == 3 & 
-#      feature_indices$mean_signal > neutral_signal_range[2]
-#    ] <- "feature_called"
+        if (
+          length(which(proportion_genes == "feature_called")) >= 
+          length(proportion_genes)*min_CNV_proportion
+        ) {
+            feature_indices$call[r] <- "feature_called"
+            print(paste0("CNV present for gain length ", feature_indices$length[r]))
+          
+        } else {
+          feature_indices$call[r] <- "feature_not_called"
+          print(paste0("CNV NOT present for gain length ", feature_indices$length[r]))
+          
+        }
+
+      } else if (feature_indices[r,]$type == "loss") {
+
+        proportion_genes <- apply(heatmap_segment, 2, function(x) {
+          if (length(which(round(x, 6) < neutral_value)) >= length(x)*min_CNV_proportion) {
+            return("feature_called")
+          } else {
+            return("feature_not_called")
+          }
+        })
+
+        if (
+          length(which(proportion_genes == "feature_called")) >= 
+          length(proportion_genes)*min_CNV_proportion
+        ) {
+            feature_indices$call[r] <- "feature_called"
+            print(paste0("CNV present for loss length ", feature_indices$length[r]))
+          } else {
+          feature_indices$call[r] <- "feature_not_called"
+          print(paste0("CNV NOT present for gain length ", feature_indices$length[r]))
+          
+        }
+       
+      }
+
+    }
 
     # record calls for gain and loss of each length:
     feature_calls <- feature_indices[feature_indices$call != "non-CNV",]
@@ -645,33 +597,12 @@ if (gap_or_CNV == "CNV") {
     !file.exists(paste0(Robject_dir, "3.final_gap_indices.Rdata"))
   ) {
 
+
     # for each range, determine whether there is a min_gap_length long gene window with 
     # mean signal within neutral_signal_ranges or the range of the opposite CNV type
     # in at least 80% of genes:
     feature_indices$call <- "feature_not_called"
-#    for (r in 1:nrow(feature_indices)) {
-#
-#      for (g in feature_indices[r,]$start:feature_indices[r,]$end) {
-#
-#        segment_mean <- mean(average_epithelial[g:(g+(min_gap_length-1))])
-#
-#        if (CNV_type == "gain") {
-#          if (segment_mean <= neutral_signal_range[2]) {
-#            feature_indices$call[r] <- "feature_called"
-#            print(paste0("Gap present for length ", feature_indices$length[r]))
-#            break()
-#          }
-#        } else if (CNV_type == "loss") {
-#          if (segment_mean >= neutral_signal_range[1]) {
-#            feature_indices$call[r] <- "feature_called"
-#            print(paste0("Gap present for length ", feature_indices$length[r]))
-#            break()
-#          }
-#        }
-#
-#      }
-#
-#    }
+
 
     for (r in 1:nrow(feature_indices)) {
 
@@ -679,7 +610,6 @@ if (gap_or_CNV == "CNV") {
       for (g in feature_indices[r,]$start:feature_indices[r,]$end) {
 
         heatmap_segment <- epithelial_heatmap[,g:(g+(min_gap_length-1))]
-        cell_means <- apply(heatmap_segment, 1, mean)
 
         if (CNV_type == "gain") {
 
@@ -796,9 +726,9 @@ if (gap_or_CNV == "CNV") {
   call_annot_indices$call <- gsub("_", " ", call_annot_indices$call)
   # create annotation of all calls:
   call_annotation_vector <- factor(create_extended_vector(feature_indices, "call"))
-  levels(call_annotation_vector) <- c("CNV called", "CNV not called", "non-gap")
+  levels(call_annotation_vector) <- c("CNV called", "CNV not called", "gap")
 
-  cols <- c("#F6DC15", "#7CBA61", "#E7E4D3")
+  cols <- c("#430F82", "#7CBA61", "#E7E4D3")
   names(cols) <- levels(call_annotation_vector)
   
   call_annotation <- HeatmapAnnotation(
@@ -820,7 +750,7 @@ if (gap_or_CNV == "CNV") {
   call_annotation_vector <- factor(create_extended_vector(call_annot_indices, "call"))
   levels(call_annotation_vector) <- c("gap called", "gap not called", "non-gap")
 
-  cols <- c("#F6DC15", "#7CBA61", "#E7E4D3")
+  cols <- c("#430F82", "#7CBA61", "#E7E4D3")
   names(cols) <- levels(call_annotation_vector)
   
   call_annotation <- HeatmapAnnotation(

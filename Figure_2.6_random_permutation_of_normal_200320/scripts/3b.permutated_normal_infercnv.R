@@ -15,10 +15,10 @@ simulation_number <- as.character(args[6])
 #subproject_name <- "Figure_2.6_random_permutation_of_normal"
 #sample_name <- "permutated_CID4520N"
 #numcores <- 6
-#t_cells_included <- "t_cells_included"
+#t_cells_included <- TRUE
 #analysis_mode <- "samples"
-#permutation_proportion <- 0.01
-#simulation_number <- "2"
+#permutation_proportion <- 0.005
+#simulation_number <- "1"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -51,7 +51,7 @@ if (t_cells_included) {
   )
 }
 
-out_dir <- paste0(out_path, analysis_mode, "_mode/")
+out_dir <- paste0(out_path, "remove_genes_1/", analysis_mode, "_mode/")
 system(paste0("mkdir -p ", out_dir))
 input_dir <- paste0(out_path, "input_files/")
 
@@ -67,7 +67,7 @@ print(paste0("Running InferCNV on ", sample_name , " replicate ",
 
 
 ################################################################################
-### 1. Run InferCNV with no gene filtering ###
+### 1. Run InferCNV ###
 ################################################################################
 
 # define normals which will act as InferCNV reference cells:

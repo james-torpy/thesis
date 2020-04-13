@@ -11,23 +11,17 @@ project_name <- "thesis"
 subproject_name <- "Figure_2.4_artefact_analysis"
 sample_name <- args[1]
 print(paste0("sample name = ", sample_name))
-t_cells_included <- as.logical(args[2])
-print(paste0("T-cells included in normal InferCNV run? ", 
-  t_cells_included))
-analysis_mode <- args[3]
+analysis_mode <- args[2]
 print(paste0("Analysis mode of normal InferCNV run = ", 
   analysis_mode, "_mode"))
 
-#project_name <- "thesis"
-#subproject_name <- "Figure_2.4_artefact_analysis"
-#sample_name <- "CID4520N"
-#print(paste0("sample name = ", sample_name))
-#t_cells_included <- TRUE
-#print(paste0("T-cells included in normal InferCNV run? ", 
-#  t_cells_included))
-#analysis_mode <- "samples"
-#print(paste0("Analysis mode of normal InferCNV run = ", 
-#  analysis_mode, "_mode"))
+project_name <- "thesis"
+subproject_name <- "Figure_2.4_artefact_analysis"
+sample_name <- "CID4520N"
+print(paste0("sample name = ", sample_name))
+analysis_mode <- "samples"
+print(paste0("Analysis mode of normal InferCNV run = ", 
+  analysis_mode, "_mode"))
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -35,6 +29,7 @@ print(paste0("Sample name = ", sample_name))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 #library(Seurat)
+library(limma)
 library(cowplot)
 library(rlist, lib.loc = lib_loc)
 #library(GenomicRanges)
@@ -53,243 +48,121 @@ project_dir <- paste0(home_dir, "projects/",
 func_dir <- paste0(project_dir, "scripts/functions/")
 results_dir <- paste0(project_dir, "results/")
 
-if (t_cells_included) {
-  in_dir <- paste0(results_dir, "infercnv/t_cells_included/", 
-    "/", sample_name, "/", analysis_mode, "_mode/tables/")
-  out_path <- paste0(results_dir, GSEA, "/t_cells_included/", 
-    "/", sample_name, "/", analysis_mode, "_mode/")
-} else {
-  in_dir <- paste0(results_dir, "infercnv/t_cells_excluded", 
-    "/", sample_name, "/", analysis_mode, "_mode/tables/")
-  out_path <- paste0(results_dir, GSEA, "/t_cells_excluded/", 
-    "/", sample_name, "/", analysis_mode, "_mode/")
-}
+in_dir <- paste0(results_dir, "infercnv/", sample_name, "/", 
+  analysis_mode, "_mode/Rdata/")
+
+out_path <- paste0(results_dir, "GSEA/", sample_name, "/", 
+  analysis_mode, "_mode/")
 
 Robject_dir <- paste0(out_path, "Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
 plot_dir <- paste0(out_path, "plots/")
 system(paste0("mkdir -p ", plot_dir))
-table_dir <- paste0(out_path, "tables/")
-system(paste0("mkdir -p ", table_dir))
+table_path <- paste0(out_path, "tables/")
+system(paste0("mkdir -p ", table_path))
 
-print(paste0("Sample directory = ", in_dir))
+print(paste0("In directory = ", in_dir))
 print(paste0("Robject directory = ", Robject_dir))
 print(paste0("Plot dir = ", plot_dir))
-print(paste0("Table directory = ", table_dir))
+print(paste0("Table directory = ", table_path))
 
-print(paste0("Plotting InferCNV heatmap of ", sample_name))
+print(paste0("Performing GSEA of artefacts from ", sample_name, "..."))
 
 
-##############################################################
-### 0. Load data ###
-##############################################################
+########################################################################
+### 1. Load artefact data ###
+########################################################################
 
-infercnv_output <- as.data.frame(t(read.table(paste0(in_dir, 
-  "/infercnv.12_denoised.observations.txt"), header=T, 
-  as.is=T)))
-
-na_less_vector <- unlist(infercnv_output)
-na_less_vector <- na_less_vector[!is.na(na_less_vector)]
-
-# generate heatmap from all output data:
-all_chr_heatmap <- Heatmap(
-  infercnv_output, name = paste0("hm"), 
-  col = colorRamp2(c(min(na_less_vector), 1, 
-  max(na_less_vector)), 
-  c("#00106B", "white", "#680700"), space = "sRGB"),
-  cluster_columns = F, cluster_rows = F,
-  show_row_names = F, show_column_names = T,
-  column_names_gp = gpar(col = "white"),
-  show_row_dend = FALSE,
-  use_raster = T, raster_device = c("png")
-)
-pdf(paste0(in_dir, "all_chr_heatmap.pdf"))
-  print(all_chr_heatmap)
-dev.off()
-
-# isolate cluster with highest expression of artifacts and 
-# generate heatmap:
-cell_types <- read.table(paste0(input_files, 
-	"metadata.txt"), header=F, as.is=T)
-chosen_cells <- cell_types$V1[cell_types$V2 == "Epithelial_12"]
-output_subset <- infercnv_output[chosen_cells,]
-
-# generate heatmap from chosen cluster data:
-all_chr_subset_heatmap <- Heatmap(
-  output_subset, name = paste0("hm"), 
-  col = colorRamp2(c(min(na_less_vector), 1, 
-  max(na_less_vector)), 
-  c("#00106B", "white", "#680700"), space = "sRGB"),
-  cluster_columns = F, cluster_rows = F,
-  show_row_names = F, show_column_names = T,
-  column_names_gp = gpar(col = "white"),
-  show_row_dend = FALSE,
-  use_raster = T, raster_device = c("png")
-)
-pdf(paste0(in_dir, "all_chr_subset_heatmap.pdf"))
-  print(all_chr_subset_heatmap)
-dev.off()
+artefact_record <- readRDS(paste0(in_dir, "1b.artefact_genes.Rdata"))
 
 
 ##############################################################
-### 1. GSEA on chromosome 12 artifact ###
+### 2. Artefact GSEA ###
 ##############################################################
 
-# isolate chr12 from chosen cluster data:
-gene_order <- read.table(paste0(ref_dir, 
-	"/infercnv_gene_order.txt"))
-chr12_df <- output_subset[colnames(output_subset) %in% 
-	gene_order$V1[gene_order$V2 == "chr12"]]
+artefact_GSEA <- lapply(artefact_record, function(x) {
 
-chr12_heatmap <- Heatmap(
-  chr12_df, name = paste0("hm"), 
-  col = colorRamp2(c(min(na_less_vector), 1, 
-  max(na_less_vector)), 
-     c("#00106B", "white", "#680700"), space = "sRGB"),
-  cluster_columns = F, cluster_rows = F,
-  show_row_names = F, show_column_names = T,
-  column_names_gp = gpar(col = "white"),
-  show_row_dend = FALSE,
-  use_raster = T, raster_device = c("png")
-)
-pdf(paste0(in_dir, "chr12_heatmap.pdf"))
-  print(chr12_heatmap)
-dev.off()
+  # find entrez IDs for gene list:
+  egSYMBOL <- toTable(org.Hs.egSYMBOL)
+  m <- match(x$genes, egSYMBOL$symbol)
 
-# isolate genes in gain artifact and generate heatmap:
-chr12_gene_sums <- apply(chr12_df, 2, sum)
-pdf(paste0(in_dir, "chr12_hist.pdf"))
-  hist(chr12_gene_sums)
- dev.off()
+  # determine genes not found in egSYMBOL and remove:
+  genes_not_identified <- as.character(x$genes[which(is.na(m))])
+  GSEA_genes <- as.character(x$genes[!(x$genes %in% genes_not_identified)])
+  m <- match(GSEA_genes, egSYMBOL$symbol)
+  GSEA_genes <- data.frame(
+    gene_id = GSEA_genes,
+    entrez_id = egSYMBOL$gene_id[m],
+    stringsAsFactors = F
+  )
+  
+  # perform GO:
+  artefact_GO <- goana(GSEA_genes$entrez_id)
+  top_GO <- topGO(artefact_GO)
+  
+  # perform KEGG:
+  artefact_KEGG <- kegga(GSEA_genes$entrez_id)
+  top_KEGG <- topKEGG(artefact_KEGG)
+  
+  return(
+    list(
+      genes = x,
+      GO = top_GO,
+      KEGG =  top_KEGG,
+      removed_genes = genes_not_identified
+    )
+  )
 
-chr12_gain_genes <- names(chr12_gene_sums)[chr12_gene_sums > 
-  21.1]
-chr12_gain_df <- chr12_df[,colnames(chr12_df) %in% 
-  chr12_gain_genes]
-
-chr12_gain_heatmap <- Heatmap(
-  chr12_gain_df, name = paste0("hm"), 
-  col = colorRamp2(c(min(na_less_vector), 1, 
-  max(na_less_vector)), 
-  c("#00106B", "white", "#680700"), space = "sRGB"),
-  cluster_columns = F, cluster_rows = F,
-  show_row_names = F, show_column_names = T,
-  column_names_gp = gpar(col = "white"),
-  show_row_dend = FALSE,
-  use_raster = T, raster_device = c("png")
-)
-pdf(paste0(in_dir, "chr12_gain_heatmap.pdf"))
-  print(chr12_gain_heatmap)
-dev.off()
-
-# find entrez IDs for gene list:
-egSYMBOL <- toTable(org.Hs.egSYMBOL)
-m <- match(chr12_gain_genes, egSYMBOL$symbol)
-# determine alternate symbols for genes not found in egSYMBOL:
-alt_symbols_needed <- chr12_gain_genes[which(is.na(m))]
-chr12_gain_genes <- gsub("ATP5G2", "ATP5MC2", chr12_gain_genes)
-chr12_gain_genes <- chr12_gain_genes[!(chr12_gain_genes %in% 
-  c("RP11-983P16.4", "RP11-834C11.4"))]
-m <- match(chr12_gain_genes, egSYMBOL$symbol)
-chr12_gain_ids <- egSYMBOL$gene_id[m]
-
-# perform GSEA:
-chr12_GO <- goana(chr12_gain_ids)
-top_chr12_GO <- topGO(chr12_GO)
-write.table(top_chr12_GO, paste0(out_dir, 
-  "/chr12_subset_GO_results.txt"))
-
-# perform KEGG:
-chr12_KEGG <- kegga(chr12_gain_ids)
-top_chr12_KEGG <- topKEGG(chr12_KEGG)
-write.table(top_chr12_KEGG, paste0(out_dir, 
-  "/chr12_subset_KEGG_results.txt"))
+})
 
 
 ##############################################################
-### 2. GSEA on chromosome 17 artifact ###
+### 2. Plot results ###
 ##############################################################
 
-# isolate chr17 from chosen cluster data:
-chr17_df <- output_subset[colnames(output_subset) %in% 
-	gene_order$V1[gene_order$V2 == "chr17"]]
+for (i in 1:length(artefact_GSEA)) {
 
-chr17_heatmap <- Heatmap(
-  chr17_df, name = paste0("hm"), 
-  col = colorRamp2(c(min(na_less_vector), 1, 
-  max(na_less_vector)), 
-     c("#00106B", "white", "#680700"), space = "sRGB"),
-  cluster_columns = F, cluster_rows = F,
-  show_row_names = F, show_column_names = T,
-  column_names_gp = gpar(col = "white"),
-  show_row_dend = FALSE,
-  use_raster = T, raster_device = c("png")
-)
-pdf(paste0(in_dir, "chr17_heatmap.pdf"))
-  print(chr17_heatmap)
-dev.off()
+  table_dir <- paste0(table_path, "artefact_", i, "/")
+  system(paste0("mkdir -p ", table_dir))
 
-# isolate genes in gain artifact and generate heatmap:
-chr17_gene_sums <- apply(chr17_df, 2, sum)
-pdf(paste0(in_dir, "chr17_hist.pdf"))
-  hist(chr17_gene_sums)
- dev.off()
+  write.table(
+    artefact_GSEA[[i]]$genes,
+    paste0(table_dir, "indices_and_genes.txt"),
+    sep = "\t",
+    quote = F,
+    col.names = T,
+    row.names = F
+  )
 
-chr17_gain_genes <- names(chr17_gene_sums)[chr17_gene_sums > 
-  21.1]
-chr17_gain_df <- chr17_df[,colnames(chr17_df) %in% 
-  chr17_gain_genes]
+  write.table(
+    artefact_GSEA[[i]]$GO,
+    paste0(table_dir, "GO_results.txt"),
+    sep = "\t",
+    quote = F,
+    col.names = T,
+    row.names = F
+  )
 
-chr17_gain_heatmap <- Heatmap(
-  chr17_gain_df, name = paste0("hm"), 
-  col = colorRamp2(c(min(na_less_vector), 1, 
-  max(na_less_vector)), 
-  c("#00106B", "white", "#680700"), space = "sRGB"),
-  cluster_columns = F, cluster_rows = F,
-  show_row_names = F, show_column_names = T,
-  column_names_gp = gpar(col = "white"),
-  show_row_dend = FALSE,
-  use_raster = T, raster_device = c("png")
-)
-pdf(paste0(in_dir, "chr17_gain_heatmap.pdf"))
-  print(chr17_gain_heatmap)
-dev.off()
+  write.table(
+    artefact_GSEA[[i]]$KEGG,
+    paste0(table_dir, "KEGG_results.txt"),
+    sep = "\t",
+    quote = F,
+    col.names = T,
+    row.names = F
+  )
 
-# find entrez IDs for gene list:
-m <- match(chr17_gain_genes, egSYMBOL$symbol)
-# determine alternate symbols for genes not found in egSYMBOL:
-alt_symbols_needed <- chr17_gain_genes[which(is.na(m))]
-alt_symbols <- c("CAVIN1", "RETREG3", "CENPX", "HEXD", "CYBC1")
-for (i in 1:length(alt_symbols_needed)) {
-  chr17_gain_genes <- gsub(alt_symbols_needed[i], alt_symbols[i], 
-  chr17_gain_genes)
+  write.table(
+    artefact_GSEA[[i]]$removed_genes,
+    paste0(table_dir, "removed_genes.txt"),
+    sep = "\t",
+    quote = F,
+    col.names = T,
+    row.names = F
+  )
+
 }
-m <- match(chr17_gain_genes, egSYMBOL$symbol)
-chr17_gain_ids <- unique(egSYMBOL$gene_id[m])
 
-# perform GSEA:
-chr17_GO <- goana(chr17_gain_ids)
-top_chr17_GO <- topGO(chr17_GO)
-write.table(top_chr17_GO, paste0(out_dir, 
-  "/chr17_subset_GO_results.txt"))
-
-# perform KEGG:
-chr17_KEGG <- kegga(chr17_gain_ids)
-top_chr17_KEGG <- topKEGG(chr17_KEGG)
-write.table(top_chr17_KEGG, paste0(out_dir, 
-  "/chr17_subset_KEGG_results.txt"))
-
-# perform GSEA:
-both_GO <- goana(c(chr12_gain_ids, chr17_gain_ids))
-top_both_GO <- topGO(both_GO)
-write.table(top_both_GO, paste0(out_dir, 
-  "/chr12_and_17_subset_GO_results.txt"))
-
-# perform KEGG:
-both_KEGG <- kegga(c(chr12_gain_ids, chr17_gain_ids))
-top_both_KEGG <- topKEGG(both_KEGG)
-write.table(top_both_KEGG, paste0(out_dir, 
-  "/chr12_and_17_subset_KEGG_results.txt"))
 
 
 ##############################################################

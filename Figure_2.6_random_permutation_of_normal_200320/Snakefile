@@ -1,5 +1,5 @@
 # Run command:
-# snakemake --reason --cores 180 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 18
+# snakemake --reason --cores 120 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 12
 
 # DAG command:
 # snakemake --dag | dot -Tsvg > dag.svg
@@ -9,11 +9,11 @@ R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/b
 
 # define variables:
 SAMPLES = list(range(1, 31, 1))
-#SAMPLES = list([1,2])
+#SAMPLES = list([18,19])
 SAMPLES = list(map(str, SAMPLES))
 samples = SAMPLES[0] + '_' + SAMPLES[-1]
-PERMUTATION_PROPORTIONS = list([0.01, 0.05, 0.1, 0.2, 0.3, 0.4])
-#PERMUTATION_PROPORTIONS = list([0.1, 0.2])
+PERMUTATION_PROPORTIONS = list([0.001, 0.0025, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4])
+#PERMUTATION_PROPORTIONS = list([0.4, 0.3])
 PERMUTATION_PROPORTIONS = list(map(str, PERMUTATION_PROPORTIONS))
 permutation_proportions = '_'.join(PERMUTATION_PROPORTIONS)
 
@@ -21,26 +21,24 @@ permutation_proportions = '_'.join(PERMUTATION_PROPORTIONS)
 normal_name = "CID4520N"
 nUMI_threshold="25000"
 nGene_threshold="5000"
+t_cells_included="TRUE"
 analysis_mode="samples"
 
-# filter normal:
-neutral_signal_range = "0.97_1.03"
-
 # permutate normal parameters:
+#permutation_proportion="0.01"
 potential_values="0_0.5_1.5_2_3"
+neutral_signal_range = "0.97_1.03"
 
 # infercnv parameters:
 permutated_normal_name = "permutated_CID4520N"
 
 # permutated normal plot parameters:
-min_artefact_length = "20"
-min_artefact_proportion = "0.4"
-
+min_artefact_proportion = "0.3"
 
 ######
 #rule all:
 #    input:
-#        "results/infercnv/{sample_name}/" + 
+#        "results/infercnv/{t_cells_included}/{sample_name}/" + 
 #        "{analysis_mode}_mode/infercnv.12_denoised.png"
 ######
 
@@ -48,7 +46,7 @@ min_artefact_proportion = "0.4"
 #rule all:
 #    input:
 #        expand(
-#            "results/infercnv/{permutated_normal_name}/" + 
+#            "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
 #            "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
 #            permutated_normal_name=permutated_normal_name, permutation_proportion=permutation_proportion,
 #            sample=SAMPLES
@@ -59,7 +57,7 @@ min_artefact_proportion = "0.4"
 #rule all:
 #    input:
 #        expand(
-#        "results/infercnv/{permutated_normal_name}/" + 
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
 #            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
 #            "infercnv.12_denoised.png",
 #            permutated_normal_name=permutated_normal_name, permutation_proportion=permutation_proportion,
@@ -71,7 +69,7 @@ min_artefact_proportion = "0.4"
 #rule all:
 #    input:
 #        expand(
-#        "results/infercnv/{permutated_normal_name}/" + 
+#        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
 #            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
 #            "plots/infercnv_plot_with_artefact_calls.pdf",
 #            permutated_normal_name=permutated_normal_name, permutation_proportion=PERMUTATION_PROPORTIONS,
@@ -82,13 +80,9 @@ min_artefact_proportion = "0.4"
 rule all:
     input:
         expand(
-        "results/infercnv/{permutated_normal_name}/" + 
-            "{min_artefact_proportion}_min_artefact_proportion/" +
-            "{min_artefact_length}_min_artefact_length/" +
+        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "final_plots/artefact_results.png",
-            permutated_normal_name=permutated_normal_name,
-            min_artefact_proportion=min_artefact_proportion,
-            min_artefact_length=min_artefact_length
+            permutated_normal_name=permutated_normal_name
         )
 
 rule normal_infercnv:
@@ -96,7 +90,7 @@ rule normal_infercnv:
         "raw_files/seurat_objects/{normal_name}/03_seurat_object_processed.Rdata"
 
     output:
-        "results/infercnv/{normal_name}/{analysis_mode}_mode" + 
+        "results/infercnv/t_cells_included/{normal_name}/{analysis_mode}_mode" + 
             "/infercnv.12_denoised.png"
     threads: 10
     shell:
@@ -108,27 +102,9 @@ rule normal_infercnv:
         " {threads}" + 
         " {nUMI_threshold}" +
         " {nGene_threshold}" + 
+        " {t_cells_included}" + 
         " {analysis_mode}" +  
         "' ../../scripts/1b.normal_infercnv.R"
-
-rule filter_normal:
-    input:
-        "results/infercnv/{normal_name}/{analysis_mode}_mode" + 
-            "/infercnv.12_denoised.png"
-    output:
-        "results/infercnv/{normal_name}/filtered/{analysis_mode}_mode" + 
-            "/infercnv.12_denoised.png"
-    threads: 10
-    shell:
-        "module load briglo/R/3.6.0; " + 
-        "mkdir -p logs/filtered_normal/; " +
-        "cd logs/filtered_normal/; " + 
-        "{R_dir}/R CMD BATCH  --no-save '--args" + 
-        " {normal_name}" + 
-        " {analysis_mode}" +
-        " {neutral_signal_range}" +  
-        " {threads}" + 
-        "' ../../scripts/2b.filter_normal.R"
 
 rule permutate_normal:
     input:
@@ -136,15 +112,15 @@ rule permutate_normal:
             "raw_files/seurat_objects/{normal_name}/03_seurat_object_processed.Rdata",
             normal_name=normal_name
         ),
-        filtered_infercnv = expand(
-            "results/infercnv/{normal_name}/filtered/{analysis_mode}_mode" + 
+        normal_infercnv = expand(
+            "results/infercnv/t_cells_included/{normal_name}/{analysis_mode}_mode" + 
             "/infercnv.12_denoised.png",
             normal_name=normal_name, analysis_mode=analysis_mode
         )
     output:
-        matrix = "results/infercnv/{permutated_normal_name}/" + 
+        matrix = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
-        metadata = "results/infercnv/{permutated_normal_name}/" + 
+        metadata = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/input_files/metadata.txt"
     threads: 10
     shell:
@@ -158,18 +134,19 @@ rule permutate_normal:
         " {wildcards.permutation_proportion}" + 
         " {potential_values}" + 
         " {wildcards.sample} " + 
+        " {t_cells_included}" + 
         " {analysis_mode}" + 
         " {neutral_signal_range}" + 
-        "' ../../../../scripts/3b.randomly_permutate_normal.R"
+        "' ../../../../scripts/2b.randomly_permutate_normal.R"
 
 rule permutated_normal_infercnv:
     input:
-        matrix = "results/infercnv/{permutated_normal_name}/" + 
+        matrix = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/input_files/input_matrix.txt",
-        metadata = "results/infercnv/{permutated_normal_name}/" + 
+        metadata = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/input_files/metadata.txt"
     output:
-        "results/infercnv/{permutated_normal_name}/" + 
+        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
             "infercnv.12_denoised.png"
     threads: 10
@@ -182,63 +159,50 @@ rule permutated_normal_infercnv:
         "{R_dir}/R CMD BATCH  --no-save '--args" + 
         " {permutated_normal_name}" + 
         " {threads}" +
+        " {t_cells_included}" + 
         " {analysis_mode}" + 
         " {wildcards.permutation_proportion}" +
         " {wildcards.sample} " +
-        "' ../../../../../scripts/4b.permutated_normal_infercnv.R"
+        "' ../../../../../scripts/3b.permutated_normal_infercnv.R"
 
 rule permutated_normal_plot:
     input:
-        "results/infercnv/{permutated_normal_name}/" + 
+        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
             "infercnv.12_denoised.png"
     output:
-        heatmap_plot = "results/infercnv/{permutated_normal_name}/" + 
+        heatmap_plot = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
-            "{min_artefact_proportion}_min_artefact_proportion/" + 
-            "{min_artefact_length}_min_artefact_length/" +
             "plots/infercnv_plot_with_artefact_calls.pdf",
-#        annot_plot = "results/infercnv/{permutated_normal_name}/" + 
-#            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
-#            "{min_artefact_proportion}_min_artefact_proportion/" + 
-#            "{min_artefact_length}_min_artefact_length/" +
-#            "plots/annotated_artefact_level_plot.png",            
-        artefact_count = "results/infercnv/{permutated_normal_name}/" + 
+        annot_plot = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
-            "{min_artefact_proportion}_min_artefact_proportion/" + 
-            "{min_artefact_length}_min_artefact_length/"
+            "plots/artefact_level_plot.pdf",            
+        artefact_count = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
             "tables/artefact_counts.txt"
     threads: 10
     shell:
         "module load briglo/R/3.6.0; "
-        "mkdir -p logs/plot/{wildcards.permutation_proportion}/{wildcards.sample}/{analysis_mode}.mode/" +
-        "{min_artefact_proportion}_min_artefact_proportion/" + 
-        "{min_artefact_length}_min_artefact_length/; "
-        "cd logs/plot/{wildcards.permutation_proportion}/{wildcards.sample}/{analysis_mode}.mode/" + 
-        "{min_artefact_proportion}_min_artefact_proportion/" + 
-        "{min_artefact_length}_min_artefact_length/; "
+        "mkdir -p logs/plot/{wildcards.permutation_proportion}/{wildcards.sample}/{analysis_mode}.mode/; " +
+        "cd logs/plot/{wildcards.permutation_proportion}/{wildcards.sample}/{analysis_mode}.mode/; " + 
         "{R_dir}/R CMD BATCH  --no-save '--args" + 
         " {permutated_normal_name}" + 
         " {wildcards.permutation_proportion}" + 
-        " {wildcards.sample} " +       
+        " {wildcards.sample} " +
+        " {t_cells_included}" +         
         " {analysis_mode}" + 
         " {neutral_signal_range}" + 
         " {min_artefact_proportion}" + 
-        " {min_artefact_length}" +
-        "' ../../../../../../../scripts/5b.plot_individual_heatmap.R"
+        "' ../../../../../scripts/4b.plot_individual_heatmap.R"
 
 rule pdf_to_png:
     input:
-        "results/infercnv/{permutated_normal_name}/" + 
+        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
-            "{min_artefact_proportion}_min_artefact_proportion/" + 
-            "{min_artefact_length}_min_artefact_length/" +
             "plots/infercnv_plot_with_artefact_calls.pdf"
     output:
-        "results/infercnv/{permutated_normal_name}/" + 
+        "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
-            "{min_artefact_proportion}_min_artefact_proportion/" + 
-            "{min_artefact_length}_min_artefact_length/" +
             "plots/infercnv_plot_with_artefact_calls.png"
     shell:
         "convert -density 150 {input} -quality 90 {output}"
@@ -246,42 +210,28 @@ rule pdf_to_png:
 rule final_plot:
     input:
         heatmap_plot = expand(
-            "results/infercnv/{permutated_normal_name}/" + 
+            "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
-            "{min_artefact_proportion}_min_artefact_proportion/" + 
-            "{min_artefact_length}_min_artefact_length/" +
             "plots/infercnv_plot_with_artefact_calls.png",
             permutated_normal_name=permutated_normal_name, permutation_proportion=PERMUTATION_PROPORTIONS,
-            sample=SAMPLES, analysis_mode=analysis_mode, 
-            min_artefact_proportion=min_artefact_proportion,
-            min_artefact_length=min_artefact_length
+            sample=SAMPLES, analysis_mode=analysis_mode
         ),
-#        annot_plot = expand(
-#            "results/infercnv/{permutated_normal_name}/" + 
-#            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
-#            "{min_artefact_proportion}_min_artefact_proportion/" + 
-#            "{min_artefact_length}_min_artefact_length/" +
-#            "plots/annotated_artefact_level_plot.png",
-#            permutated_normal_name=permutated_normal_name, permutation_proportion=PERMUTATION_PROPORTIONS,
-#            sample=SAMPLES, analysis_mode=analysis_mode,
-#            min_artefact_proportion=min_artefact_proportion,
-#            min_artefact_length=min_artefact_length
-#        ),
-        artefact_count = expand(
-            "results/infercnv/{permutated_normal_name}/" + 
+        annot_plot = expand(
+            "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
-            "{min_artefact_proportion}_min_artefact_proportion/" + 
-            "{min_artefact_length}_min_artefact_length/" +
+            "plots/artefact_level_plot.pdf",
+            permutated_normal_name=permutated_normal_name, permutation_proportion=PERMUTATION_PROPORTIONS,
+            sample=SAMPLES, analysis_mode=analysis_mode
+        ),
+        artefact_count = expand(
+            "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
+            "{permutation_proportion}_proportion/{sample}/{analysis_mode}_mode/" + 
             "tables/artefact_counts.txt",
             permutated_normal_name=permutated_normal_name, permutation_proportion=PERMUTATION_PROPORTIONS,
-            sample=SAMPLES, analysis_mode=analysis_mode,
-            min_artefact_proportion=min_artefact_proportion,
-            min_artefact_length=min_artefact_length
+            sample=SAMPLES, analysis_mode=analysis_mode
         )
     output:
-        plot = "results/infercnv/{permutated_normal_name}/" + 
-            "{min_artefact_proportion}_min_artefact_proportion/" +
-            "{min_artefact_length}_min_artefact_length/" +
+        plot = "results/infercnv/t_cells_included/{permutated_normal_name}/" + 
             "final_plots/artefact_results.png",
     threads: 10
     shell:
@@ -290,12 +240,11 @@ rule final_plot:
         "cd logs/final_plot/{analysis_mode}.mode/; " + 
         "{R_dir}/R CMD BATCH  --no-save '--args" + 
         " {permutated_normal_name}" + 
+        " {t_cells_included}" +
         " {permutation_proportions}" + 
         " {samples}" +
         " {analysis_mode}" +
-        " {min_artefact_proportion}" +
-        " {min_artefact_length}" +
-        "' ../../../scripts/6.plot_final_call_proportions.R"
+        "' ../../../scripts/5.plot_final_call_proportions.R"
 
 
 

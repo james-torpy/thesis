@@ -11,13 +11,17 @@ simulation_number <- args[3]
 t_cells_included <- as.logical(args[4])
 analysis_mode <- args[5]
 neutral_signal_range <- unlist(strsplit(args[6], split = "_"))
+min_artefact_proportion <- as.numeric(args[7])
+min_artefact_length <- as.numeric(args[8])
 
-#sample_name <- "permutated_CID4520N"
-#permutation_proportion <- 0.01
-#simulation_number <- "16"
-#t_cells_included <- TRUE
-#analysis_mode <- "samples"
-#neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
+sample_name <- "permutated_CID4520N"
+permutation_proportion <- 0.1
+simulation_number <- "1"
+t_cells_included <- TRUE
+analysis_mode <- "samples"
+neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
+min_artefact_proportion <- 0.4
+min_artefact_length <- 20
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -83,11 +87,14 @@ if (t_cells_included) {
 in_dir <- paste0(in_path, analysis_mode, "_mode/")
 input_dir <- paste0(in_path, "input_files/")
 
-Robject_dir <- paste0(in_dir, "Rdata/")
+out_dir <- paste0(in_dir, min_artefact_proportion, "_min_artefact_proportion/",
+  min_artefact_length, "_min_artefact_length/")
+
+Robject_dir <- paste0(out_dir, "Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
-plot_dir <- paste0(in_dir, "plots/")
+plot_dir <- paste0(out_dir, "plots/")
 system(paste0("mkdir -p ", plot_dir))
-table_dir <- paste0(in_dir, "tables/")
+table_dir <- paste0(out_dir, "tables/")
 system(paste0("mkdir -p ", table_dir))
 
 print(paste0("In directory = ", in_dir))
@@ -127,18 +134,6 @@ create_extended_vector <- function(df, column) {
   }
   return(result_vector)
 }
-
-#######
-#for (i in 1:nrow(final_artefact_record)) {
-#  print(i)
-#  seg <- artefact_vector[
-#    final_artefact_record$start[i]:final_artefact_record$end[i]
-#  ]
-#  print(head(as.character(seg), 3))
-#  print(tail(as.character(seg), 3))
-#}
-#
-#######
 
 
 ################################################################################
@@ -295,6 +290,12 @@ if (!file.exists(paste0(plot_dir, "permutated_gene_plot.pdf"))) {
   )
     grid.draw(grid_perm_plot)
   dev.off()
+  png(
+    paste0(plot_dir, "permutated_gene_plot.png"), 
+    width = 15, height = 10
+  )
+    grid.draw(grid_perm_plot)
+  dev.off()
 }
 
 
@@ -304,40 +305,56 @@ if (!file.exists(paste0(plot_dir, "permutated_gene_plot.pdf"))) {
 
 if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) | 
 	!file.exists(paste0(table_dir, "artefact_counts.txt")) |
+	!file.exists(paste0(table_dir, "artefact_lengths.txt")) |
 	!file.exists(paste0(Robject_dir, "artefact_annotation.Rdata"))) {
 
   # determine average signal across all cells for each gene:
   heatmap_averages <- apply(epithelial_heatmap, 2, mean)
   
-  for ( i in 1:(ncol(epithelial_heatmap)-9) ) {
+  for ( i in 1:(ncol(epithelial_heatmap)-(min_artefact_length-1)) ) {
 
-    # determine average signal for every combination of 10 adjacent genes:
-    if (i == 1) {
-      artefact_record <- data.frame(
+   averages_per_cell <- apply(epithelial_heatmap[i:(i+(min_artefact_length-1))], 1, mean)
+    
+    # if at least 10% of cells have average signal in loss range, label as loss
+    # and vice versa for gains:
+    if ( length(which(averages_per_cell < neutral_signal_range[1])) > 
+      floor(min_artefact_proportion*length(averages_per_cell)) ) {
+
+      segment_record <- data.frame(
         start = i,
-        end = i+9,
-        average_signal = mean(heatmap_averages[i:(i+9)]),
-        type = "no artefact"
+        end = i+(min_artefact_length-1),
+        average_signal = mean(heatmap_averages[i:(i+(min_artefact_length-1))]),
+        type = "loss"
       )
+
+    } else if ( length(which(averages_per_cell > neutral_signal_range[2])) > 
+      floor(min_artefact_proportion*length(averages_per_cell)) ) {
+
+      segment_record <- data.frame(
+        start = i,
+        end = i+(min_artefact_length-1),
+        average_signal = mean(heatmap_averages[i:(i+(min_artefact_length-1))]),
+        type = "gain"
+      )
+
     } else {
-      artefact_record <- rbind(
-        artefact_record,
-        data.frame(
-          start = i,
-          end = i+9,
-          average_signal = mean(heatmap_averages[i:(i+9)]),
-          type = "no artefact"
-        )
+
+      segment_record <- data.frame(
+        start = i,
+        end = i+(min_artefact_length-1),
+        average_signal = mean(heatmap_averages[i:(i+(min_artefact_length-1))]),
+        type = "no_artefact"
       )
+
     }
+
+    if (i==1) {
+      artefact_record <- segment_record
+    } else {
+      artefact_record <- rbind(artefact_record, segment_record)
+    }
+
     artefact_record$type <- as.character(artefact_record$type)
-  
-    # report segment type:
-    if (artefact_record$average_signal[i] < neutral_signal_range[1]) {
-      artefact_record$type[i] <- "loss"
-    } else if (artefact_record$average_signal[i] > neutral_signal_range[2]) {
-      artefact_record$type[i] <- "gain"
-    }
   
   }
   
@@ -357,7 +374,7 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
 
   # fix overlapping indices by prioritising artefact annotation over 
   # no artefact:
-  no_artefact_indices <- which(final_artefact_record$type == "no artefact")
+  no_artefact_indices <- which(final_artefact_record$type == "no_artefact")
   for (ind in no_artefact_indices) {
   	print(ind)
   	# if the first non-artefact region is not at the start of the genome,
@@ -383,7 +400,7 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
   ]
 
   artefact_indices <- final_artefact_record[
-    final_artefact_record$type != "no artefact",
+    final_artefact_record$type != "no_artefact",
   ]
 
   if (nrow(artefact_indices) > 0) {
@@ -395,7 +412,7 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
           artefact_indices$start[m]:artefact_indices$end[m]
         )
       }   
-    }  
+    }
 
     for (k in 1:length(chr_data$ends)) {
       if (k==1) {
@@ -435,7 +452,7 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
     # create artefact annotation:
     artefact_vector <- factor(
       create_extended_vector(final_artefact_record, "type"),
-      levels = c("no artefact", "gain", "loss")
+      levels = c("no_artefact", "gain", "loss")
     )
     cols <- c("#E5E4DF", "#BF3667", "#58B9DB")
     names(cols) <- levels(artefact_vector)
@@ -448,24 +465,48 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
       	labels_gp = gpar(fontsize = 12))
     )
     artefact_annotation@name <- "artefact"
+
+    # annotate artefact lengths:
+    artefact_lengths <- data.frame(
+      length = artefact_indices$end - artefact_indices$start
+    )
+    artefact_lengths$midpoint <- floor(
+    	artefact_indices$start + artefact_lengths$length/2
+    )
+    artefact_lengths$position <- 
+      artefact_lengths$midpoint/ncol(epithelial_heatmap)
+
+
+    ################################################################################
+    ### 5. Save artefact metadata ###
+    ################################################################################
   
     # write artefact results as tables:
     write.table(
-    	final_artefact_record, 
-    	paste0(table_dir, "final_artefact_record.txt"),
-    	sep = "\t",
-    	quote = F,
-    	row.names = F,
-    	col.names = T
+   	  final_artefact_record, 
+   	  paste0(table_dir, "final_artefact_record.txt"),
+   	  sep = "\t",
+   	  quote = F,
+   	  row.names = F,
+   	  col.names = T
     )
   
     write.table(
-    	artefact_count, 
-    	paste0(table_dir, "artefact_counts.txt"),
-    	sep = "\t",
-    	quote = F,
-    	row.names = T,
-    	col.names = T
+   	  artefact_count, 
+   	  paste0(table_dir, "artefact_counts.txt"),
+   	  sep = "\t",
+   	  quote = F,
+   	  row.names = T,
+   	  col.names = T
+    )
+
+    write.table(
+   	  artefact_lengths, 
+   	  paste0(table_dir, "artefact_lengths.txt"),
+   	  sep = "\t",
+   	  quote = F,
+   	  row.names = T,
+   	  col.names = T
     )
   
     saveRDS(
@@ -489,6 +530,20 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
       col.names = T
     )
 
+    artefact_lengths <- data.frame(
+      length = 0,
+      midpoint = 0
+    )
+
+    write.table(
+   	  artefact_lengths, 
+   	  paste0(table_dir, "artefact_lengths.txt"),
+   	  sep = "\t",
+   	  quote = F,
+   	  row.names = T,
+   	  col.names = T
+    )
+
   }
 
 } else {
@@ -508,6 +563,12 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
  	  header = T,
  	  as.is = T
   )
+  artefact_lengths <- read.table(
+  	paste0(table_dir, "artefact_lengths.txt"),
+  	  sep = "\t",
+ 	  header = T,
+ 	  as.is = T
+  )
 
   if (file.exists(paste0(table_dir, "final_artefact_record.txt"))) {
     artefact_annotation <- readRDS(
@@ -519,118 +580,329 @@ if (!file.exists(paste0(table_dir, "final_artefact_record.txt")) |
 
 
 ################################################################################
-### 8. Generate heatmap ###
+### 6. Generate heatmap ###
 ################################################################################
 
-# prepare df for plotting:
-plot_object <- epithelial_heatmap
-colnames(plot_object) <- rep("la", ncol(plot_object))
-plot_object <- as.matrix(plot_object)
-
-# define heatmap colours:
-na_less_vector <- unlist(plot_object)
-na_less_vector <- na_less_vector[!is.na(na_less_vector)]
-heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
-      c("#00106B", "white", "#680700"), space = "sRGB")
-print("Generating final heatmap...")
-
-if (sum(artefact_count) > 0) {
-  final_heatmap <- Heatmap(
-    plot_object, name = paste0("hm"), 
-    col = heatmap_cols,
-    cluster_columns = F, cluster_rows = F,
-    show_row_names = F, show_column_names = F,
-    #column_names_gp = gpar(col = "white"),
-    show_row_dend = F,
-    bottom_annotation = artefact_annotation,
-    heatmap_legend_param = list(title = "CNV\nscore", 
-    at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-    color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-    grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-    title_gp = gpar(fontsize = 18, fontface = "bold"), 
-    labels_gp = gpar(fontsize = 12)),
-    use_raster = T, raster_device = c("png")
+if (!file.exists(paste0(plot_dir, "infercnv_plot_with_artefact_calls.pdf"))) {
+  # prepare df for plotting:
+  plot_object <- epithelial_heatmap
+  colnames(plot_object) <- rep("la", ncol(plot_object))
+  plot_object <- as.matrix(plot_object)
+  
+  # define heatmap colours:
+  na_less_vector <- unlist(plot_object)
+  na_less_vector <- na_less_vector[!is.na(na_less_vector)]
+  heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
+        c("#00106B", "white", "#680700"), space = "sRGB")
+  print("Generating final heatmap...")
+  
+  if (sum(artefact_count) > 0) {
+    final_heatmap <- Heatmap(
+      plot_object, name = paste0("hm"), 
+      col = heatmap_cols,
+      cluster_columns = F, cluster_rows = F,
+      show_row_names = F, show_column_names = F,
+      #column_names_gp = gpar(col = "white"),
+      show_row_dend = F,
+      bottom_annotation = artefact_annotation,
+      heatmap_legend_param = list(title = "CNV\nscore", 
+      at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
+      color_bar = "continuous", grid_height = unit(1.5, "cm"), 
+      grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
+      title_gp = gpar(fontsize = 18, fontface = "bold"), 
+      labels_gp = gpar(fontsize = 12)),
+      use_raster = T, raster_device = c("png")
+    )
+  } else {
+    final_heatmap <- Heatmap(
+      plot_object, name = paste0("hm"), 
+      col = heatmap_cols,
+      cluster_columns = F, cluster_rows = F,
+      show_row_names = F, show_column_names = F,
+      #column_names_gp = gpar(col = "white"),
+      show_row_dend = F,
+      heatmap_legend_param = list(title = "CNV\nscore", 
+      at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
+      color_bar = "continuous", grid_height = unit(1.5, "cm"), 
+      grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
+      title_gp = gpar(fontsize = 18, fontface = "bold"), 
+      labels_gp = gpar(fontsize = 12)),
+      use_raster = T, raster_device = c("png")
+    )
+  }
+  
+  annotated_heatmap <- grid.grabExpr(
+    draw(final_heatmap, gap = unit(6, "mm"), heatmap_legend_side = "left",
+    annotation_legend_side = "left")
   )
-} else {
-  final_heatmap <- Heatmap(
-    plot_object, name = paste0("hm"), 
-    col = heatmap_cols,
-    cluster_columns = F, cluster_rows = F,
-    show_row_names = F, show_column_names = F,
-    #column_names_gp = gpar(col = "white"),
-    show_row_dend = F,
-    heatmap_legend_param = list(title = "CNV\nscore", 
-    at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-    color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-    grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-    title_gp = gpar(fontsize = 18, fontface = "bold"), 
-    labels_gp = gpar(fontsize = 12)),
-    use_raster = T, raster_device = c("png")
-  )
+  dev.off()
+  
+  # determine where starting co-ordinates for heatmap are based upon longest cluster name
+  # (0.00604 units per character):
+  longest_cluster_name <- max(nchar(unique(as.character(epithelial_metadata$cell_type))))
+  x_coord <- longest_cluster_name*0.0037
+  
+  
+  ################################################################################
+  ### 7. Plot heatmap ###
+  ################################################################################
+  
+  # plot final annotated heatmap:
+  pdf(
+    paste0(plot_dir, "infercnv_plot_with_artefact_calls.pdf"), 
+    height = 13, width = 20
+  )   
+    
+    grid.newpage()
+    if (sum(artefact_count) > 0) {
+      pushViewport(viewport(x = 0.01, y = 0.16, width = 0.99, height = 0.78, 
+        just = c("left", "bottom")))
+    } else {
+      pushViewport(viewport(x = 0.065, y = 0.16, width = 0.934, height = 0.78, 
+        just = c("left", "bottom")))
+    }
+      grid.draw(annotated_heatmap)
+      decorate_heatmap_body("hm", {
+        for ( e in 1:length(chr_data$end_pos) ) {
+          grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
+            gp = gpar(lwd = 1, col = "#383838"))
+          grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
+        }
+      })
+    popViewport()
+  
+    for (i in 1:nrow(artefact_lengths)) {
+      pushViewport(viewport(x = x_coord + (1/artefact_lengths$position[i]*0.027) + 
+        artefact_lengths$position[i], y = 0.085, 
+        width = 0.1, height = 0.1, just = c("right", "bottom")))
+        grid.text(artefact_lengths$length[i], gp=gpar(fontsize=14))
+      popViewport()
+    }
+    
+    pushViewport(viewport(x=x_coord + 0.07, y=0.135, width = 0.05, height = 0.1, 
+      just = "right"))
+      grid.text("artefact lengths", gp=gpar(fontsize=14))
+    popViewport()
+  
+  
+    pushViewport(viewport(x = x_coord + 0.964, y = 0.001, 
+      width = 0.909, height = 0.12, just = c("right", "bottom")))
+      grid.draw(grid_perm_plot)
+    popViewport()
+  
+    pushViewport(viewport(x=x_coord + 0.0765, y=0.89, width = 0.1, height = 0.1, 
+      just = "right"))
+      grid.text(paste0("No. gain calls = ", artefact_count["gain",]), 
+        gp=gpar(fontsize=16))
+    popViewport()
+    pushViewport(viewport(x=x_coord + 0.071, y=0.86, width = 0.1, height = 0.1, 
+    just = "right"))
+      grid.text(paste0("No. loss calls = ", artefact_count["loss",]), 
+        gp=gpar(fontsize=16))
+    popViewport()
+    
+  dev.off()
+
 }
 
-annotated_heatmap <- grid.grabExpr(
-  draw(final_heatmap, gap = unit(6, "mm"), heatmap_legend_side = "left",
-  annotation_legend_side = "left")
+
+################################################################################
+### 7. Plot average signal vs genes permutated ###
+################################################################################
+
+# calculate mean signal per gene:
+mean_signal <- apply(epithelial_heatmap, 2, mean)
+
+# split mean signal by 10 gene intervals:
+number_divisions <- ceiling(length(mean_signal)/10)
+for (i in 1:number_divisions) {
+  if (i==1) {
+    split_vector <- rep(i, 10)
+  } else {
+    split_vector <- c(split_vector, rep(i, 10))
+  }
+}
+
+# calculate how many elements less in the last split group and remove:
+missing_elements <- (number_divisions*10)-length(mean_signal)
+split_vector <- split_vector[1:(length(split_vector)-missing_elements)]
+
+# split mean signal:
+signal_per_10 <- unlist(
+  lapply(
+    split(mean_signal, split_vector), mean
+  )
+)
+# add start and end co-ordinates and scale signal values:
+signal_df <- data.frame(
+  start = ((as.numeric(names(signal_per_10))-1)*10)+1,
+  end = as.numeric(names(signal_per_10))*10,
+  mean_signal = round(signal_per_10, 3)
+)
+# adjust last end co-ordinate for missing values:
+signal_df$end[nrow(signal_df)] <- length(mean_signal)
+
+# collapse entries with the same mean signal:
+split_df <- split(signal_df, rleid(signal_df$mean_signal))
+collapsed_signal_df <- do.call(
+  "rbind",
+  lapply(split_df, function(x) {
+    return(
+      data.frame(
+        start = x$start[1],
+        end = x$end[nrow(x)],
+        mean_signal = x$mean_signal[1]
+      )
+    )
+  }) 
+)
+
+# label loss and gain signal:
+collapsed_signal_df$type[
+  collapsed_signal_df$mean_signal == 1
+] <- "neutral"
+collapsed_signal_df$type[
+  collapsed_signal_df$mean_signal > 1
+] <- "gain"
+collapsed_signal_df$type[
+  collapsed_signal_df$mean_signal < 1
+] <- "loss"
+
+# determine midpoints of chromosomes:
+chr_data$midpoints <- chr_data$ends-floor(chr_data$lengths/2)
+
+# define ylim as 0.01 less and more than max and min signal values rounded to 
+# 2 decimal places:
+#y_lim <- round(range(collapsed_signal_df$mean_signal), 2)
+#y_lim[1] <- y_lim[1]-0.02
+#y_lim[2] <- y_lim[2]+0.01
+y_lim[1] <- 0.95
+y_lim[2] <- 1.05
+
+# change values of annotation_data to match those of collapsed_signal_df:
+perm_data <- annotation_data
+perm_data$plot_values <- perm_data$values
+perm_data$plot_values[perm_data$plot_values == 3] <- y_lim[2]
+perm_data$plot_values[perm_data$plot_values == 2] <- 1 + 2*((y_lim[2]-1)/4)
+perm_data$plot_values[perm_data$plot_values == 1.5] <- 1 + ((y_lim[2]-1)/4)
+perm_data$plot_values[perm_data$plot_values == 0.5] <- 1 - 2*(abs(y_lim[1]-1)/4)
+perm_data$plot_values[perm_data$plot_values == 0] <- y_lim[1]
+
+# plot CNV signal across genome:
+p <- ggplot(perm_data, aes(x=indices, y=plot_values))
+## highlight neutral region:
+#p <- p + geom_rect(
+#  data=NULL,
+#  aes(xmin=-Inf, xmax=Inf, ymin=0.97, ymax=1.03),
+#  fill="lightgreen"
+#)
+p <- p + geom_point(size = 2, colour = "#46B711")
+p <- p + scale_y_continuous(
+  breaks = c(y_lim[1], 1, y_lim[2]),
+  limits = c(y_lim[1], y_lim[2]),
+  labels = c(y_lim[1], 1, y_lim[2])
+)
+p <- p + scale_x_continuous(
+  limits = c(
+    0, collapsed_signal_df$end[nrow(collapsed_signal_df)]
+  ), 
+  expand = c(0, 0),
+  breaks = chr_data$midpoints,
+  labels = seq(1, 22)
+)
+
+for (c_end in chr_data$ends) {
+  p <- p + geom_vline(xintercept=c_end, color="#A0A0A0", size = 0.2)
+}
+
+for (r in 1:nrow(collapsed_signal_df)) {
+
+  # make gains red, losses blue and neutral regions black:
+  if (collapsed_signal_df$type[r] == "neutral") {
+    temp_col <- "#777777"
+  } else if (collapsed_signal_df$type[r] == "gain") {
+    temp_col <- "#BF3667"
+  } else if (collapsed_signal_df$type[r] == "loss") {
+    temp_col <- "#58B9DB"
+  }
+
+  # create horizontal line:
+  p <- p + geom_segment(
+    x=collapsed_signal_df$start[r], 
+    xend=collapsed_signal_df$end[r], 
+    y=collapsed_signal_df$mean_signal[r], 
+    yend=collapsed_signal_df$mean_signal[r], 
+    size=0.6, color=temp_col
+  )
+
+  if (collapsed_signal_df$type[r] != "neutral") {
+    # create left vertical line:
+    if (r != 1) {
+      p <- p + geom_segment(
+        x=collapsed_signal_df$start[r], 
+        xend=collapsed_signal_df$start[r], 
+        y=1, 
+        yend=collapsed_signal_df$mean_signal[r], 
+        size=0.6, color=temp_col
+      )
+    }
+    # create left vertical line:
+    if (r != nrow(collapsed_signal_df)) {
+      p <- p + geom_segment(
+        x=collapsed_signal_df$end[r], 
+        xend=collapsed_signal_df$end[r], 
+        y=1, 
+        yend=collapsed_signal_df$mean_signal[r], 
+        size=0.6, color=temp_col
+      )
+    }
+  }
+}
+
+# remove axis labels:
+p <- p + theme(
+  axis.title.x=element_blank(),
+#  axis.text.x=element_blank(),
+  axis.ticks.x=element_blank()
+)
+
+# label y-axis:
+p <- p + ylab("Mean CNV signal")
+
+artefact_level_plot <- ggplotGrob(p)
+dev.off()
+
+pdf(paste0(plot_dir, "artefact_level_plot.pdf"), width = 20)
+  grid.draw(artefact_level_plot)
+dev.off()
+png(paste0(plot_dir, "artefact_level_plot.png"), 
+  width = 20,
+  height = 10,
+  units = "in",
+  res = 300
+)
+  grid.draw(artefact_level_plot)
+dev.off()
+
+# plot artefact plot with detected artefact annotation:
+annotation_grid <- grid.grabExpr(
+  draw(artefact_annotation)
 )
 dev.off()
 
-# determine where starting co-ordinates for heatmap are based upon longest cluster name
-# (0.00604 units per character):
-longest_cluster_name <- max(nchar(unique(as.character(epithelial_metadata$cell_type))))
-x_coord <- longest_cluster_name*0.0037
+pdf(paste0(plot_dir, "annotated_artefact_level_plot.pdf"), width = 20)
 
-
-################################################################################
-### 9. Plot heatmap ###
-################################################################################
-
-# plot final annotated heatmap:
-pdf(
-  paste0(plot_dir, "infercnv_plot_with_artefact_calls.pdf"), 
-  height = 13, width = 20
-)   
-  
   grid.newpage()
-  if (sum(artefact_count) > 0) {
-    pushViewport(viewport(x = 0.01, y = 0.16, width = 0.99, height = 0.78, 
-      just = c("left", "bottom")))
-  } else {
     pushViewport(viewport(x = 0.065, y = 0.16, width = 0.934, height = 0.78, 
       just = c("left", "bottom")))
-  }
-    grid.draw(annotated_heatmap)
-    decorate_heatmap_body("hm", {
-      for ( e in 1:length(chr_data$end_pos) ) {
-        grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
-          gp = gpar(lwd = 1, col = "#383838"))
-        grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
-      }
-    })
-  popViewport()
+      grid.draw(artefact_level_plot)
+    popViewport()
+    pushViewport(viewport(x = 0.106, y = 0.1, 
+      width = 0.89, height = 0.12, just = c("left", "bottom")))
+      grid.draw(annotation_grid)
+    popViewport()
 
-  pushViewport(viewport(x = x_coord + 0.964, y = 0.035, 
-    width = 0.909, height = 0.12, just = c("right", "bottom")))
-    grid.draw(grid_perm_plot)
-  popViewport()
-
-  pushViewport(viewport(x=x_coord + 0.0765, y=0.89, width = 0.1, height = 0.1, 
-    just = "right"))
-    grid.text(paste0("No. gain calls = ", artefact_count["gain",]), 
-      gp=gpar(fontsize=16))
-  popViewport()
-  pushViewport(viewport(x=x_coord + 0.071, y=0.86, width = 0.1, height = 0.1, 
-  just = "right"))
-    grid.text(paste0("No. loss calls = ", artefact_count["loss",]), 
-      gp=gpar(fontsize=16))
-  popViewport()
-  
 dev.off()
 
-##convert pdf to png:
-#system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-#              "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-#              "convert -density 150 ", plot_dir, "$f -quality 90 ", plot_dir, "$new; done"))
-#
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+

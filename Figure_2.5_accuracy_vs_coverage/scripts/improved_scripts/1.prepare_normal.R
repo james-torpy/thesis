@@ -6,12 +6,22 @@ project_name <- "thesis"
 subproject_name <- "Figure_2.2_define_denoising_value"
 sample_name <- args[1]
 print(paste0("Sample name = ", sample_name))
+numcores <- as.numeric(args[2])
+print(paste0("Numcores = ", numcores))
+nUMI_threshold <- as.numeric(args[3])
+print(paste0("nUMI_threshold = ", nUMI_threshold))
+nGene_threshold <- as.numeric(args[4])
+print(paste0("nGene_threshold = ", nGene_threshold))
 
-#sample_name <- "CID4520N"
+sample_name <- "CID4520N"
+numcores <- 6
+nUMI_threshold <- 25000
+nGene_threshold <- 5000
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
+print(paste0("Number cores = ", numcores))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(Seurat)
@@ -33,8 +43,10 @@ plot_dir <- paste0(out_path, "/plots/")
 system(paste0("mkdir -p ", Robject_dir))
 system(paste0("mkdir -p ", plot_dir))
 
-input_dir <- paste0(out_path, "input_files/")
+input_dir <- paste0(out_path, "/input_files/")
 system(paste0("mkdir -p ", input_dir))
+
+setwd(out_dir)
 
 print(paste0("Sample directory = ", input_dir))
 print(paste0("Reference directory = ", ref_dir))
@@ -71,15 +83,10 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
       "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
     )
   )
-
-  ######
-  #count_df <- count_df[1:6000,]
-  ######
-
   # create metadata df:
   print("Creating inferCNV metadata file...")
-  infercnv_metadata <- prepare_infercnv_metadata(seurat_10X, count_df, for_infercnv=T,
-    garnett="garnett_call_ext_major")
+  infercnv_metadata <- prepare_infercnv_metadata(seurat_10X, subset_data=subset_data, 
+    count_df, for_infercnv=T)
   seurat_10X <- infercnv_metadata$seurat
 
   cell_types <- paste(unique(infercnv_metadata$metadata$cell_type), collapse = " ")
@@ -118,6 +125,84 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
     )
   ]
   saveRDS(non_epithelial_df, paste0(Robject_dir, "/1b.original_non_epithelial_df.Rdata"))
+
+  # create density plots of nUMI and nGene:
+  QC <- data.frame(
+    row.names = colnames(epithelial_df),
+    nUMI = apply(epithelial_df, 2, sum),
+    nGene = apply(epithelial_df, 2, function(x) length(x[x!=0]))
+  )
+  QC <- QC[colnames(epithelial_df),]
+  nUMI_density_plot <- density(QC$nUMI)
+  pdf(paste0(plot_dir, "nUMI_density_plot.pdf"))
+    plot(nUMI_density_plot, main=NA, xlab = "nUMI")
+  dev.off()
+  png(paste0(plot_dir, "nUMI_density_plot.png"))
+    plot(nUMI_density_plot, main=NA, xlab = "nUMI")
+  dev.off()
+  nGene_density_plot <- density(QC$nGene)
+  pdf(paste0(plot_dir, "nGene_density_plot.pdf"))
+    plot(nGene_density_plot, main=NA, xlab = "nGene")
+  dev.off()
+  png(paste0(plot_dir, "nGene_density_plot.png"))
+    plot(nGene_density_plot, main=NA, xlab = "nGene")
+  dev.off()
+  log_nUMI_density_plot <- density(log10(QC$nUMI))
+  pdf(paste0(plot_dir, "log10_nUMI_density_plot.pdf"))
+    plot(log_nUMI_density_plot, main=NA, xlab = "log10 nUMI")
+  dev.off()
+  png(paste0(plot_dir, "log10_nUMI_density_plot.png"))
+    plot(log_nUMI_density_plot, main=NA, xlab = "log10 nUMI")
+  dev.off()
+  log_nGene_density_plot <- density(log10(QC$nGene))
+  pdf(paste0(plot_dir, "log10_nGene_density_plot.pdf"))
+    plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
+  dev.off()
+  png(paste0(plot_dir, "log10_nGene_density_plot.png"))
+    plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
+  dev.off()
+  # filter out cells with nUMI < nUMI_threshold and nGene < nGene_threshold
+  print(paste0("Number of cells before filtering out low coverage: ",
+    nrow(QC)))
+  cells_to_keep <- rownames(QC)[QC$nUMI > nUMI_threshold & QC$nGene > nGene_threshold]
+  print(paste0("Number of cells after filtering out low coverage: ",
+    length(cells_to_keep)))
+  epithelial_df <- epithelial_df[
+    ,colnames(epithelial_df) %in% cells_to_keep
+  ]
+  saveRDS(epithelial_df, paste0(Robject_dir, "/1a.original_epithelial_df.Rdata"))
+  
+  p <- ggplot(QC, aes(x=nUMI, y=nGene))
+  p <- p + geom_point()
+  p <- p + xlab("nUMI")
+  p <- p + ylab("nGene")
+  p <- p + theme(legend.title = element_blank())
+  pdf(paste0(plot_dir, "QC_quad_plot.pdf"), 
+    width = 10, height = 6)
+    print(p)
+  dev.off()
+  png(paste0(plot_dir, "QC_quad_plot.png"), 
+    width = 450, height = 270)
+    print(p)
+  dev.off()
+  # create total count density quad plot:
+  print("Determining total count...")
+  total_counts <- apply(epithelial_df, 2, sum)
+  total_count_density_plot <- density(total_counts, bw="SJ")
+  pdf(paste0(plot_dir, "total_count_density_plot.pdf"))
+    plot(total_count_density_plot, main=NA, xlab = "Total counts")
+  dev.off()
+  png(paste0(plot_dir, "total_count_density_plot.png"))
+    plot(total_count_density_plot, main=NA, xlab = "Total counts")
+  dev.off()
+  # create log10 total count density quad plot:
+  log_total_count_density_plot <- density(log10(total_counts), bw="SJ")
+  pdf(paste0(plot_dir, "log10_total_count_density_plot.pdf"))
+    plot(log_total_count_density_plot, main=NA, xlab = "Total counts")
+  dev.off()
+  png(paste0(plot_dir, "log10_total_count_density_plot.png"))
+    plot(log_total_count_density_plot, main=NA, xlab = "Total counts")
+  dev.off()
   
 } else {
 

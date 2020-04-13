@@ -3,36 +3,27 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_accuracy_vs_coverage_smk_dev"
+subproject_name <- "Figure_2.6_random_permutation_of_normal"
 sample_name <- args[1]
 numcores <- as.numeric(args[2])
-subset_data <- as.logical(args[3])
-include_t_cells <- as.logical(args[4])
-analysis_mode <- args[5]
-downsample <- as.logical(args[6])
-downsample_proportion <- as.character(args[7])
-CNV_type <- args[8]
-simulation_number <- as.character(args[9])
+analysis_mode <- args[3]
+permutation_proportion <- args[4]
+simulation_number <- as.character(args[5])
 
-#sample_name <- "CID4520N_cancer_sim"
-#numcores <- 10
-#subset_data <- TRUE
-#include_t_cells <- TRUE
-#analysis_mode <- "samples"
-#downsample <- TRUE
-#downsample_proportion <- "0.5"
-#CNV_type <- "both"
-#simulation_number <- "11"
+project_name <- "thesis"
+subproject_name <- "Figure_2.6_random_permutation_of_normal"
+sample_name <- "permutated_CID4520N"
+numcores <- 10
+analysis_mode <- "samples"
+permutation_proportion <- 0.2
+simulation_number <- "1"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
-print(paste0("Subset data? ", as.character(subset_data)))
 print(paste0("Number cores = ", numcores))
-print(paste0("Include T cells? ", as.character(include_t_cells)))
 print(paste0("Analysis mode = ", analysis_mode))
-print(paste0("Downsample proportion = ", downsample_proportion))
-print(paste0("CNV type = ", CNV_type))
+print(paste0("Permutation proportion = ", permutation_proportion))
 print(paste0("Simulation number = ", simulation_number))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
@@ -45,50 +36,14 @@ project_dir <- paste0(home_dir, "projects/",
 ref_dir <- paste0(project_dir, "refs/")
 results_dir <- seurat_path <- paste0(project_dir, "results/")
 
-if (downsample) {
-  if (include_t_cells) {
-    out_path <- paste0(results_dir, "infercnv/t_cells_included/")
-    out_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
-      simulation_number, "/", downsample_proportion, "_downsampling/", 
-      analysis_mode, "_mode/")
-  } else {
-    out_path <- paste0(results_dir, "infercnv/t_cells_excluded/")
-    out_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
-      simulation_number, "/", downsample_proportion, "_downsampling/", 
-      analysis_mode, "_mode/")
-  }
-  input_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
-    simulation_number, "/", downsample_proportion, "_downsampling/input_files/")
-} else {
-  if (include_t_cells) {
-    out_path <- paste0(results_dir, "infercnv/t_cells_included/")
-    out_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
-      simulation_number, "/", analysis_mode, "_mode/")
-  } else {
-    out_path <- paste0(results_dir, "infercnv/t_cells_excluded/")
-    out_dir <- paste0(out_path, sample_name, "/", CNV_type, "/", 
-      simulation_number, "/", analysis_mode, "_mode/")
-  }
-  input_dir <- paste0(sample_name, "/", CNV_type, "/", simulation_number, 
-    "/", downsample_proportion, "_downsampling/input_files/")
-}
+out_path <- paste0(results_dir, "infercnv/",
+  sample_name, "/", permutation_proportion, "_proportion/",
+  simulation_number, "/"
+)
 
-if (subset_data) {
-  input_dir <- gsub(
-    paste0(sample_name, "/.*"), 
-    paste0(sample_name, "/subset/", CNV_type, "/", simulation_number, "/", 
-      downsample_proportion, "_downsampling/input_files/"),
-    input_dir
-  )
-  out_dir <- gsub(
-    paste0(sample_name, "/.*"), 
-    paste0(sample_name, "/subset/", CNV_type, "/", simulation_number, "/", 
-      downsample_proportion, "_downsampling/", analysis_mode, "_mode/"),
-    out_dir
-  )
-}
-
+out_dir <- paste0(out_path, "/", analysis_mode, "_mode/")
 system(paste0("mkdir -p ", out_dir))
+input_dir <- paste0(out_path, "input_files/")
 
 setwd(out_dir)
 
@@ -96,9 +51,9 @@ print(paste0("Sample directory = ", input_dir))
 print(paste0("Reference directory = ", ref_dir))
 print(paste0("Output directory = ", out_dir))
 
-print(paste0("Running InferCNV identify normals pipeline on ", sample_name ,
-  " number ", simulation_number, " with ", CNV_type, " CNVs, downsampled to ", 
-  downsample_proportion))
+print(paste0("Running InferCNV on ", sample_name , " replicate ", 
+  simulation_number, ", assessing normal breast dataset with ", 
+  permutation_proportion, " of genes permutated..."))
 
 
 ################################################################################
@@ -120,7 +75,12 @@ initial_infercnv_object <- CreateInfercnvObject(
   gene_order_file=gene_path,
   ref_group_names=normals
 )
-print("InferCNV object created, running inferCNV...")
+if (exists("initial_infercnv_object")) {
+  print("InferCNV object created, running inferCNV...")
+} else {
+  print("InferCNV object not created, check inputs...")
+}
+
 system.time(
   infercnv_output <- try(
     infercnv::run(
