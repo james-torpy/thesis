@@ -12,3 +12,9 @@ results/
 *snakemake*
 *tar.gz
 *md5*
+dag.svg
+*.txt
+*.png
+*.pdf
+*infercnv_obj
+*.dag

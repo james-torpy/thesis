@@ -1,0 +1,372 @@
+# Run command:
+# snakemake --reason --cores 180 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 18
+
+# DAG command:
+# snakemake --dag | dot -Tsvg > dag.svg
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+# define variables:
+SAMPLES = list(range(1,31))
+#SAMPLES = list([4])
+SAMPLES = list(map(str, SAMPLES))
+samples = '_'.join(SAMPLES)
+GAP_OR_CNV = ["CNV"]
+CNV_TYPE = ["gain", "loss"]
+
+# normal infercnv parameters:
+sample_name = "CID4520N"
+nUMI_threshold="25000"
+nGene_threshold="5000"
+feature_lengths="400_300_200_150_125_100_75_50_40_30_20_15_10_5"
+gap_CNV_length="100"
+noise_cell_no="5000"
+t_cells_included="TRUE"
+analysis_mode="samples"
+
+# cancer simulation parameters:
+sim_name = "CID4520N_cancer_sim"
+
+# individual plot parameters:
+neutral_signal_range = "0.97_1.03"
+min_gap_length = "30"
+
+######
+#rule all:
+#    input:
+#        "results/infercnv/t_cells_included/CID4520N/" + analysis_mode + 
+#            "_mode/infercnv.12_denoised.png"
+######
+
+#######
+#rule all:
+#    input:
+#        CNV_result = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#                "CNV/{sample}/input_files/input_matrix.txt",
+#                sample=SAMPLES
+#        ),
+#        gap_result = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#                "gap/{sample}/{CNV_type}/input_files/input_matrix.txt",
+#                sample=SAMPLES, CNV_type=CNV_TYPE
+#        )
+#######
+
+######
+#rule all:
+#    input:
+#        CNV = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "CNV/{sample}/samples_mode/infercnv.12_denoised.png",
+#            sample=SAMPLES,
+#        ),
+#        gap = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/{CNV_type}/samples_mode/infercnv.12_denoised.png",
+#            sample=SAMPLES, CNV_type=CNV_TYPE
+#        )
+####
+
+rule all:
+    input:
+        expand(
+            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" +
+            "final_plots/proportion_correct_calls_for_{CNV_type}_{gap_or_CNV}s.pdf",
+            CNV_type=CNV_TYPE, gap_or_CNV=GAP_OR_CNV
+        )
+
+rule normal_infercnv:
+    input:
+        "raw_files/seurat_objects/CID4520N/03_seurat_object_processed.Rdata"
+    output:
+        "results/infercnv/t_cells_included/CID4520N/" + analysis_mode + 
+            "_mode/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/normal_infercnv/; " +
+        "cd logs/normal_infercnv/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sample_name}" + 
+        " {threads}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " {t_cells_included}" + 
+        " {analysis_mode}" +  
+        "' ../../scripts/1b.normal_infercnv.R"
+
+rule simulate_CNVs:
+    input:
+        rds = "raw_files/seurat_objects/CID4520N/03_seurat_object_processed.Rdata",
+        normal_output = "results/infercnv/t_cells_included/CID4520N/" + analysis_mode + 
+            "_mode/infercnv.12_denoised.png"
+    output:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "CNV/{sample}/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "CNV/{sample}/input_files/metadata.txt"
+    threads: 10
+    shell:
+        "echo 'sample is {wildcards.sample}'; "
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/simulate_cancer/CNV/{wildcards.sample}/; " +
+        "cd logs/simulate_cancer/CNV/{wildcards.sample}/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sample_name}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " CNV" + 
+        " both" +
+        " {feature_lengths}" + 
+        " {gap_CNV_length}" + 
+        " {wildcards.sample} " + 
+        " {noise_cell_no}" +
+        " {t_cells_included}" + 
+        " {analysis_mode}" + 
+        "' ../../../../scripts/2b.simulate_cancer.R"
+
+rule simulate_gain_gaps:
+    input:
+        rds = "raw_files/seurat_objects/CID4520N/03_seurat_object_processed.Rdata",
+        normal_output = "results/infercnv/t_cells_included/CID4520N/" + analysis_mode + 
+            "_mode/infercnv.12_denoised.png"
+    output:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/gain/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/gain/input_files/metadata.txt"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/simulate_cancer/gap/{wildcards.sample}/gain/; " +
+        "cd logs/simulate_cancer/gap/{wildcards.sample}/gain/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sample_name}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " gap" + 
+        " gain" +
+        " {feature_lengths}" + 
+        " {gap_CNV_length}" + 
+        " {wildcards.sample} " + 
+        " {noise_cell_no}" +
+        " {t_cells_included}" + 
+        " {analysis_mode}" + 
+        "' ../../../../../scripts/2b.simulate_cancer.R"
+
+rule simulate_loss_gaps:
+    input:
+        rds = "raw_files/seurat_objects/CID4520N/03_seurat_object_processed.Rdata",
+        normal_output = "results/infercnv/t_cells_included/CID4520N/" + analysis_mode + 
+            "_mode/infercnv.12_denoised.png"
+    output:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/loss/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/loss/input_files/metadata.txt"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/simulate_cancer/gap/{wildcards.sample}/loss/; " +
+        "cd logs/simulate_cancer/gap/{wildcards.sample}/loss/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sample_name}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " gap" + 
+        " loss" +
+        " {feature_lengths}" + 
+        " {gap_CNV_length}" + 
+        " {wildcards.sample} " + 
+        " {noise_cell_no}" +
+        " {t_cells_included}" + 
+        " {analysis_mode}" + 
+        "' ../../../../../scripts/2b.simulate_cancer.R"
+
+rule CNV_infercnv:
+    input:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "CNV/{sample}/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "CNV/{sample}/input_files/metadata.txt"
+    output:
+        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "CNV/{sample}/samples_mode/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/infercnv/CNV/{wildcards.sample}/{analysis_mode}.mode/; " +
+        "cd logs/infercnv/CNV/{wildcards.sample}/{analysis_mode}.mode/; " + 
+#        "touch ../../../../../scripts/test.txt "
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sim_name}" + 
+        " {threads}" +
+        " {t_cells_included}" + 
+        " {analysis_mode}" + 
+        " CNV" + 
+        " both" + 
+        " {wildcards.sample} " +
+        "' ../../../../../scripts/3b.simulated_cancer_infercnv.R"
+
+rule gain_gap_infercnv:
+    input:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/gain/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/gain/input_files/metadata.txt"
+    output:
+        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/gain/samples_mode/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/infercnv/gap/{wildcards.sample}/gain/{analysis_mode}.mode/; " +
+        "cd logs/infercnv/gap/{wildcards.sample}/gain/{analysis_mode}.mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sim_name}" + 
+        " {threads}" +
+        " {t_cells_included}" + 
+        " {analysis_mode}" + 
+        " gap" + 
+        " gain" + 
+        " {wildcards.sample} " +
+        "' ../../../../../../scripts/3b.simulated_cancer_infercnv.R"
+
+rule loss_gap_infercnv:
+    input:
+        matrix = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/loss/input_files/input_matrix.txt",
+        metadata = "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/loss/input_files/metadata.txt"
+    output:
+        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "gap/{sample}/loss/samples_mode/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/infercnv/gap/{wildcards.sample}/loss/{analysis_mode}.mode/; " +
+        "cd logs/infercnv/gap/{wildcards.sample}/loss/{analysis_mode}.mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sim_name}" + 
+        " {threads}" +
+        " {t_cells_included}" + 
+        " {analysis_mode}" + 
+        " gap" + 
+        " loss" + 
+        " {wildcards.sample} " +
+        "' ../../../../../../scripts/3b.simulated_cancer_infercnv.R"
+
+rule CNV_plot:
+    input:
+        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "CNV/{sample}/samples_mode/infercnv.12_denoised.png"
+    output:
+        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "CNV/{sample}/samples_mode/plots/infercnv_plot_with_CNV_calls.pdf"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/plot/CNV/{wildcards.sample}/{analysis_mode}.mode/; " +
+        "cd logs/plot/CNV/{wildcards.sample}/{analysis_mode}.mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sim_name}" + 
+        " {t_cells_included}" + 
+        " {wildcards.sample} " +
+        " {analysis_mode}" + 
+        " {neutral_signal_range}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " CNV" +
+        " both" +
+        "' ../../../../../scripts/4b.plot_individual_heatmap.R"
+
+#rule gain_gap_plot:
+#    input:
+#        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/gain/samples_mode/infercnv.12_denoised.png"
+#    output:
+#        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/gain/samples_mode/plots/infercnv_plot_with_gap_calls.pdf"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/plot/gap/{wildcards.sample}/gain/{analysis_mode}.mode/; " +
+#        "cd logs/plot/gap/{wildcards.sample}/gain/{analysis_mode}.mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {sim_name}" + 
+#        " {t_cells_included}" + 
+#        " {wildcards.sample} " +
+#        " {analysis_mode}" + 
+#        " {neutral_signal_range}" + 
+#        " {nUMI_threshold}" +
+#        " {nGene_threshold}" + 
+#        " gap" +
+#        " gain" +
+#        " {min_gap_length}" +
+#        "' ../../../../../../scripts/4b.plot_individual_heatmap.R"
+
+#rule loss_gap_plot:
+#    input:
+#        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/loss/samples_mode/infercnv.12_denoised.png"
+#    output:
+#        "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/loss/samples_mode/plots/infercnv_plot_with_gap_calls.pdf"
+#    threads: 10
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/plot/gap/{wildcards.sample}/loss/{analysis_mode}.mode/; " +
+#        "cd logs/plot/gap/{wildcards.sample}/loss/{analysis_mode}.mode/; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {sim_name}" + 
+#        " {t_cells_included}" + 
+#        " {wildcards.sample} " +
+#        " {analysis_mode}" + 
+#        " {neutral_signal_range}" + 
+#        " {nUMI_threshold}" +
+#        " {nGene_threshold}" + 
+#        " gap" +
+#        " loss" +
+#        " {min_gap_length}" +
+#        "' ../../../../../../scripts/4b.plot_individual_heatmap.R"
+
+rule final_plots:
+    input:
+        CNV = expand(
+            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+            "CNV/{sample}/samples_mode/plots/infercnv_plot_with_CNV_calls.pdf",
+            sample=SAMPLES
+        )
+#        ,
+#        gain_gap = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/gain/samples_mode/plots/infercnv_plot_with_gap_calls.pdf",
+#            sample=SAMPLES
+#        ),
+#        loss_gap = expand(
+#            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
+#            "gap/{sample}/loss/samples_mode/plots/infercnv_plot_with_gap_calls.pdf",
+#            sample=SAMPLES
+#        )
+    output:
+        expand(
+            "results/infercnv/t_cells_included/CID4520N_cancer_sim/" +
+            "final_plots/proportion_correct_calls_for_{CNV_type}_{gap_or_CNV}s.pdf",
+            CNV_type=CNV_TYPE, gap_or_CNV=GAP_OR_CNV
+        )
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/final_plots/gap/{analysis_mode}.mode/; " +
+        "cd logs/final_plots/gap/{analysis_mode}.mode/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sim_name}" + 
+        " {t_cells_included}" + 
+        " {samples} " +
+        " {analysis_mode}" + 
+        "' ../../../../scripts/5.plot_final_call_proportions.R"
+
+
+

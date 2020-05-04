@@ -1,3 +1,0 @@
-Not enough observations for correlation - chucked:
-CID4408
-CID4409
