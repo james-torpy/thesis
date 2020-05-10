@@ -5,7 +5,7 @@
 RStudio <- FALSE
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_accuracy_vs_coverage"
+subproject_name <- "Figure_2.5_accuracy_vs_coverage"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
 print(sample_name)
@@ -89,39 +89,41 @@ for (i in 1:length(simulation_numbers)) {
 
     if (downsample_type == "UMI") {
       in_dir <- paste0(in_path, "/", simulation_numbers[i], "/", 
-        x, "_downsampling/", analysis_mode, "_mode/Rdata/")
+        x, "_downsampling/", analysis_mode, "_mode/tables/")
     } else if (downsample_type == "gene") {
       if (x != "no") {
         in_dir <- paste0(in_path, "/", simulation_numbers[i], "/", 
-          x, "_gene_downsampling/", analysis_mode, "_mode/Rdata/")
+          x, "_gene_downsampling/", analysis_mode, "_mode/tables/")
       } else if (x == "no") {
         in_dir <- paste0(in_path, "/", simulation_numbers[i], "/", 
-          x, "_downsampling/", analysis_mode, "_mode/Rdata/")
+          x, "_downsampling/", analysis_mode, "_mode/tables/")
       }
     }
     
-    accuracy_metrics <- readRDS(
-      paste0(in_dir, "3.accuracy_metrics_with_correlation.Rdata")
+    accuracy_metrics <- read.table(
+      paste0(in_dir, "accuracy_metrics.txt"),
+      sep = "\t",
+      header = F,
+      stringsAsFactors = F,
+      fill = T
     )
-
-    if ("pearson_p_val" %in% rownames(accuracy_metrics)) {
-      print(paste0("Correlation p-value = ", 
-      accuracy_metrics["pearson_p_val",]))
-    }
+    accuracy_metrics <- data.frame(
+      row.names = accuracy_metrics$V1,
+      score = accuracy_metrics$V2
+    )
     
     if (x=="no") {
 
       metric_df <- data.frame(
-        Proportion = rep(100, 5),
-        Metric = c("Sensitivity", "Specificity", "Precision", "F1 score", "Correlation"),
+        Proportion = rep(100, 4),
+        Metric = c("Sensitivity", "Specificity", "Precision", "F1 score"),
         Score = c(
           accuracy_metrics["sensitivity",],
           accuracy_metrics["specificity",],
           accuracy_metrics["precision",],
-          accuracy_metrics["F1",],
-          1
+          accuracy_metrics["F1",]
         ),
-        Sim_no = rep(simulation_numbers[i], 5)
+        Sim_no = rep(simulation_numbers[i], 4)
       )
 
       metric_df$Score[nrow(metric_df)] <- 1
@@ -129,16 +131,15 @@ for (i in 1:length(simulation_numbers)) {
     } else {
 
       metric_df <- data.frame(
-        Proportion = rep(as.numeric(x)*100, 5),
-        Metric = c("Sensitivity", "Specificity", "Precision", "F1 score", "Correlation"),
+        Proportion = rep(as.numeric(x)*100, 4),
+        Metric = c("Sensitivity", "Specificity", "Precision", "F1 score"),
         Score = c(
           accuracy_metrics["sensitivity",],
           accuracy_metrics["specificity",],
           accuracy_metrics["precision",],
-          accuracy_metrics["F1",],
-          accuracy_metrics["pearson_R_squared",]
+          accuracy_metrics["F1",]
         ),
-        Sim_no = rep(simulation_numbers[i], 5)
+        Sim_no = rep(simulation_numbers[i], 4)
       )
 
     }
@@ -157,7 +158,6 @@ for (i in 1:length(simulation_numbers)) {
   }
 
 }
-
 
 # split df based upon upon downsampling proportion:
 split_metrics1 <- split(plot_metrics, plot_metrics$Proportion)
@@ -178,10 +178,8 @@ final_metrics <- lapply(split_metrics3, function(x) {
 
 })
 final_metric_df <- do.call("rbind", final_metrics)
-levels(final_metric_df$Metric) <- c("Specificity", "Precision", "Correlation",
-  "Sensitivity", "F1 score")
 
-cols <- c("#C02456", "#58B9DB", "#7CBA61", "#F4D30B", "#B066B2")
+cols <- c("#C02456", "#58B9DB", "#F4D30B", "#B066B2")
 
 p <- ggplot(final_metric_df, aes(x = Proportion, y = Score)) 
 p <- p + geom_line(aes(color = Metric))
@@ -211,16 +209,15 @@ if (downsample_type == "UMI") {
   p <- p + xlab("Proportion genes (%)")
 }
 
-
 pdf(
-  paste0(out_dir, "downsampling_results.pdf"), 
+  paste0(out_dir, "all_downsampling_results.pdf"), 
   width = 7, height = 5
 )
   print(p)
 dev.off()
 
 png(
-  paste0(out_dir, "downsampling_results.png"), 
+  paste0(out_dir, "all_downsampling_results.png"), 
   width = 7, height = 5, units = "in", res = 300
 )
   print(p)
@@ -228,49 +225,47 @@ dev.off()
 
 # plot precision and specificity only:
 subset_df <- final_metric_df[
-  final_metric_df$Metric %in% c("Specificity", "Precision", "Correlation"),
+  final_metric_df$Metric %in% c("Sensitivity", "Specificity"),
 ]
+subset_df$Metric <- factor(
+  subset_df$Metric, 
+  levels = c("Sensitivity", "Specificity")
+)
+cols <- c("#58B9DB", "#D95F02")
 
-p <- ggplot(subset_df, aes(x = Proportion, y = Score)) 
-p <- p + geom_line(aes(color = Metric))
-p <- p + geom_errorbar(aes(ymin=Score-SE, ymax=Score+SE))
-p <- p + scale_color_manual(values = cols[1:3])
-p <- p + scale_x_continuous(
-  breaks = c(0, 5, seq(10, 100, 10))
+p <- ggplot(
+  subset_df, 
+  aes(x = Proportion, y = Score, group = Metric, color = Metric)
+) 
+p <- p + geom_line()
+p <- p + geom_errorbar(
+  aes(ymin=Score-SE, ymax=Score+SE), 
+  width=2
 )
-p <- p + scale_y_continuous(
-  breaks = seq(
-    round(
-      min(
-        plot_metrics$Score
-      ), 1
-    ), 1, 0.1
-  )
-)
-p <- p + theme(
-  panel.grid.minor = element_blank(),
-  axis.title.x = element_text(size = 9),
-  axis.title.y = element_blank(),
-  legend.title = element_blank()
-)
+p <- p + scale_color_manual(values = cols)
+
+p <- p + xlab("Gap length")
 if (downsample_type == "UMI") {
   p <- p + xlab("Proportion UMIs (%)")
 } else {
   p <- p + xlab("Proportion genes (%)")
 }
+p <- p + ylab("Accuracy score")
 
 pdf(
-  paste0(out_dir, "downsampling_specificity_precision_correlation.pdf"), 
+  paste0(out_dir, "downsampling_sensitivity_specificity.pdf"), 
   width = 7, height = 5
 )
   print(p)
 dev.off()
 
 png(
-  paste0(out_dir, "downsampling_specificity_precision_correlation.png"), 
+  paste0(out_dir, "downsampling_sensitivity_specificity.png"), 
   width = 7, height = 5, units = "in", res = 300
 )
   print(p)
 dev.off()
 
 print(paste0("All output plots in", out_dir))
+
+

@@ -9,7 +9,7 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_accuracy_vs_coverage"
+subproject_name <- "Figure_2.5_accuracy_vs_coverage"
 sample_name <- args[1]
 print(paste0("sample name = ", sample_name))
 subset_data <- as.logical(args[2])
@@ -73,7 +73,7 @@ noise_cell_no <- as.numeric(args[12])
 print(paste0("Noise input cell number = ", noise_cell_no))
 
 #project_name <- "thesis"
-#subproject_name <- "Figure_2.2_accuracy_vs_coverage"
+#subproject_name <- "Figure_2.5_accuracy_vs_coverage"
 #sample_name <- "CID4520N"
 #subset_data <- FALSE
 #nUMI_threshold <- 25000
@@ -1452,6 +1452,19 @@ if (!file.exists(paste0(no_downsample_dir, "input_matrix.txt"))) {
   quote = F, col.names = F, row.names = F)
 }
 
+# determine nUMI and nGene per cell:
+mean_coverage <- data.frame(
+  downsample_proportion = "no",
+  nUMI = round(mean(apply(nondownsampled_counts_with_noise, 2, sum)), 0),
+  nGene = round(
+    mean(
+      apply(
+        nondownsampled_counts_with_noise, 2, function(x) length(which(x > 0))
+      )
+    ), 0
+  )
+)
+
 
 ################################################################################
 ### 11. Downsample new counts and save ###
@@ -1481,6 +1494,22 @@ if (downsample) {
     )
     print("Total counts after downsampling:")
     print(sum(as.vector(downsampled_counts)))
+
+    # determine nUMI and nGene per cell:
+    mean_coverage <- rbind(
+      mean_coverage,
+      data.frame(
+        downsample_proportion = as.character(proportion),
+        nUMI = round(mean(apply(downsampled_counts, 2, sum)), 0),
+        nGene = round(
+          mean(
+            apply(
+              downsampled_counts, 2, function(x) length(which(x > 0))
+            )
+          ), 0
+        )
+      )
+    )
 
     downsample_dir <- paste0(out_dir, proportion, 
       "_downsampling/input_files/")
@@ -1520,6 +1549,22 @@ if (downsample) {
     print("Total genes after downsampling:")
     print(nrow(gene_downsampled_counts))
 
+    # determine nUMI and nGene per cell:
+    mean_coverage <- rbind(
+      mean_coverage,
+      data.frame(
+        downsample_proportion = paste0(proportion, "_gene"),
+        nUMI = round(mean(apply(downsampled_counts, 2, sum)), 0),
+        nGene = round(
+          mean(
+            apply(
+              downsampled_counts, 2, function(x) length(which(x > 0))
+            )
+          ), 0
+        )
+      )
+    )
+
     gene_downsample_dir <- paste0(out_dir, proportion, 
       "_gene_downsampling/input_files/")
     system(paste0("mkdir -p ", gene_downsample_dir))
@@ -1535,6 +1580,14 @@ if (downsample) {
 
 }
 
+# save mean coverage values:
+write.table(
+  mean_coverage, 
+  paste0(table_dir, "/mean_coverage_values.txt"),
+  sep = "\t",
+  quote = F,
+  col.names = T
+)
 
 ################################################################################
 ### 12. Convert PDF to PNG ###

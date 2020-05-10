@@ -1,16 +1,16 @@
-# snakemake --reason --cores 160 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 16
+# snakemake --reason --cores 120 --cluster "qsub -pe smp 10 -N smk.infercnv -b y -j y -V -P TumourProgression" -j 12
 
 # define directories:
 R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
 
 # define variables:
 SAMPLES = list(range(1, 31, 1))
-#SAMPLES = list([1])
+#SAMPLES = list([8])
 SAMPLES = list(map(str, SAMPLES))
 PROPORTIONS = ["0.9", "0.8", "0.7", "0.6", "0.5", "0.4", "0.3", "0.2", "0.15", "0.1", "0.05", "no", \
     "0.9_gene", "0.8_gene", "0.7_gene", "0.6_gene", "0.5_gene", "0.4_gene", "0.3_gene", "0.2_gene", \
     "0.15_gene", "0.1_gene", "0.05_gene"]
-#PROPORTIONS = ["no"]
+#PROPORTIONS = ["0.6"]
 
 # infercnv parameters:
 sample_name = "CID4520N_cancer_sim"
@@ -22,7 +22,7 @@ downsample="TRUE"
 CNV_type="both"
 
 # individual plot parameters:
-neutral_signal_range = "0.97_1.03"
+min_CNV_proportion="0.5"
 nUMI_threshold="25000"
 nGene_threshold="5000"
 
@@ -31,7 +31,7 @@ rule all:
         expand(
             "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
             "both/{sample}/{proportion}_downsampling/samples_mode/plots/" + 
-            "infercnv_plot_with_accuracy_metrics.pdf",
+            "infercnv_plot_with_marked_CNVs.png",
             sample=SAMPLES, proportion=PROPORTIONS
         )
 
@@ -81,13 +81,13 @@ rule individual_plot:
     output:
         "results/infercnv/t_cells_included/CID4520N_cancer_sim/" + 
             "both/{sample}/{proportion}_downsampling/samples_mode/plots/" + 
-            "infercnv_plot_with_accuracy_metrics.pdf"
+            "infercnv_plot_with_marked_CNVs.png"
     threads: 6
 
     shell:
             "cd logs/{wildcards.sample}/{wildcards.proportion}_downsampling/; " +
             R_dir + "/R CMD BATCH  --no-save '--args " + sample_name + " " + include_t_cells + 
             " " + " {wildcards.sample} " + " {wildcards.proportion} " + " " + analysis_mode + " " + 
-            neutral_signal_range + " " + nUMI_threshold + " " + nGene_threshold + " " + 
+            min_CNV_proportion + " " + nUMI_threshold + " " + nGene_threshold + " " + 
             CNV_type + "' ../../../scripts/3b.plot_individual_heatmap.R"
 

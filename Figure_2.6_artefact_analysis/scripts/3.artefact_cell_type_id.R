@@ -8,20 +8,26 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.4_artefact_analysis"
+subproject_name <- "Figure_2.6_artefact_analysis"
 sample_name <- args[1]
 print(paste0("sample name = ", sample_name))
 analysis_mode <- args[2]
 print(paste0("Analysis mode of normal InferCNV run = ", 
   analysis_mode, "_mode"))
+remove_cell_types <- args[6]
+print("Cell types removed:")
+print(remove_cell_types)
 
-project_name <- "thesis"
-subproject_name <- "Figure_2.4_artefact_analysis"
-sample_name <- "CID4520N"
-print(paste0("sample name = ", sample_name))
-analysis_mode <- "samples"
-print(paste0("Analysis mode of normal InferCNV run = ", 
-  analysis_mode, "_mode"))
+#project_name <- "thesis"
+#subproject_name <- "Figure_2.6_artefact_analysis"
+#sample_name <- "CID4520N"
+#print(paste0("sample name = ", sample_name))
+#analysis_mode <- "samples"
+#print(paste0("Analysis mode of normal InferCNV run = ", 
+#  analysis_mode, "_mode"))
+#remove_cell_types <- "No"
+#print("Cell types removed:")
+#print(remove_cell_types)
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -32,14 +38,8 @@ library(Seurat)
 library(limma)
 library(cowplot)
 library(rlist, lib.loc = lib_loc)
-#library(GenomicRanges)
-#library(naturalsort, lib.loc = lib_loc)
-#library(splatter, lib.loc = lib_loc)
 library(ggplot2)
 library(org.Hs.eg.db)
-#library(data.table)
-#library(ComplexHeatmap, lib.loc = lib_loc)
-#library(circlize, lib.loc = lib_loc)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", 
@@ -49,7 +49,7 @@ func_dir <- paste0(project_dir, "scripts/functions/")
 results_dir <- paste0(project_dir, "results/")
 
 in_dir <- paste0(results_dir, "infercnv/", sample_name, "/", 
-  analysis_mode, "_mode/Rdata/")
+  remove_cell_types, "_removed/", analysis_mode, "_mode/Rdata/")
 raw_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
   sample_name, "/")
 out_path <- paste0(results_dir, "GSEA/", sample_name, "/", 
@@ -69,15 +69,17 @@ print(paste0("Robject directory = ", Robject_dir))
 print(paste0("Plot dir = ", plot_dir))
 print(paste0("Table directory = ", table_path))
 
-print(paste0("Performing GSEA of artefacts from ", sample_name, "..."))
+print(paste0("Finding cell types enriched for artefact gene expression in ", 
+  sample_name, "..."))
 
 
 ###################################################################################
 ### 1. Load data ###
 ###################################################################################
 
-artefact_record <- readRDS(paste0(in_dir, "1b.artefact_genes.Rdata"))
-
+artefact_indices <- readRDS(paste0(in_dir, "1a.artefact_indices.Rdata"))
+artefact_only <- artefact_indices[artefact_indices$type != "neutral",]
+artefact_by_gene <- readRDS(paste0(in_dir, "1b.artefact_by_gene.Rdata"))
 seurat_object <- readRDS(paste0(raw_dir, "/04_seurat_object_filtered.Rdata"))
 
 
@@ -91,7 +93,10 @@ seurat_object <- readRDS(paste0(raw_dir, "/04_seurat_object_filtered.Rdata"))
 
 # group cell ids by cell type and combine B and plasma cells:
 Idents(seurat_object) <- gsub("_[0-9].*", "", Idents(seurat_object))
-Idents(seurat_object) <- gsub("B_cells|Plasma_cells", "B_and_plasma_cells", Idents(seurat_object))
+Idents(seurat_object) <- gsub(
+  "B_cells|Plasma_cells", "B_and_plasma_cells", 
+  Idents(seurat_object)
+)
 
 cell_types <- split(
   names(Idents(seurat_object)), 
@@ -100,18 +105,22 @@ cell_types <- split(
 
 # set seed:
 if (!file.exists(paste0(Robject_dir, "modscore_seeds.Rdata"))) {
-  modscore_seeds <- sample(1:999, length(artefact_record))
+  modscore_seeds <- sample(1:999, nrow(artefact_only))
   saveRDS(modscore_seeds, paste0(Robject_dir, "modscore_seeds.Rdata"))
 } else {
   modscore_seeds <- readRDS(paste0(Robject_dir, "modscore_seeds.Rdata"))
 }
 
 # for each artefact, calculate mean modscore per cell type:
-for (i in 1:length(artefact_record)) {
+for (i in 1:nrow(artefact_only)) {
+
+  artefact_genes <- names(artefact_by_gene)[
+    artefact_only[i,]$start:artefact_only[i,]$end
+  ]
 
   seurat_modscore <- AddModuleScore(
     object = seurat_object,
-    features = list(as.character(artefact_record[[i]]$genes)),
+    features = list(as.character(artefact_genes)),
     seed = modscore_seeds[i]
   )
 
@@ -137,7 +146,7 @@ for (i in 1:length(artefact_record)) {
   cell_type_score <- lapply(cell_types, function(x) {
     return(
       data.frame(
-        artefact = paste0(i),
+        artefact_chr = artefact_only$start_chr[i],
         mean_module_score = mean(modscores[[i]][x]),
         n = length(x),
         SE = ( sd(modscores[[i]][x]) )/( sqrt(length(x)) )
@@ -156,8 +165,9 @@ for (i in 1:length(artefact_record)) {
   }
 
 }
-modscore_df$cell_type <- gsub("[0-9]", "", rownames(modscore_df))
-
+modscore_df$cell_type <- gsub(
+  "_", " ", gsub("[0-9]", "", rownames(modscore_df))
+)
 
 # plot modscores on barplot:
 all_cols <- read.table(
@@ -165,10 +175,10 @@ all_cols <- read.table(
   as.is = T,
   comment.char = ""
 )[,1]
-cols <- all_cols[c(2, 1, 3:length(artefact_record))]
+cols <- all_cols[c(2, 1, 3:nrow(artefact_only))]
 
 p <- ggplot(modscore_df, 
-  aes(x = artefact, y = mean_module_score, 
+  aes(x = artefact_chr, y = mean_module_score, 
     colour = cell_type, fill = cell_type)
 ) 
 p <- p + geom_bar(
@@ -184,11 +194,52 @@ p <- p + geom_errorbar(
 )
 p <- p + scale_color_manual(values = cols)
 p <- p + scale_fill_manual(values = cols)
+p <- p + ylab("Module score")
+p <- p + xlab("Artefact location")
+p <- p + theme(
+  axis.title.x = element_text(size=24, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+  axis.text.x = element_text(size=22),
+  axis.title.y = element_text(size=24, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+  axis.text.y = element_text(size=22),
+  legend.title = element_blank(),
+  legend.text = element_text(size=18),
+  legend.key.size = unit(1, "cm")
+)
 
-pdf(paste0(plot_dir, "artefact_module_scores.pdf"))
+# function to increase vertical spacing between legend keys
+# @clauswilke
+draw_key_polygon3 <- function(data, params, size) {
+  lwd <- min(data$size, min(size) / 4)
+
+  grid::rectGrob(
+    width = grid::unit(0.6, "npc"),
+    height = grid::unit(0.6, "npc"),
+    gp = grid::gpar(
+      col = data$colour,
+      fill = alpha(data$fill, data$alpha),
+      lty = data$linetype,
+      lwd = lwd * .pt,
+      linejoin = "mitre"
+    ))
+}
+
+# register new key drawing function, 
+# the effect is global & persistent throughout the R session
+GeomBar$draw_key = draw_key_polygon3
+
+pdf(
+  paste0(plot_dir, "artefact_module_scores.pdf"),
+  width = 15
+)
   p
 dev.off()
-png(paste0(plot_dir, "artefact_module_scores.png"))
+png(
+  paste0(plot_dir, "artefact_module_scores.png"),
+  width = 15,
+  height = 10,
+  res = 300,
+  units = "in"
+)
   p
 dev.off()
 
@@ -198,7 +249,6 @@ dev.off()
 ###################################################################################
 
 # fetch all module scores for each artefact/cell type:
-
 tukey_results <- lapply(modscores, function(x) {
 
   # create df of module scores labelled by cell type:

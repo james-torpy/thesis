@@ -9,11 +9,11 @@ denoise_value <- args[3]
 analysis_mode <- args[4]
 min_CNV_proportion <- as.numeric(args[5])
 
-sample_name <- "CID4520N"
-sim_name <- "sim3"
-denoise_value <- "1.3"
-analysis_mode <- "samples"
-min_CNV_proportion <- as.numeric("0.5")
+#sample_name <- "CID4520N"
+#sim_name <- "sim3"
+#denoise_value <- "no"
+#analysis_mode <- "samples"
+#min_CNV_proportion <- as.numeric("0.5")
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -183,6 +183,7 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
   
 
 } else {
+
 
   ################################################################################
   ### 3. Format CNV indices  ###
@@ -907,16 +908,7 @@ final_heatmap <- Heatmap(
   show_row_names = F, 
   show_column_names = F,
   show_row_dend = F,
-  heatmap_legend_param = list(
-    title = "CNV\nscore", 
-    at = legend_lims,
-    color_bar = "continuous", 
-    grid_height = unit(2, "cm"), 
-    grid_width = unit(3.5, "cm"), 
-    legend_direction = "horizontal",
-    title_gp = gpar(fontsize = 18, fontface = "plain"), 
-    labels_gp = gpar(fontsize = 12)
-  ),
+  show_heatmap_legend = F,
   use_raster = T, 
   raster_device = c("png")
 )
@@ -932,11 +924,42 @@ dev.off()
 longest_cluster_name <- max(nchar(unique(as.character(epithelial_metadata$cell_type))))
 x_coord <- longest_cluster_name*0.0037
 
+# generate heatmap legend:
+if (denoise_value == "2") {
+  signal_ranges <- range(unlist(plot_object))
+  lgd <- Legend(
+    at = c(0.9 , 1, 1.1),
+    col_fun = heatmap_cols, 
+    title = "CNV\nscore", 
+    direction = "horizontal",
+    grid_height = unit(2.5, "cm"),
+    grid_width = unit(0.1, "cm"),
+    labels_gp = gpar(fontsize = 22),
+    title_gp = gpar(fontsize = 28, fontface = "plain")
+  )
+} else {
+  signal_ranges <- round(range(unlist(plot_object)), 2)
+  lgd <- Legend(
+    at = c(
+      round(signal_ranges[1], 1), 
+      1, 
+      round(signal_ranges[2], 1)
+    ),
+    col_fun = heatmap_cols, 
+    title = "CNV\nscore", 
+    direction = "horizontal",
+    grid_height = unit(2.5, "cm"),
+    grid_width = unit(0.1, "cm"),
+    labels_gp = gpar(fontsize = 22),
+    title_gp = gpar(fontsize = 28, fontface = "plain")
+  )
+}
+
 # plot final basic heatmap:
 png(
-  paste0(plot_dir, "infercnv_plot_check.png"), 
-  height = 10, 
-  width = 18, 
+  paste0(plot_dir, "infercnv_plot.png"), 
+  height = 12, 
+  width = 23, 
   res = 300, 
   units = "in"
 )
@@ -944,22 +967,31 @@ png(
   if (sim_name == "normal" | sim_name == "filtered_normal") {
 
     grid.newpage()
-    pushViewport(viewport(x = 0.035, y = 0.05, width = 0.95, height = 0.85, 
+    pushViewport(viewport(x = 0.15, y = 0.15, width = 0.8, height = 0.8, 
       just = c("left", "bottom")))
       grid.draw(basic_heatmap)
       decorate_heatmap_body("hm", {
         for ( e in 1:length(chr_data$end_pos) ) {
           grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
             gp = gpar(lwd = 1, col = "#383838"))
-          grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+          if (e==1) {
+            grid.text(names(chr_data$lab_pos)[e], chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=26))
+          } else if (e==21) {
+            grid.text(paste0("\n", gsub("chr", "", names(chr_data$lab_pos)[e])), chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=26))
+          } else {
+            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=26))        
+          }
         }
       })
     popViewport()
-#    pushViewport(viewport(x = 0.035, y = 0.5, width = 0.3, height = 0.3, 
-#      just = c("left", "bottom")))
-#      draw(lgd, x = unit(1, "cm"), y = unit(1, "cm"), just = c("left", "bottom"))
-#    popViewport()
+    # plot legend:
+    pushViewport(viewport(x = unit(2, "cm"), y = unit(14.5, "cm"), width = unit(0.1, "cm"), 
+      height = unit(0.4, "cm"), just = c("right", "bottom")))
+      draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
+    popViewport()
 
   } else {
 
@@ -973,6 +1005,16 @@ png(
             gp = gpar(lwd = 1, col = "#383838"))
           grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
             unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+          if (e==1) {
+            grid.text(names(chr_data$lab_pos)[e], chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+          } else if (e==21) {
+            grid.text(paste0("\n", gsub("chr", "", names(chr_data$lab_pos)[e])), chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+          } else {
+            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))        
+          }
         }
       })
     popViewport()
@@ -1149,63 +1191,100 @@ if (sim_name != "normal" | sim_name != "filtered_normal") {
   signal_plot <- ggplotGrob(p)
   dev.off()
   
-#  ######
-#
-#  p <- ggplot(area_df, aes(x=index, y=average_score, fill = type))
-#  p <- p + scale_x_continuous(
-#    limits = c(
-#      0,length(log_modified_fold_change_df$count)
-#    ), 
-#    expand = c(0, 0),
-#    breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
-#    labels = stag_lab
-#  )
-#  p <- p + scale_y_continuous(
-#    limits = c(-0.09, 0.09),
-#    sec.axis = sec_axis(
-#      ~., 
-#      "Copy number\nfold change", 
-#      breaks = c(-0.08, 0, 0.08),
-#      labels = c("Total\nloss", "1", "3")
-#    )
-#  )
-#  for (c_end in chr_data$ends) {
-#    p <- p + geom_vline(xintercept=c_end)
-#  }
-#  p <- p + theme_cowplot(12)
-#  p <- p + theme(
-#    axis.title.x = element_text(size=25, margin = margin(t = 20, r = 0, b = 0, l = 0)),
-#    axis.text.x = element_text(size=18, margin = margin(t = 70, r = 0, b = 0, l = 0)),
-#    axis.ticks.x = element_blank(),
-#    #axis.title.x = element_blank(),
-#    #axis.text.x = element_blank(),
-#    axis.text.y = element_text(size=24),
-#    axis.title.y = element_text(size=25, margin = margin(t = 0, r = 30, b = 0, l = 0)),
-#    axis.title.y.right = element_text(size=25, margin = margin(t = 0, r = 0, b = 0, l = 0)),
-#    legend.position = "none"
-#  )
-#  p <- p + ylab("Mean CNV signal")
-#  p <- p + xlab("CNV length (genes)")
-#  
-#  # convert barplot to grid object:
-#  mock_signal_plot <- ggplotGrob(p)
-#  dev.off()
+  # write legend functions:
+  true_pos_neg_false_pos_neg_legend <- function() {
+    # plot legend text:
+    pushViewport(viewport(x = 0.48, y = 0.87, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+        grid.text("true positive", gp=gpar(fontsize=18))
+    popViewport()
+    pushViewport(viewport(x = 0.5, y = 0.655, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.text("true negative", gp=gpar(fontsize=18))
+    popViewport()
+    pushViewport(viewport(x = 0.5, y = 0.435, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.text("false positive", gp=gpar(fontsize=18))
+    popViewport()
+    pushViewport(viewport(x = 0.52, y = 0.215, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.text("false negative", gp=gpar(fontsize=18))
+    popViewport()
+    
+    # plot legend squares:
+    pushViewport(viewport(x = 0, y = 0.81, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
+              just = c("left", "bottom"), gp=gpar(col = "#430F82", fill = "#430F82"))
+    popViewport()
+    pushViewport(viewport(x = 0, y = 0.595, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
+                just = c("left", "bottom"), gp=gpar(col = "#B488B4", fill = "#B488B4"))
+    popViewport()
+    pushViewport(viewport(x = 0, y = 0.38, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
+              just = c("left", "bottom"), gp=gpar(col = "#F6DC15", fill = "#F6DC15"))
+    popViewport()
+    pushViewport(viewport(x = 0, y = 0.165, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
+              just = c("left", "bottom"), gp=gpar(col = "#7CBA61", fill = "#7CBA61"))
+    popViewport()
+  }
 
-#  ######
-#  png(
-#    paste0(plot_dir, "signal_plot.png"), 
-#    height = 8, 
-#    width = 20,
-#    res = 300,
-#    units = "in"
-#  )
-#    grid.newpage()
-#      pushViewport(viewport(x = 0.027, y = 0.001, width = 0.964, height = 0.9, 
-#        just = c("left", "bottom")))
-#        grid.draw(signal_plot)
-#      popViewport()
-#  dev.off()
-  
+  true_pos_false_pos_wrong_legend <- function() {
+    # plot legend text:
+    pushViewport(viewport(x = 0.48, y = 0.87, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+        grid.text("true positive", gp=gpar(fontsize=18))
+    popViewport()
+    pushViewport(viewport(x = 0.5, y = 0.655, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.text("false positive", gp=gpar(fontsize=18))
+    popViewport()
+    pushViewport(viewport(x = 0.43, y = 0.435, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.text("wrong call", gp=gpar(fontsize=18))
+    popViewport()
+    
+    # plot legend squares:
+    pushViewport(viewport(x = 0, y = 0.81, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
+              just = c("left", "bottom"), gp=gpar(col = "#430F82", fill = "#430F82"))
+    popViewport()
+    pushViewport(viewport(x = 0, y = 0.595, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
+                just = c("left", "bottom"), gp=gpar(col = "#F6DC15", fill = "#F6DC15"))
+    popViewport()
+    pushViewport(viewport(x = 0, y = 0.38, 
+                          width = unit(1, "cm"), height = unit(0.5, "cm"), 
+                          just = c("left")))
+      grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
+              just = c("left", "bottom"), gp=gpar(col = "#C02456", fill = "#C02456"))
+    popViewport()
+  }
+
+  # determine accuracy calls present:
+  all_accuracy <- unique(CNV_accuracy_df$accuracy_call)
+  all_accuracy <- paste0(all_accuracy[order(all_accuracy)], collapse = "_")
+
   # add accuracy annotation to barplot:
   png(
     paste0(plot_dir, "signal_vs_simulated_CNV_plot.png"), 
@@ -1240,54 +1319,11 @@ if (sim_name != "normal" | sim_name != "filtered_normal") {
                         just = c("left", "bottom")))
   
         #grid.rect()
-        
-        # plot legend text:
-        pushViewport(viewport(x = 0.48, y = 0.87, 
-                              width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                              just = c("left")))
-            grid.text("true positive", gp=gpar(fontsize=18))
-        popViewport()
-        pushViewport(viewport(x = 0.5, y = 0.655, 
-                              width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                              just = c("left")))
-          grid.text("true negative", gp=gpar(fontsize=18))
-        popViewport()
-        pushViewport(viewport(x = 0.5, y = 0.435, 
-                              width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                              just = c("left")))
-          grid.text("false positive", gp=gpar(fontsize=18))
-        popViewport()
-        pushViewport(viewport(x = 0.52, y = 0.215, 
-                              width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                              just = c("left")))
-          grid.text("false negative", gp=gpar(fontsize=18))
-        popViewport()
-        
-        # plot legend squares:
-        pushViewport(viewport(x = 0, y = 0.81, 
-                              width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                              just = c("left")))
-          grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-                  just = c("left", "bottom"), gp=gpar(col = "#430F82", fill = "#430F82"))
-        popViewport()
-        pushViewport(viewport(x = 0, y = 0.595, 
-                              width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                              just = c("left")))
-          grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-                    just = c("left", "bottom"), gp=gpar(col = "#B488B4", fill = "#B488B4"))
-        popViewport()
-        pushViewport(viewport(x = 0, y = 0.38, 
-                              width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                              just = c("left")))
-          grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-                  just = c("left", "bottom"), gp=gpar(col = "#F6DC15", fill = "#F6DC15"))
-        popViewport()
-        pushViewport(viewport(x = 0, y = 0.165, 
-                              width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                              just = c("left")))
-          grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-                  just = c("left", "bottom"), gp=gpar(col = "#7CBA61", fill = "#7CBA61"))
-        popViewport()
+        if (all_accuracy == "false_positive_true_positive_wrong_call") {
+          true_pos_false_pos_wrong_legend()
+        } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive_wrong_call") {
+          true_pos_neg_false_pos_neg_legend()
+        }
       
       popViewport()
   

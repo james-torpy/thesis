@@ -1,7 +1,7 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_define_denoising_value"
+subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
 analysis_mode <- args[2]
@@ -9,14 +9,18 @@ sim_names <- args[3]
 denoise_values <- args[4]
 ignore_denoising <- as.numeric(args[5])
 
-#project_name <- "thesis"
-#subproject_name <- "Figure_2.2_define_denoising_value"
-#args = commandArgs(trailingOnly=TRUE)
-#sample_name <- "CID4520N"
-#analysis_mode <- "samples"
+project_name <- "thesis"
+subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
+args = commandArgs(trailingOnly=TRUE)
+sample_name <- "CID4520N"
+analysis_mode <- "samples"
+sim_names <- paste0(
+  "filtered_normal.",
+  paste0("sim", 1:30, collapse = ".")
+)
 #sim_names <- "filtered_normal.sim1"
-#denoise_values <- "no_0.5_1_1.1_1.2_1.3_1.4_1.5_2"
-#ignore_denoising <- as.numeric("2")
+denoise_values <- "no_0.5_1_1.1_1.2_1.3_1.4_1.5"
+ignore_denoising <- as.numeric("2")
 
 # split multi-element variable vectors:
 sim_names <- unlist(
@@ -61,7 +65,8 @@ func_dir <- paste0(project_dir, "scripts/functions/")
 in_path <- paste0(results_dir, "infercnv/", sample_name, "/")
 
 out_dir <- paste0(in_path, "denoising_results/")
-system(paste0("mkdir -p ", out_dir))
+table_dir <- paste0(out_dir, "tables/")
+system(paste0("mkdir -p ", table_dir))
 
 
 #######################################################################################
@@ -277,6 +282,15 @@ accuracy_mean_df$metric <- factor(
   levels = c("sensitivity", "specificity", "precision", "F1")
 )
 
+write.table(
+  accuracy_mean_df,
+  paste0(table_dir, "mean_accuracy_values.txt"),
+  sep = "\t",
+  quote = F,
+  col.names = T,
+  row.names = F
+)
+
 sim_cols <- c("#58B9DB", "#D95F02", "#F4D30B", "#B066B2")
 p <- ggplot(
   accuracy_mean_df, 
@@ -449,49 +463,4 @@ png(
 )
   print(p)
 dev.off()
-
-
-#######################################################################################
-### 6. Plot normal CNV score and F1 score ###
-#######################################################################################
-
-plot_scores <- all_score[
-  all_score$metric %in% c("CNV_score", "F1"),
-]
-
-cols_2 <- c("#C02456", "#B066B2")
-p <- ggplot(
-  plot_scores, 
-  aes(
-  	x = denoise_value, 
-  	y = mean, 
-  	group = metric, 
-  	color = metric
-  )
-)
-p <- p + geom_line()
-p <- p + geom_errorbar(
-  aes(ymin=mean-SE, ymax=mean+SE), 
-  width=.1
-)
-p <- p + scale_y_continuous(sec.axis = sec_axis(~ . / 20, name = "Normal breast noise"))
-p <- p + scale_color_manual(values=cols_2, labels=c("Noise score", "F1 score"))
-p <- p + xlab("Denoising range (SD from mean)")
-p <- p + ylab("Cancer simulation accuracy score")
-
-pdf(
-  paste0(out_dir, "CNV_F1_denoising_results.pdf"), 
-  width = 7, height = 5
-)
-  print(p)
-dev.off()
-
-png(
-  paste0(out_dir, "CNV_F1_denoising_results.png"), 
-  width = 7, height = 5, unit = "in", res = 300
-)
-  print(p)
-dev.off()
-
-print(paste0("All output plots in ", out_dir))
 

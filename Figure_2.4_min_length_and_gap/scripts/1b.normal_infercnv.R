@@ -3,7 +3,7 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.3_min_length_and_gap"
+subproject_name <- "Figure_2.4_min_length_and_gap"
 sample_name <- args[1]
 print(paste0("Sample name = ", sample_name))
 numcores <- as.numeric(args[2])

@@ -28,6 +28,7 @@ print(paste0("Sample name = ", sample_name))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(data.table)
+library(BSgenome.Hsapiens.UCSC.hg38, lib.loc = lib_loc)
 library(ggplot2)
 library(RColorBrewer)
 library(ComplexHeatmap, lib.loc=lib_loc)

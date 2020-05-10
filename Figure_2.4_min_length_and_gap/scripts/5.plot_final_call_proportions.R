@@ -3,7 +3,7 @@
 RStudio <- FALSE
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.3_min_length_and_gap"
+subproject_name <- "Figure_2.4_min_length_and_gap"
 print(paste0("Subproject name = ", subproject_name))
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
@@ -66,6 +66,11 @@ if (t_cells_included) {
 plot_dir <- paste0(in_path, "final_plots/")
 system(paste0("mkdir -p ", plot_dir))
 
+
+################################################################################
+### 1. Load calls, combine and format for plotting ###
+################################################################################
+
 # create list to process CNV, gain_gap and loss_gap data in parallel :
 type_list <- list("CNV", "gain_gap", "loss_gap")
 
@@ -87,11 +92,9 @@ for (i in 1:length(simulation_numbers)) {
         as.is = T
       )
 
-      ######
       # replace call entries with underscored 'feature' calls if needed:
       calls$call <- gsub("CNV|gap", "feature", calls$call)
       calls$call <- gsub(" ", "_", calls$call)
-      ######
 
     } else {
 
@@ -104,17 +107,15 @@ for (i in 1:length(simulation_numbers)) {
         header = T,
         as.is = T
       )
-      ######
       # reorder columns if needed:
       calls <- data.frame(
         length = calls$length,
         call = calls$call
       )
-      ######
+
       # replace call entries with underscored 'feature' calls if needed:
       calls$call <- gsub("CNV|gap", "feature", calls$call)
       calls$call <- gsub(" ", "_", calls$call)
-      ######
 
     }
   
@@ -231,8 +232,27 @@ cols <- rep(
 for (e in 1:length(correct_call_proportions)) {
   correct_call_proportions[[e]]$type <- names(correct_call_proportions)[e]
 }
-CNV_plot_df <- do.call("rbind", correct_call_proportions[1:2])
 
+
+################################################################################
+### 2. Plot CNV length vs calls ###
+################################################################################
+
+CNV_plot_df <- do.call("rbind", correct_call_proportions[1:2])
+CNV_plot_df$type <-  gsub("_", " ", CNV_plot_df$type)
+CNV_plot_df$correct_calls <- round(CNV_plot_df$correct_calls, 0)
+
+# add a small value to one line where both lines have same value:
+same_value_index <- CNV_plot_df$correct_calls[
+  CNV_plot_df$type == "gain CNV"
+] == CNV_plot_df$correct_calls[
+  CNV_plot_df$type == "loss CNV"
+]
+CNV_plot_df$correct_calls[CNV_plot_df$type == "gain CNV"][
+  same_value_index
+] <- CNV_plot_df$correct_calls[CNV_plot_df$type == "gain CNV"][
+  same_value_index
+] + 0.4
 
 col <- cols[1:2]
 p <- ggplot(
@@ -245,18 +265,11 @@ p <- p + geom_errorbar(
   width=.2
 )
 p <- p + scale_color_manual(values = col)
-if (length(grep("CNV", names(correct_call_proportions)[n])) > 0) {
-  p <- p + xlab("CNV length")
-  p <- p + ylab(
-    paste0("Correct detections (% of total CNV number)")
-  )
-} else {
-  p <- p + xlab("Gap length")
-  p <- p + ylab(
-    paste0("Correct detections (% of total gap number)")
-  )
-}
-  
+p <- p + xlab("CNV length")
+p <- p + ylab(
+  paste0("Correct detections (% of total CNV number)")
+)
+ 
 pdf(
   paste0(
     plot_dir, "proportion_correct_calls_for_CNVs.pdf"), 
@@ -274,25 +287,55 @@ png(
 dev.off()
 
 
+################################################################################
+### 3. Plot CNV length vs calls ###
+################################################################################
 
+gap_plot_df <- do.call("rbind", correct_call_proportions[3:4])
+gap_plot_df$type <-  gsub("_", " ", gap_plot_df$type)
 
-#p <- ggplot(
-#  plot_scores, 
-#  aes(
-#    x = denoise_value, 
-#    y = mean, 
-#    group = metric, 
-#    color = metric
-#  )
-#)
-#p <- p + geom_line()
-#p <- p + geom_errorbar(
-#  aes(ymin=mean-SE, ymax=mean+SE), 
-#  width=.1
-#)
-#p <- p + scale_y_continuous(sec.axis = sec_axis(~ . / 20, name = "Normal breast noise"))
-#p <- p + scale_color_manual(values=cols_2, labels=c("CNV score", "Recall", "Precision"))
-#p <- p + xlab("Denoising range (SD from mean)")
-#p <- p + ylab("Cancer simulation accuracy score")
+# add a small value to one line where both lines have same value:
+same_value_index <- gap_plot_df$correct_calls[
+  gap_plot_df$type == "gain gap"
+] == gap_plot_df$correct_calls[
+  gap_plot_df$type == "loss gap"
+]
+gap_plot_df$correct_calls[gap_plot_df$type == "gain gap"][
+  same_value_index
+] <- gap_plot_df$correct_calls[gap_plot_df$type == "gain gap"][
+  same_value_index
+] + 0.4
 
+col <- cols[1:2]
+p <- ggplot(
+  gap_plot_df, 
+  aes(x = length, y = correct_calls, group = type, color = type)
+) 
+p <- p + geom_line()
+p <- p + geom_errorbar(
+  aes(ymin=correct_calls-SE, ymax=correct_calls+SE), 
+  width=.2
+)
+p <- p + scale_color_manual(values = col)
+
+p <- p + xlab("Gap length")
+p <- p + ylab(
+  paste0("Correct detections (% of total gap number)")
+)
+  
+pdf(
+  paste0(
+    plot_dir, "proportion_correct_calls_for_gaps.pdf"), 
+  width = 7, height = 5
+)
+  print(p)
+dev.off()
+
+png(
+  paste0(
+    plot_dir, "proportion_correct_calls_for_gaps.png"), 
+  width = 7, height = 5, units = "in", res = 300
+)
+  print(p)
+dev.off()
 

@@ -40,37 +40,27 @@ print(paste0("T-cells included = ", t_cells_included))
 analysis_mode <- args[11]
 print(paste0("Analysis mode = ", analysis_mode))
 
-#project_name <- "thesis"
-#subproject_name <- "Figure_2.4_min_length_and_gap"
-#sample_name <- "CID4520N"
-#nUMI_threshold <- 25000
-#nGene_threshold <- 5000
-#gap_or_CNV <- "CNV"
-#CNV_type <- "both"
-### range of lengths of CNVs/gaps:
-##feature_lengths <- as.numeric(
-##  unlist(
-##    strsplit(
-##      "400_300_200_150_125_100_75_50_40_30_20_15_10_5",
-##      split = "_"
-##    )
-##  )
-##)
-#######
-#feature_lengths <- as.numeric(
-#  unlist(
-#    strsplit(
-#      "400_150_10",
-#      split = "_"
-#    )
-#  )
-#)
-######
-#gap_CNV_length <- 100
-#simulation_number <- 1
-#noise_cell_no <- 5000
-#t_cells_included <- TRUE
-#analysis_mode <- "samples"
+project_name <- "thesis"
+subproject_name <- "Figure_2.4_min_length_and_gap"
+sample_name <- "CID4520N"
+nUMI_threshold <- 25000
+nGene_threshold <- 5000
+gap_or_CNV <- "CNV"
+CNV_type <- "both"
+# range of lengths of CNVs/gaps:
+feature_lengths <- as.numeric(
+  unlist(
+    strsplit(
+      "400_300_200_150_125_100_75_50_40_30_20_15_10_5",
+      split = "_"
+    )
+  )
+)
+gap_CNV_length <- 100
+simulation_number <- 1
+noise_cell_no <- 5000
+t_cells_included <- TRUE
+analysis_mode <- "samples"
 
 RStudio <- FALSE
 
@@ -87,6 +77,7 @@ library(naturalsort, lib.loc = lib_loc)
 library(splatter, lib.loc = lib_loc)
 library(ggplot2)
 library(org.Hs.eg.db)
+library(grid)
 
 if (RStudio) {
   home_dir <- "/Users/jamestorpy/clusterHome/"
@@ -638,9 +629,9 @@ if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_me
     expand = c(0, 0)
   )
   p <- p + scale_y_continuous(
-    breaks = c(-4, -3, -2, -1, 0, 1),
-    labels = c("-4", "-3", "-2", "-1", "0", "1"),
-    limits = c(-3, 1)
+    breaks = c(-3, -2, -1, 0, 1, 2, 3),
+    labels = c("-3", "-2", "-1", "0", "1", "2", "3"),
+    limits = c(-4, 4)
   )
   for (end in chromosome_ends) {
     p <- p + geom_vline(xintercept=end)
@@ -693,9 +684,9 @@ if (!file.exists(paste0(plot_dir, "2b.pre_noise_log_modified_fold_change_from_me
   )
   p <- p + ylab("Log10 fold change")
   p <- p + scale_y_continuous(
-    breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-    labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-    limits = c(min(CNV_data$log_modified_fold_change_df$count), max(CNV_data$log_modified_fold_change_df$count))
+    breaks = c(-3, -2, -1, 0, 1, 2, 3),
+    labels = c("-3", "-2", "-1", "0", "1", "2", "3"),
+    limits = c(-3, 3)
   )
   for (end in chromosome_ends) {
     p <- p + geom_vline(xintercept=end)
@@ -1142,12 +1133,9 @@ if (
     expand = c(0, 0)
   )
   p <- p + scale_y_continuous(
-      breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-      labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-      limits = c(
-        min(noised_CNV_data$log_modified_fold_change_df$count), 
-        max(noised_CNV_data$log_modified_fold_change_df$count)
-      )
+      breaks = c(-3, -2, -1, 0, 1, 2, 3),
+      labels = c("-3", "-2", "-1", "0", "1", "2", "3"),
+      limits = c(-3, 3)
     )
   for (end in chromosome_ends) {
     p <- p + geom_vline(xintercept=end)
@@ -1272,17 +1260,148 @@ if (!file.exists(paste0(out_dir, "input_matrix.txt"))) {
 
 
 ################################################################################
-### 12. Convert PDF to PNG ###
+### 12. Plot normal and simulated expression together ###
 ################################################################################
 
-#system(paste0("for p in ", plot_dir, 
-#  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-#  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-#  "convert -density 150 ", plot_dir, "$f -quality 90 ", 
-#  plot_dir, "$new; done"))
-#system(paste0("for p in ", noise_dir, 
-#  "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-#  "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-#  "convert -density 150 ", noise_dir, "$f -quality 90 ", 
-#  noise_dir, "$new; done"))
+# replot normal expression profile without x-axis text/title:
+p <- ggplot(log_original_fold_change_df, aes(x=number, y=count))
+p <- p + geom_point(colour = "#E8D172")
+p <- p + xlab("Genomic location")
+#p <- p + xlim(c(0, nrow(centered_original_counts_df)))
+p <- p + scale_x_continuous(
+  breaks = unlist(chromosome_midpoints),
+  labels = c("chr1", 2:length(chromosome_midpoints)),
+  #limits = c(0,nrow(centered_original_counts_df)), 
+  expand = c(0, 0)
+)
+p <- p + ylab("Log10 fold change from median")
+if (gap_or_CNV == "CNV") {
+  p <- p + scale_y_continuous(
+    breaks = c(-3, 0, 3),
+    labels = c("-3", "0", "3"),
+    limits = c(-3, 3)
+  )
+} else {
+  p <- p + scale_y_continuous(
+    breaks = c(-1.5, 0, 1.5),
+    labels = c("-1.5", "0", "1.5"),
+    limits = c(-1.5, 1.5)
+  )
+}
+for (end in chromosome_ends) {
+  p <- p + geom_vline(xintercept=end)
+}
+p <- p + geom_segment(
+  x=0, 
+  xend=max(unlist(chromosome_ends)), 
+  y=log_median_original_fold_change, 
+  yend=log_median_original_fold_change, 
+  size=1, color="red"
+)
+p <- p + theme(
+  axis.text.x=element_blank(),
+  axis.ticks.x=element_blank(),
+  axis.title.x = element_blank(),
+  axis.text.y=element_text(size = 30),
+  axis.title.y = element_blank()
+)
+normal_grid <- ggplotGrob(p)
+dev.off()
+
+# replot sim expression profile:
+p <- ggplot(
+  noised_CNV_data$log_modified_fold_change_df, aes(x=number, y=count)
+)
+p <- p + geom_point(colour = "#E8D172")
+p <- p + xlab("Genomic location")
+p <- p + scale_x_continuous(
+  breaks = unlist(chromosome_midpoints),
+  labels = c("chr1", 2:20, "\n21", 22),
+  limits = c(0,nrow(noised_CNV_data$log_modified_fold_change_df)), 
+  expand = c(0, 0)
+)
+p <- p + ylab("Log10 fold change")
+if (gap_or_CNV == "CNV") {
+  p <- p + scale_y_continuous(
+    breaks = c(-3, 0, 3),
+    labels = c("-3", "0", "3"),
+    limits = c(-3, 3)
+  )
+} else {
+  p <- p + scale_y_continuous(
+    breaks = c(-1.5, 0, 1.5),
+    labels = c("-1.5", "0", "1.5"),
+    limits = c(-1.5, 1.5)
+  )
+}
+for (end in chromosome_ends) {
+  p <- p + geom_vline(xintercept=end)
+}
+for (r in 1:nrow(noised_CNV_data$CNV_record)) {
+  print(r)
+  # create horizontal line:
+  p <- p + geom_segment(
+    x=noised_CNV_data$CNV_record$start[r], 
+    xend=noised_CNV_data$CNV_record$end[r], 
+    y=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
+    yend=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
+    size=1, color="red"
+  )
+  # create left vertical line:
+  if (r != 1) {
+    p <- p + geom_segment(
+      x=noised_CNV_data$CNV_record$start[r], 
+      xend=noised_CNV_data$CNV_record$start[r], 
+      y=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r-1], 
+      yend=noised_CNV_data$CNV_record$log_median_modified_FC_post_noise[r], 
+      size=1, color="red"
+    )
+  }
+}
+p <- p + theme(
+  axis.text.x=element_text(size = 27),
+  axis.ticks.x=element_blank(),
+  axis.text.y=element_text(size = 30),
+  axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0), size = 32),
+  axis.title.y = element_blank()
+)
+sim_grid <- ggplotGrob(p)
+dev.off()
+
+# plot together:
+png(
+  paste0(plot_dir, "normal_vs_sim_expression_plot.png"), 
+  height = 12, 
+  width = 23,
+  res = 300,
+  units = "in"
+)   
+  grid.newpage()
+    pushViewport(viewport(x = 0.57, y = 0.73, width = 0.84, height = 0.43))
+      #grid.rect()
+      grid.draw(normal_grid)
+    popViewport()
+    pushViewport(viewport(x = 0.57, y = 0.25, width = 0.84, height = 0.5))
+      #grid.rect()
+      grid.draw(sim_grid)
+    popViewport()
+    
+    # draw label text:
+    pushViewport(viewport(x = 0.07, y = 0.75, width = 0.13, height = 0.2, just = "right"))
+      #grid.rect()
+      grid.text("Normal\nbreast", gp=gpar(fontsize=33, fontface = "bold"), just = "left")
+    popViewport()
+  
+    pushViewport(viewport(x = 0.07, y = 0.29, width = 0.13, height = 0.2, just = "right"))
+      #grid.rect()
+      grid.text("CNV\nsimulation", gp=gpar(fontsize=33, fontface = "bold"), just = "left")
+    popViewport()
+
+    pushViewport(viewport(x = 0.14, y = 0.52, width = 0.01, height = 0.7, just = "right"))
+      #grid.rect()
+      grid.text("Fold change from median", gp=gpar(fontsize=30), rot = 90)
+    popViewport()
+
+dev.off()
+
 

@@ -21,8 +21,8 @@ min_CNV_proportion <- as.numeric(args[10])
 #neutral_signal_range <- unlist(strsplit("0.97_1.03", split = "_"))
 #nUMI_threshold <- 25000
 #nGene_threshold <- 5000
-#gap_or_CNV <- "CNV"
-#CNV_type <- "both"
+#gap_or_CNV <- "gap"
+#CNV_type <- "gain"
 #min_CNV_proportion <- as.numeric("0.5")
 
 print(paste0("Subproject name = ", subproject_name))
@@ -318,8 +318,6 @@ log_modified_fold_change_df <- log_modified_fold_change_df[
 feature_indices$length <- (feature_indices$end - feature_indices$start)
 feature_indices$midpoints <- feature_indices$start + floor(feature_indices$length/2)
 feature_indices$number <- seq_along(feature_indices$start)
-feature_indices$ticks <- "exclude"
-feature_indices$ticks[feature_indices$multiplier != 1] <- "include"
 
 # fetch chromosome boundary co-ordinates:
 if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
@@ -362,91 +360,7 @@ if ( !("start_chr" %in% colnames(feature_indices)) ) {
 
 
 ################################################################################
-### 4. Create simulated CNV annotation  ###
-################################################################################
-
-# stagger CNV/gap labels:
-stag_lab <- feature_indices$length[feature_indices$ticks == "include"]
-stag_lab[c(FALSE, TRUE)] <- paste0("\n", stag_lab[c(FALSE, TRUE)])
-# create CNV annotation based on fold change CNV:
-p <- ggplot(log_modified_fold_change_df, 
-  aes(x=number, y=count))
-p <- p + scale_x_continuous(
-  limits = c(
-    0,length(log_modified_fold_change_df$count)
-  ), 
-  expand = c(0, 0),
-  breaks = feature_indices$midpoints[feature_indices$ticks == "include"],
-  labels = stag_lab
-)
-p <- p + scale_y_continuous(
-  breaks = c(0, 1, 2, 3),
-  limits = c(
-    min(CNV_indices$multiplier), 
-    max(CNV_indices$multiplier)
-  ),
-  labels = c("Total\nloss", "1", "2", "3")
-)
-for (c_end in chr_data$ends) {
-  p <- p + geom_vline(xintercept=c_end)
-}
-for (r in 1:nrow(CNV_indices)) {
-  # create horizontal line:
-  p <- p + geom_segment(
-    x=CNV_indices$start[r], 
-    xend=CNV_indices$end[r], 
-    y=CNV_indices$multiplier[r], 
-    yend=CNV_indices$multiplier[r], 
-    size=1, color="#430F82"
-  )
-
-  # create left vertical line:
-  if (r != 1) {
-    p <- p + geom_segment(
-      x=CNV_indices$start[r], 
-      xend=CNV_indices$start[r], 
-      y=CNV_indices$multiplier[r-1], 
-      yend=CNV_indices$multiplier[r], 
-      size=1, color="#430F82"
-    )
-  }
-}
-# create 1 line:
-p <- p + geom_segment(
-  x=CNV_indices$start[1],
-  xend=CNV_indices$end[
-    nrow(CNV_indices)
-  ],
-  y=1,
-  yend=1
-)
-# create axis titles:
-p <- p + ylab("Copy number\nfold change")
-if (gap_or_CNV == "CNV") {
-  p <- p + xlab("CNV lengths")
-} else {
-  p <- p + xlab("Gap lengths")
-}
-p <- p + theme(
-  axis.title.x = element_text(size=30, margin = margin(t = 20, r = 0, b = 0, l = 0)),
-  axis.text.x = element_text(size=22),
-  axis.text.y = element_text(size=24),
-  axis.title.y = element_text(size=30, margin = margin(t = 0, r = 30, b = 0, l = 0))
-)
-
-grid_sim_plot <- ggplotGrob(p)
-dev.off()
-
-if (!file.exists(paste0(plot_dir, "sim_CNV_annotation_plot.pdf"))) {
-  pdf(paste0(plot_dir, "sim_CNV_annotation_plot.pdf"),
-    width = 20)
-    grid.draw(grid_sim_plot)
-  dev.off()
-}
-
-
-################################################################################
-### 5. Determine neutral value  ###
+### 4. Determine neutral value  ###
 ################################################################################
 
 # record gain or loss in each genomic segment:
@@ -478,7 +392,7 @@ neutral_value <- as.numeric(
 
 
 ################################################################################
-### 6. Determine accurately called CNVs/gaps ###
+### 5. Determine accurately called CNVs/gaps ###
 ################################################################################
 
 if (gap_or_CNV == "CNV") {
@@ -741,7 +655,96 @@ if (gap_or_CNV == "CNV") {
 
 
 ################################################################################
-### 7. Annotate calls ###
+### 4. Create simulated CNV annotation  ###
+################################################################################
+
+if (gap_or_CNV == "CNV") {
+  feature_indices$ticks[feature_indices$multiplier != 1] <- "include"
+} else {
+  feature_indices$ticks[feature_indices$call != "non-gap"] <- "include"
+}
+
+# stagger CNV/gap labels:
+stag_lab <- feature_indices$length[feature_indices$ticks == "include"]
+stag_lab[c(FALSE, TRUE)] <- paste0("\n", stag_lab[c(FALSE, TRUE)])
+# create CNV annotation based on fold change CNV:
+p <- ggplot(log_modified_fold_change_df, 
+  aes(x=number, y=count))
+p <- p + scale_x_continuous(
+  limits = c(
+    0,length(log_modified_fold_change_df$count)
+  ), 
+  expand = c(0, 0),
+  breaks = feature_indices$midpoints[feature_indices$ticks == "include"],
+  labels = stag_lab
+)
+p <- p + scale_y_continuous(
+  breaks = c(0, 1, 2, 3),
+  limits = c(
+    min(CNV_indices$multiplier), 
+    max(CNV_indices$multiplier)
+  ),
+  labels = c("0", "1", "2", "3")
+)
+for (c_end in chr_data$ends) {
+  p <- p + geom_vline(xintercept=c_end)
+}
+for (r in 1:nrow(CNV_indices)) {
+  # create horizontal line:
+  p <- p + geom_segment(
+    x=CNV_indices$start[r], 
+    xend=CNV_indices$end[r], 
+    y=CNV_indices$multiplier[r], 
+    yend=CNV_indices$multiplier[r], 
+    size=1, color="#430F82"
+  )
+
+  # create left vertical line:
+  if (r != 1) {
+    p <- p + geom_segment(
+      x=CNV_indices$start[r], 
+      xend=CNV_indices$start[r], 
+      y=CNV_indices$multiplier[r-1], 
+      yend=CNV_indices$multiplier[r], 
+      size=1, color="#430F82"
+    )
+  }
+}
+# create 1 line:
+p <- p + geom_segment(
+  x=CNV_indices$start[1],
+  xend=CNV_indices$end[
+    nrow(CNV_indices)
+  ],
+  y=1,
+  yend=1
+)
+# create axis titles:
+p <- p + ylab("Copy number\nfold change")
+if (gap_or_CNV == "CNV") {
+  p <- p + xlab("CNV lengths")
+} else {
+  p <- p + xlab("Gap lengths")
+}
+p <- p + theme(
+  axis.title.x = element_text(size=30, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+  axis.text.x = element_text(size=22),
+  axis.text.y = element_text(size=24),
+  axis.title.y = element_text(size=30, margin = margin(t = 0, r = 30, b = 0, l = 0))
+)
+
+grid_sim_plot <- ggplotGrob(p)
+dev.off()
+
+if (!file.exists(paste0(plot_dir, "sim_CNV_annotation_plot.pdf"))) {
+  pdf(paste0(plot_dir, "sim_CNV_annotation_plot.pdf"),
+    width = 20)
+    grid.draw(grid_sim_plot)
+  dev.off()
+}
+
+################################################################################
+### 6. Annotate calls ###
 ################################################################################
 
 if (gap_or_CNV == "CNV") {
@@ -800,11 +803,22 @@ if (gap_or_CNV == "CNV") {
   call_annot_indices <- feature_indices
   call_annot_indices$call <- gsub("feature", "gap", call_annot_indices$call)
   call_annot_indices$call <- gsub("_", " ", call_annot_indices$call)
+
+  # expand call lengths < 15 genes to 15 genes:
+  for (r in 1:nrow(call_annot_indices)) {
+    if (
+      call_annot_indices$call[r] != "non-CNV" & call_annot_indices$length[r] < 15
+    ) {
+      call_annot_indices$end[r] <- call_annot_indices$start[r] + 14
+      call_annot_indices$start[r+1] <- call_annot_indices$end[r]+1
+    }
+  }
+
   # create annotation of all calls:
   call_annotation_vector <- factor(create_extended_vector(call_annot_indices, "call"))
   levels(call_annotation_vector) <- c("gap called", "gap not called", "non-gap")
 
-  cols <- c("#430F82", "#7CBA61", "#E7E4D3")
+  cols <- c("#7CBA61", "#430F82", "#E7E4D3")
   names(cols) <- levels(call_annotation_vector)
   
   call_annotation <- HeatmapAnnotation(
@@ -815,6 +829,23 @@ if (gap_or_CNV == "CNV") {
       labels_gp = gpar(fontsize = 12))
   )
   call_annotation@name <- "call"
+
+  call_cols <- structure(
+    c("#7CBA61", "#430F82", "#E7E4D3"),
+    names = levels(call_annotation_vector)
+  )
+  call_heatmap <- Heatmap(
+    t(matrix(call_annotation_vector)),
+    name = "call_heatmap",
+    col = call_cols,
+    show_heatmap_legend = FALSE
+  )
+  call_heatmap@name <- "call_heatmap"
+
+  call_heatmap_obj <- grid.grabExpr(
+    draw(call_heatmap, heatmap_legend_side = "left")
+  )
+  dev.off()
 
 }
 
@@ -835,6 +866,19 @@ heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)),
       c("#00106B", "white", "#680700"), space = "sRGB")
 print("Generating final heatmap...")
 
+# generate heatmap legend:
+signal_ranges <- round(range(unlist(plot_object)), 1)
+lgd <- Legend(
+  at = c(signal_ranges[1], 1, signal_ranges[2]),
+  col_fun = heatmap_cols, 
+  title = "CNV\nscore", 
+  direction = "horizontal",
+  grid_height = unit(2.5, "cm"),
+  grid_width = unit(0.1, "cm"),
+  labels_gp = gpar(fontsize = 22),
+  title_gp = gpar(fontsize = 28, fontface = "plain")
+)
+
 final_heatmap_annotated <- Heatmap(
   plot_object, name = paste0("hm"), 
   col = heatmap_cols,
@@ -843,12 +887,7 @@ final_heatmap_annotated <- Heatmap(
   #column_names_gp = gpar(col = "white"),
   show_row_dend = F,
   bottom_annotation = call_annotation,
-  heatmap_legend_param = list(title = "CNV\nscore", 
-  at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-  color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-  grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-  title_gp = gpar(fontsize = 18, fontface = "bold"), 
-  labels_gp = gpar(fontsize = 12)),
+  show_heatmap_legend = F,
   use_raster = T, raster_device = c("png")
 )
 
@@ -892,6 +931,12 @@ if (gap_or_CNV == "CNV") {
           unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
       }
     })
+  popViewport()
+
+  # plot legend:
+  pushViewport(viewport(x = unit(2, "cm"), y = unit(14.5, "cm"), width = unit(0.1, "cm"), 
+    height = unit(0.4, "cm"), just = c("right", "bottom")))
+    draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
   popViewport()
 
   pushViewport(viewport(x = x_coord + 0.965, y = 0.05, 
@@ -981,12 +1026,7 @@ final_heatmap_basic <- Heatmap(
   show_row_names = F, show_column_names = F,
   #column_names_gp = gpar(col = "white"),
   show_row_dend = F,
-  heatmap_legend_param = list(title = "CNV\nscore", 
-  at = c(round(min(na_less_vector), 1), 1, round(max(na_less_vector), 1)),
-  color_bar = "continuous", grid_height = unit(1.5, "cm"), 
-  grid_width = unit(1.5, "cm"), legend_direction = "horizontal",
-  title_gp = gpar(fontsize = 18, fontface = "bold"), 
-  labels_gp = gpar(fontsize = 16)),
+  show_heatmap_legend = F,
   use_raster = T, raster_device = c("png")
 )
 
@@ -1009,17 +1049,16 @@ x_coord <- longest_cluster_name*0.0037
 if (gap_or_CNV == "CNV") {
   png(
     paste0(plot_dir, "infercnv_plot_with_CNV_calls.png"), 
-    height = 14, width = 23, res = 300, units = "in"
+    height = 13, width = 23, res = 300, units = "in"
   )   
 } else {
   png(
     paste0(plot_dir, "infercnv_plot_with_gap_calls.png"), 
-    height = 14, width = 23, res = 300, units = "in"
+    height = 13, width = 23, res = 300, units = "in"
   )   
 }
-  grid.newpage()
-  pushViewport(viewport(x = 0.035, y = 0.22, width = 0.95, height = 0.7, 
-    just = c("left", "bottom")))
+  pushViewport(viewport(x = 0.15, y = 0.3, width = 0.8, height = 0.67, 
+      just = c("left", "bottom")))
     grid.draw(annotated_heatmap)
     decorate_heatmap_body("hm", {
       for ( e in 1:length(chr_data$end_pos) ) {
@@ -1028,6 +1067,9 @@ if (gap_or_CNV == "CNV") {
         if (e==1) {
           grid.text(names(chr_data$lab_pos)[e], chr_data$lab_pos[e], 
           unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+        } else if (e==21) {
+          grid.text(paste0("\n", gsub("chr", "", names(chr_data$lab_pos)[e])), chr_data$lab_pos[e], 
+          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
         } else {
           grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
           unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
@@ -1035,44 +1077,20 @@ if (gap_or_CNV == "CNV") {
         
       }
     })
+#    grid.rect()
   popViewport()
 
-  pushViewport(viewport(x = x_coord + 0.945, y = 0.001, 
-    width = 0.973, height = 0.2, just = c("right", "bottom")))
+  # plot legend:
+  pushViewport(viewport(x = unit(2, "cm"), y = unit(16, "cm"), width = unit(5, "cm"), 
+    height = unit(7, "cm"), just = c("left", "bottom")))
+    #grid.rect()
+    draw(lgd)
+  popViewport()
+
+  pushViewport(viewport(x = 0.082, y = 0.02, 
+      width = 0.87099, height = 0.24, just = c("left", "bottom")))
     grid.draw(grid_sim_plot)
-  popViewport()
-  
-dev.off()
-
-# plot final basic heatmap:
-if (gap_or_CNV == "CNV") {
-  pdf(
-    paste0(plot_dir, "infercnv_plot_with_CNV_calls.pdf"), 
-    height = 13, width = 24
-  )   
-} else {
-  pdf(
-    paste0(plot_dir, "infercnv_plot_with_gap_calls.pdf"), 
-    height = 13, width = 24
-  )   
-}
-  grid.newpage()
-  pushViewport(viewport(x = 0.035, y = 0.22, width = 0.95, height = 0.7, 
-    just = c("left", "bottom")))
-    grid.draw(annotated_heatmap)
-    decorate_heatmap_body("hm", {
-      for ( e in 1:length(chr_data$end_pos) ) {
-        grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
-          gp = gpar(lwd = 1, col = "#383838"))
-        grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
-      }
-    })
-  popViewport()
-
-  pushViewport(viewport(x = x_coord + 0.945, y = 0.001, 
-    width = 0.973, height = 0.2, just = c("right", "bottom")))
-    grid.draw(grid_sim_plot)
+    #grid.rect()
   popViewport()
   
 dev.off()
@@ -1131,7 +1149,7 @@ scaled_CNV_indices$multiplier[
 
 # expand CNVs less than 15 genes long:
 scaled_CNV_indices$length <- scaled_CNV_indices$end-scaled_CNV_indices$start
-scaled_CNV_indices$midpoints = feature_indices$start + floor(feature_indices$length/2)
+scaled_CNV_indices$midpoints = scaled_CNV_indices$start + floor(scaled_CNV_indices$length/2)
 scaled_CNV_indices$keep = TRUE
 
 for (r in 1:nrow(scaled_CNV_indices)) {
@@ -1156,7 +1174,13 @@ for (r in 1:nrow(scaled_CNV_indices)) {
 # calculate midpoints for feature_indices and label those to be included:
 feature_indices$midpoints = feature_indices$start + floor(feature_indices$length/2)
 feature_indices$ticks = "not_include"
-feature_indices$ticks[feature_indices$multiplier != 1] = "include"
+
+if (gap_or_CNV == "CNV") {
+  feature_indices$ticks[feature_indices$multiplier != 1] = "include"
+} else {
+  feature_indices$ticks[feature_indices$call != "non-gap"] = "include"
+}
+
 
 # define colours:
 cols <- c("#F7B7B5", "#76C1C1", "black")
@@ -1195,7 +1219,11 @@ p <- p + theme(
   legend.position = "none"
 )
 p <- p + ylab("Mean CNV signal")
-p <- p + xlab("CNV length (genes)")
+if (gap_or_CNV == "CNV") {
+  p <- p + xlab("CNV length (genes)")
+} else {
+  p <- p + xlab("Gap length (genes)")
+}
 for (c_end in chr_data$ends) {
   p <- p + geom_vline(xintercept=c_end)
 }
@@ -1249,19 +1277,30 @@ png(
 dev.off()
 
 # add accuracy annotation to barplot:
-png(
-  paste0(plot_dir, "signal_vs_simulated_CNV_plot.png"), 
-  height = 8, 
-  width = 20,
-  res = 300,
-  units = "in"
-)   
+if (gap_or_CNV == "CNV") {
+  png(
+    paste0(plot_dir, "signal_vs_simulated_CNV_plot.png"), 
+    height = 8, 
+    width = 20,
+    res = 300,
+    units = "in"
+  )   
+} else {
+  png(
+    paste0(plot_dir, "signal_vs_simulated_gap_plot.png"), 
+    height = 8, 
+    width = 20,
+    res = 300,
+    units = "in"
+  )   
+}
+
   grid.newpage()
-  pushViewport(viewport(x = 0.027, y = 0.001, width = 0.964, height = 0.9, 
+  pushViewport(viewport(x = 0.027, y = 0.01, width = 0.964, height = 0.89, 
     just = c("left", "bottom")))
     grid.draw(signal_plot)
   popViewport()
-  pushViewport(viewport(x = 0.106, y = 0.1675, width = 0.805, height = 0.13, 
+  pushViewport(viewport(x = 0.106, y = 0.1753, width = 0.805, height = 0.13, 
     just = c("left", "bottom")))
     grid.draw(call_heatmap_obj)
   popViewport()
@@ -1279,12 +1318,12 @@ png(
   # draw legend text:
   pushViewport(viewport(x = unit(0.695, "cm"), y = unit(4.6, "cm"), width = 0.1, height = 0.1, 
     just = c("left", "bottom")))
-    grid.text("CNV called", gp=gpar(fontsize=20))
+    grid.text("gap called", gp=gpar(fontsize=20))
   popViewport()
 
   pushViewport(viewport(x = unit(3, "mm"), y = unit(3.4, "cm"), width = 0.1, height = 0.1, 
     just = c("left", "bottom")))
-    grid.text("CNV not", gp=gpar(fontsize=20))
+    grid.text("gap not", gp=gpar(fontsize=20))
   popViewport()
 
   pushViewport(viewport(x = 0.1, y = unit(2.6, "cm"), width = 0.1, height = 0.1, 
@@ -1307,140 +1346,19 @@ png(
 dev.off()
 
 
-  
-  
-
-
-
-
-
-
-
-
-######
-
-
-#png(
-#  paste0(plot_dir, "signal_plot_grid_test.png"), 
-#  height = 8, 
-#  width = 20,
-#  res = 300,
-#  units = "in"
-#)   
-#
-#  grid.newpage()
-#  pushViewport(viewport(x = 0.02, y = 0.1, width = 0.925, height = 0.9, 
-#    just = c("left", "bottom")))
-#    grid.draw(signal_plot)
-#  popViewport()
-#dev.off()
-
-p <- ggplot(area_df, aes(x=index, y=average_score, fill = type))
-p <- p + scale_x_continuous(
-  limits = c(
-    0,length(log_modified_fold_change_df$count)
-  ), 
-  expand = c(0, 0),
-  breaks = feature_indices$midpoints[feature_indices$ticks == "include"],
-  labels = stag_lab
-)
-p <- p + scale_y_continuous(
-  limits = c(-0.09, 0.09),
-  sec.axis = sec_axis(
-    ~., 
-    "Copy number\nfold change", 
-    breaks = c(-0.08, 0, 0.08),
-    labels = c("Total\nloss", "1", "3")
-  )
-)
-p <- p + theme_cowplot(12)
-p <- p + theme(
-  axis.title.x = element_text(size=30, margin = margin(t = 20, r = 0, b = 0, l = 0)),
-  axis.text.x = element_text(size=22, margin = margin(t = 70, r = 0, b = 0, l = 0)),
-  #axis.title.x = element_blank(),
-  #axis.text.x = element_blank(),
-  axis.text.y = element_text(size=24),
-  axis.title.y = element_text(size=30, margin = margin(t = 0, r = 30, b = 0, l = 0)),
-  axis.title.y.right = element_text(size=30, margin = margin(t = 0, r = 0, b = 0, l = 0)),
-  legend.position = "none"
-)
-for (c_end in chr_data$ends) {
-  p <- p + geom_vline(xintercept=c_end)
-}
-p <- p + ylab("Mean CNV signal")
-p <- p + xlab("CNV length (genes)")
-
-
-
-######
-
-# convert barplot to grid object and plot:
-test_plot <- ggplotGrob(p)
-dev.off()
-
-
-test_cols <- structure(
-  c("#7CBA61", "#430F82", "#E7E4D3"),
-  names = levels(test_vec)
-)
-test_heatmap <- Heatmap(
-  t(matrix(test_vec)),
-  name = "call_heatmap",
-  col = test_cols,
-  show_heatmap_legend = FALSE
-)
-test_heatmap@name <- "test_heatmap"
-test_heatmap_obj <- grid.grabExpr(
-  draw(test_heatmap, heatmap_legend_side = "left")
-)
-dev.off()
-
-
-
 
 #######
-## without secondary y axis labels:
-#png(
-#  paste0(plot_dir, "signal_vs_simulated_CNV_plot_test.png"), 
-#  height = 8, 
-#  width = 20,
-#  res = 300,
-#  units = "in"
-#)   
-#  grid.newpage()
-#  pushViewport(viewport(x = 0.02, y = 0.001, width = 0.964, height = 0.9, 
-#    just = c("left", "bottom")))
-#    grid.draw(signal_plot)
-#  popViewport()
-#  pushViewport(viewport(x = 0.039, y = 0.17, width = 0.945, height = 0.13, 
-#    just = c("left", "bottom")))
-#    grid.draw(call_heatmap_obj)
-#  popViewport()
-#  for ( e in 1:length(chr_data$lab_pos) ) {
-#    pushViewport(viewport(x = 0.075 + chr_data$lab_pos[e]/1.135, y = 0.86, width = 0.05, height = 0.05, 
-#      just = c("left", "bottom")))
-#      if (e==1) {
-#        grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=13, fontface = "bold"))
-#      } else {
-#        grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=13, fontface = "bold"))
-#      }
-#    popViewport()
-#  }
-#  pushViewport(viewport(x = 0.8, y = 0.8, width = 0.1, height = 0.01, 
-#    just = c("left", "bottom")))
-#    grid.lines(x = c(0.8,0.9), y = c(0.8, 0.8))
-#  popViewport()
-#
-#dev.off()
-#
-#######
-
-
-
-
-#######
-#
-#
+## mock CNV annotation for positioning:
+#p <- ggplot(log_modified_fold_change_df, 
+#  aes(x=number, y=count))
+#p <- p + scale_x_continuous(
+#  limits = c(
+#    0,length(log_modified_fold_change_df$count)
+#  ), 
+#  expand = c(0, 0),
+#  breaks = feature_indices$midpoints[feature_indices$ticks == "include"],
+#  labels = stag_lab
+#)
 #p <- p + scale_y_continuous(
 #  breaks = c(0, 1, 2, 3),
 #  limits = c(
@@ -1452,36 +1370,7 @@ dev.off()
 #for (c_end in chr_data$ends) {
 #  p <- p + geom_vline(xintercept=c_end)
 #}
-#for (r in 1:nrow(CNV_indices)) {
-#  # create horizontal line:
-#  p <- p + geom_segment(
-#    x=CNV_indices$start[r], 
-#    xend=CNV_indices$end[r], 
-#    y=CNV_indices$multiplier[r], 
-#    yend=CNV_indices$multiplier[r], 
-#    size=1, color="#430F82"
-#  )
 #
-#  # create left vertical line:
-#  if (r != 1) {
-#    p <- p + geom_segment(
-#      x=CNV_indices$start[r], 
-#      xend=CNV_indices$start[r], 
-#      y=CNV_indices$multiplier[r-1], 
-#      yend=CNV_indices$multiplier[r], 
-#      size=1, color="#430F82"
-#    )
-#  }
-#}
-## create 1 line:
-#p <- p + geom_segment(
-#  x=CNV_indices$start[1],
-#  xend=CNV_indices$end[
-#    nrow(CNV_indices)
-#  ],
-#  y=1,
-#  yend=1
-#)
 ## create axis titles:
 #p <- p + ylab("Copy number\nfold change")
 #if (gap_or_CNV == "CNV") {
@@ -1489,60 +1378,53 @@ dev.off()
 #} else {
 #  p <- p + xlab("Gap lengths")
 #}
+#p <- p + theme(
+#  axis.title.x = element_text(size=30, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+#  axis.text.x = element_text(size=22),
+#  axis.text.y = element_text(size=24),
+#  axis.title.y = element_text(size=30, margin = margin(t = 0, r = 30, b = 0, l = 0))
+#)
 #
-#
-#grid_sim_plot <- ggplotGrob(p)
+#grid_sim_mock <- ggplotGrob(p)
 #dev.off()
 #######
+## mock signal plot:
+#p <- ggplot(area_df, aes(x=index, y=average_score, fill = type))
+#p <- p + scale_x_continuous(
+#  limits = c(
+#    0,length(log_modified_fold_change_df$count)
+#  ), 
+#  expand = c(0, 0),
+#  breaks = feature_indices$midpoints[feature_indices$ticks == "include"],
+#  labels = stag_lab
+#)
+#p <- p + scale_y_continuous(
+#  limits = c(-0.09, 0.09),
+#  sec.axis = sec_axis(
+#    ~., 
+#    "Copy number\nfold change", 
+#    breaks = c(-0.08, 0, 0.08),
+#    labels = c("Total\nloss", "1", "3")
+#  )
+#)
+#p <- p + theme_cowplot(12)
+#p <- p + theme(
+#  axis.title.x = element_text(size=30, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+#  axis.text.x = element_text(size=22, margin = margin(t = 70, r = 0, b = 0, l = 0)),
+#  #axis.title.x = element_blank(),
+#  #axis.text.x = element_blank(),
+#  axis.text.y = element_text(size=24),
+#  axis.title.y = element_text(size=30, margin = margin(t = 0, r = 30, b = 0, l = 0)),
+#  axis.title.y.right = element_text(size=30, margin = margin(t = 0, r = 0, b = 0, l = 0)),
+#  legend.position = "none"
+#)
+#p <- p + ylab("Mean CNV signal")
+#p <- p + xlab("CNV length (genes)")
+#for (c_end in chr_data$ends) {
+#  p <- p + geom_vline(xintercept=c_end)
+#}
 #
-#
-#
-#
-#
-#
-## convert barplot to grid object and plot:
-#signal_plot <- ggplotGrob(p)
+## convert barplot to grid object:
+#mock_signal_plot <- ggplotGrob(p)
 #dev.off()
-#png(
-#  paste0(plot_dir, "signal_plot_grid_test.png"), 
-#  height = 8, 
-#  width = 20,
-#  res = 300,
-#  units = "in"
-#)   
-#
-#  grid.newpage()
-#  pushViewport(viewport(x = 0.02, y = 0.28, width = 0.925, height = 0.65, 
-#    just = c("left", "bottom")))
-#    grid.draw(signal_plot)
-#  popViewport()
-#dev.off()
-#
-## add accuracy annotation to barplot:
-#pdf(
-#  paste0(plot_dir, "signal_vs_simulated_CNV_plot.pdf"), 
-#  height = 8, 
-#  width = 20
-#)   
-#
-#  grid.newpage()
-#  pushViewport(viewport(x = 0.02, y = 0.28, width = 0.925, height = 0.65, 
-#    just = c("left", "bottom")))
-#    grid.draw(signal_plot)
-#  popViewport()
-#  pushViewport(viewport(x = 0.004, y = 0.155, width = 0.941, height = 0.15, 
-#    just = c("left", "bottom")))
-#    grid.draw(call_heatmap_obj)
-#  popViewport()
-#  for ( e in 1:length(chr_data$lab_pos) ) {
-#    pushViewport(viewport(x = 0.05 + chr_data$lab_pos[e]/1.155, y = 0.11, width = 0.05, height = 0.05, 
-#      just = c("left", "bottom")))
-#      if (e==1) {
-#        grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=18))
-#      } else {
-#        grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=18))
-#      }
-#    popViewport()
-#  }
-#dev.off()
-#
+#######
