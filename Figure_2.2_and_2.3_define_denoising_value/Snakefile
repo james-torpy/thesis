@@ -15,13 +15,13 @@ R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/b
 
 # define variables:
 #SAMPLES = list(range(1, 31, 1))
-SAMPLES = [3]
+SAMPLES = [1]
 SAMPLES = list(map(str, SAMPLES))
 SAMPLES = ['filtered_normal'] + ['sim' + s for s in SAMPLES]
 samples = [".".join(SAMPLES)]
 
 #DENOISING_VALS = ['no', '0.5', '1', '1.1', '1.2', '1.3', '1.4', '1.5', '2']
-DENOISING_VALS = ['no', '1.3', '2']
+DENOISING_VALS = ['no']
 denoising_vals = "_".join(DENOISING_VALS)
 
 # prepare_normal parameters:
@@ -113,7 +113,7 @@ rule normal_plot_no_denoise:
     output:
         "results/infercnv/CID4520N/normal/no_denoising/samples_mode/" + 
             "plots/infercnv_plot.png"
-    threads: 6
+    threads: 10
     shell:
         "module load briglo/R/3.6.0; " + 
         "mkdir -p logs/plot/normal/no_denoising/samples_mode/; " +
@@ -180,8 +180,8 @@ rule plot:
         "infercnv.png"
     output:
         "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
-            "plots/infercnv_plot.png"
-    threads: 6
+            "Rdata/CNV_data.Rdata"
+    threads: 10
     shell:
         "module load briglo/R/3.6.0; " + 
         "mkdir -p logs/plot/{wildcards.sample}/{wildcards.denoise_val}_denoising/samples_mode/; " +
@@ -205,17 +205,17 @@ rule final_plot:
         ),
         sim_no_denoising = expand(
             "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
-            "plots/infercnv_plot.png",
+            "Rdata/CNV_data.Rdata",
             sample=SAMPLES
         ),
         sim = expand(
         	"results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
-            "plots/infercnv_plot.png",
+            "Rdata/CNV_data.Rdata",
             sample=SAMPLES, denoise_val=DENOISING_VALS
         )
     output:
         "results/infercnv/CID4520N/denoising_results/all_denoising_results.pdf"
-    threads: 6
+    threads: 10
     shell:
         "module load briglo/R/3.6.0; " + 
         "mkdir -p logs/final_plot/samples_mode/; " +

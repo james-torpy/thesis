@@ -9,18 +9,18 @@ sim_names <- args[3]
 denoise_values <- args[4]
 ignore_denoising <- as.numeric(args[5])
 
-project_name <- "thesis"
-subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
-args = commandArgs(trailingOnly=TRUE)
-sample_name <- "CID4520N"
-analysis_mode <- "samples"
-sim_names <- paste0(
-  "filtered_normal.",
-  paste0("sim", 1:30, collapse = ".")
-)
-#sim_names <- "filtered_normal.sim1"
-denoise_values <- "no_0.5_1_1.1_1.2_1.3_1.4_1.5"
-ignore_denoising <- as.numeric("2")
+#project_name <- "thesis"
+#subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
+#args = commandArgs(trailingOnly=TRUE)
+#sample_name <- "CID4520N"
+#analysis_mode <- "samples"
+#sim_names <- paste0(
+#  "filtered_normal.",
+#  paste0("sim", 1:30, collapse = ".")
+#)
+##sim_names <- "filtered_normal.sim1"
+#denoise_values <- "no_0.5_1_1.1_1.2_1.3_1.4_1.5"
+#ignore_denoising <- as.numeric("2")
 
 # split multi-element variable vectors:
 sim_names <- unlist(
