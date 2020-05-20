@@ -9,7 +9,7 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_accuracy_vs_coverage"
+subproject_name <- "Figure_2.5_accuracy_vs_coverage"
 sample_name <- args[1]
 print(paste0("sample name = ", sample_name))
 subset_data <- as.logical(args[2])
@@ -73,7 +73,7 @@ noise_cell_no <- as.numeric(args[12])
 print(paste0("Noise input cell number = ", noise_cell_no))
 
 #project_name <- "thesis"
-#subproject_name <- "Figure_2.2_accuracy_vs_coverage"
+#subproject_name <- "Figure_2.5_accuracy_vs_coverage"
 #sample_name <- "CID4520N"
 #subset_data <- FALSE
 #nUMI_threshold <- 25000
@@ -293,23 +293,13 @@ if (!file.exists(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata")))
       quote = F, col.names = F, row.names = F)
   }
 
-  epithelial_df <- count_df[
-    ,as.character(infercnv_metadata$metadata$cell_ids[grep("pithelial", infercnv_metadata$metadata$cell_type)])
-  ]
-
-  print(
-    paste0(
-      "Dimensions of epithelial df = ", paste(as.character(dim(epithelial_df)), collapse=",")
-    )
-  )
-
   # create density plots of nUMI and nGene:
   QC <- data.frame(
-    row.names = colnames(epithelial_df),
-    nUMI = apply(epithelial_df, 2, sum),
-    nGene = apply(epithelial_df, 2, function(x) length(x[x!=0]))
+    row.names = colnames(count_df),
+    nUMI = apply(count_df, 2, sum),
+    nGene = apply(count_df, 2, function(x) length(x[x!=0]))
   )
-  QC <- QC[colnames(epithelial_df),]
+  QC <- QC[colnames(count_df),]
   nUMI_density_plot <- density(QC$nUMI)
   pdf(paste0(common_plot_dir, "nUMI_density_plot.pdf"))
     plot(nUMI_density_plot, main=NA, xlab = "nUMI")
@@ -338,17 +328,18 @@ if (!file.exists(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata")))
   png(paste0(common_plot_dir, "log10_nGene_density_plot.png"))
     plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
   dev.off()
+  
   # filter out cells with nUMI < nUMI_threshold and nGene < nGene_threshold
   print(paste0("Number of cells before filtering out low coverage: ",
     nrow(QC)))
   cells_to_keep <- rownames(QC)[QC$nUMI > nUMI_threshold & QC$nGene > nGene_threshold]
   print(paste0("Number of cells after filtering out low coverage: ",
     length(cells_to_keep)))
-  epithelial_df <- epithelial_df[
-    ,colnames(epithelial_df) %in% cells_to_keep
+  count_df <- count_df[
+    ,colnames(count_df) %in% cells_to_keep
   ]
-  saveRDS(epithelial_df, paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))
-
+  print(paste0("Number of cells after filtering out low coverage: ",
+    nrow(count_df)))
   
   p <- ggplot(QC, aes(x=nUMI, y=nGene))
   p <- p + geom_point()
@@ -381,6 +372,14 @@ if (!file.exists(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata")))
   png(paste0(common_plot_dir, "log10_total_count_density_plot.png"))
     plot(log_total_count_density_plot, main=NA, xlab = "Total counts")
   dev.off()
+
+  epithelial_df <- count_df[
+    ,as.character(infercnv_metadata$metadata$cell_ids[grep("pithelial", infercnv_metadata$metadata$cell_type)])
+  ]
+
+saveRDS(epithelial_df, paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))
+
+  
   
 } else {
   epithelial_df <- readRDS(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))
@@ -1452,6 +1451,19 @@ if (!file.exists(paste0(no_downsample_dir, "input_matrix.txt"))) {
   quote = F, col.names = F, row.names = F)
 }
 
+# determine nUMI and nGene per cell:
+mean_coverage <- data.frame(
+  downsample_proportion = "no",
+  nUMI = round(mean(apply(nondownsampled_counts_with_noise, 2, sum)), 0),
+  nGene = round(
+    mean(
+      apply(
+        nondownsampled_counts_with_noise, 2, function(x) length(which(x > 0))
+      )
+    ), 0
+  )
+)
+
 
 ################################################################################
 ### 11. Downsample new counts and save ###
@@ -1481,6 +1493,22 @@ if (downsample) {
     )
     print("Total counts after downsampling:")
     print(sum(as.vector(downsampled_counts)))
+
+    # determine nUMI and nGene per cell:
+    mean_coverage <- rbind(
+      mean_coverage,
+      data.frame(
+        downsample_proportion = as.character(proportion),
+        nUMI = round(mean(apply(downsampled_counts, 2, sum)), 0),
+        nGene = round(
+          mean(
+            apply(
+              downsampled_counts, 2, function(x) length(which(x > 0))
+            )
+          ), 0
+        )
+      )
+    )
 
     downsample_dir <- paste0(out_dir, proportion, 
       "_downsampling/input_files/")
@@ -1520,6 +1548,22 @@ if (downsample) {
     print("Total genes after downsampling:")
     print(nrow(gene_downsampled_counts))
 
+    # determine nUMI and nGene per cell:
+    mean_coverage <- rbind(
+      mean_coverage,
+      data.frame(
+        downsample_proportion = paste0(proportion, "_gene"),
+        nUMI = round(mean(apply(gene_downsampled_counts, 2, sum)), 0),
+        nGene = round(
+          mean(
+            apply(
+              gene_downsampled_counts, 2, function(x) length(which(x > 0))
+            )
+          ), 0
+        )
+      )
+    )
+
     gene_downsample_dir <- paste0(out_dir, proportion, 
       "_gene_downsampling/input_files/")
     system(paste0("mkdir -p ", gene_downsample_dir))
@@ -1535,6 +1579,14 @@ if (downsample) {
 
 }
 
+# save mean coverage values:
+write.table(
+  mean_coverage, 
+  paste0(table_dir, "/mean_coverage_values.txt"),
+  sep = "\t",
+  quote = F,
+  col.names = T
+)
 
 ################################################################################
 ### 12. Convert PDF to PNG ###

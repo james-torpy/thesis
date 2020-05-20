@@ -1,0 +1,93 @@
+# Run command:
+# snakemake --reason --cores 100 --cluster "qsub -pe smp 10 -N fig2.4.smk.infercnv -b y -j y -V -P TumourProgression" -j 10
+
+# DAG command:
+# snakemake --dag | dot -Tsvg > dag.svg
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+# define variables:
+#CELLS_TO_REMOVE = list(["No", "Endothelial", "Myeloid_cells", "Endothelial.Myeloid_cells", 
+#    "T_cells", "B_cells.Plasma_cells", "T_cells.B_cells.Plasma_Cells"])
+CELLS_TO_REMOVE = list(["Endothelial", "Myeloid_cells", "Endothelial.Myeloid_cells", "No", "T_cells"])
+#CELLS_TO_REMOVE = list(["No"])
+
+# normal infercnv parameters:
+sample_name = "CID4520N"
+nUMI_threshold = "25000"
+nGene_threshold = "5000"
+analysis_mode = "samples"
+
+# plot normal parameters:
+min_artefact_proportion = "0.5"
+min_artefact_length = "20"
+
+######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/{sample_name}/{analysis_mode}_mode/" + 
+#            "infercnv.12_denoised.png",
+#            sample_name=sample_name, analysis_mode=analysis_mode,
+#            cells_to_remove=CELLS_TO_REMOVE
+#        )
+######
+
+######
+rule all:
+    input:
+        expand(
+        "results/infercnv/{sample_name}/{cells_to_remove}_removed/" +
+        "{analysis_mode}_mode/plots/infercnv_plot.png",
+            sample_name=sample_name, analysis_mode=analysis_mode,
+            cells_to_remove=CELLS_TO_REMOVE
+        )
+#####
+
+
+rule normal_infercnv:
+    input:
+        "raw_files/seurat_objects/{sample_name}/03_seurat_object_processed.Rdata",
+    output:
+        "results/infercnv/{sample_name}/{cells_to_remove}_removed/{analysis_mode}_mode/" + 
+            "infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/infercnv/{sample_name}/{wildcards.cells_to_remove}_removed/{analysis_mode}_mode/; " +
+        "cd logs/infercnv/{sample_name}/{wildcards.cells_to_remove}_removed/{analysis_mode}_mode/; " + 
+        "touch text.txt; " + 
+        "echo {sample_name} {wildcards.cells_to_remove} {analysis_mode} > text.txt; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sample_name}" + 
+        " {threads}" + 
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" + 
+        " {analysis_mode}" +  
+        " {wildcards.cells_to_remove}" +
+        "' ../../../../../scripts/1.normal_infercnv.R"
+
+rule plot_normal:
+    input:
+        "results/infercnv/{sample_name}/{cells_to_remove}_removed/" + 
+        "{analysis_mode}_mode/infercnv.12_denoised.png"
+    output:
+        "results/infercnv/{sample_name}/{cells_to_remove}_removed/{analysis_mode}_mode/plots/" + 
+            "infercnv_plot.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/plot_normal/{wildcards.cells_to_remove}_removed/; " +
+        "cd logs/plot_normal/{wildcards.cells_to_remove}_removed; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {sample_name}" +  
+        " {analysis_mode}" + 
+        " {wildcards.cells_to_remove}" + 
+        " {min_artefact_proportion}" +
+        " {min_artefact_length}" +
+        "' ../../../scripts/2.plot_normal.R"
+
+
+
+

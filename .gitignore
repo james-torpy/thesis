@@ -13,3 +13,11 @@ results/
 *tar.gz
 *md5*
 dag.svg
+<<<<<<< HEAD
+=======
+*.txt
+*.png
+*.pdf
+*infercnv_obj
+*.dag
+>>>>>>> starting_fig_2.7

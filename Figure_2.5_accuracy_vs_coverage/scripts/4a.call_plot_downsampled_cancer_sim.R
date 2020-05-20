@@ -1,7 +1,7 @@
 #!/bin/bash
 
 project_name="thesis"
-subproject_name="Figure_2.2_accuracy_vs_coverage"
+subproject_name="Figure_2.5_accuracy_vs_coverage"
 sample_name="CID4520N_cancer_sim"
 include_t_cells="TRUE"
 downsample_proportions="0.05_0.1_0.15_0.2_0.3_0.4_0.5_0.6_0.7_0.8_0.9_no"

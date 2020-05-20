@@ -3,7 +3,7 @@
 ncores=3
 
 project_name="thesis"
-subproject_name="Figure_2.2_accuracy_vs_coverage"
+subproject_name="Figure_2.5_accuracy_vs_coverage"
 sample_name=CID4520N
 subset_data="FALSE"
 nUMI_threshold="25000"
@@ -33,7 +33,20 @@ for simulation_number in $(seq $start_numbering_from $end_numbering_at)
     echo "Logs are in $log_dir"
     qsub -wd $log_dir -pe smp $ncores -N sim.$simulation_number -b y -j y -V \
       "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/R \
-      CMD BATCH  --no-save '--args $sample_name $subset_data $nUMI_threshold $nGene_threshold $CNV_type $CNV_no_range $CNV_lengths $CNV_multipliers $downsample $downsample_proportions $simulation_number $noise_cell_no' $script_dir/1b.simulate_cancer.R"
+      CMD BATCH  --no-save '--args \
+      $sample_name \
+      $subset_data \
+      $nUMI_threshold \
+      $nGene_threshold \
+      $CNV_type \
+      $CNV_no_range \
+      $CNV_lengths \
+      $CNV_multipliers \
+      $downsample \
+      $downsample_proportions \
+      $simulation_number \
+      $noise_cell_no' \
+      $script_dir/1b.simulate_cancer.R"
     #  /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript --vanilla $script_dir/1b.simulate_cancer.R $sample_name $subset_data $nUMI_threshold $nGene_threshold $CNV_no_range $CNV_lengths $CNV_multipliers $downsample $downsample_proportions $simulation_number $noise_cell_no
 done
 
