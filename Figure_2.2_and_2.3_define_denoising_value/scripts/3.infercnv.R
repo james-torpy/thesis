@@ -16,7 +16,7 @@ denoise_value <- args[5]
 #numcores <- 6
 #analysis_mode <- "samples"
 #sim_name <- "sim7"
-#denoise_value <- "1.5"
+#denoise_value <- "1.3"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))

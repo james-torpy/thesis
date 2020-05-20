@@ -8,12 +8,24 @@ sim_name <- args[2]
 denoise_value <- args[3]
 analysis_mode <- args[4]
 min_CNV_proportion <- as.numeric(args[5])
+print("Minimum CNV proportion = ")
+print(min_CNV_proportion)
+min_CNV_length <- as.numeric(args[5])
+print("Minimum CNV length = ")
+print(min_CNV_length)
 
 #sample_name <- "CID4520N"
-#sim_name <- "sim3"
+#sim_name <- "filtered_normal"
 #denoise_value <- "no"
 #analysis_mode <- "samples"
 #min_CNV_proportion <- as.numeric("0.5")
+#min_CNV_length <- 20
+#copy_no_signal <- "0_-0.0755_0.5_-0.0617_1.5_0.0368_2_0.0566_3_0.0673"
+#temp_signal <- unlist(
+#  strsplit(copy_no_signal, "_")
+#)
+#copy_no_signal <- as.numeric(temp_signal[c(FALSE, TRUE)])
+#names(copy_no_signal) <- temp_signal[c(TRUE, FALSE)]
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -23,6 +35,8 @@ print(paste0("Min. no cells with CNV signal required for CNV calls = ",
   min_CNV_proportion))
 min_CNV_proportion <- as.numeric(min_CNV_proportion)
 
+lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
+library(Repitools, lib.loc = lib_loc)
 library(Seurat)
 library(reshape2)
 library(dplyr)
@@ -30,22 +44,22 @@ library(cowplot)
 library(GenomicRanges)
 library(ggplot2)
 library(data.table)
-  
-lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(Polychrome, lib.loc=lib_loc)
 library(ComplexHeatmap, lib.loc=lib_loc)
 library(circlize, lib.loc = lib_loc)
 library(fpc, lib.loc = lib_loc)
 library(naturalsort, lib.loc = lib_loc)
-  
+
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", 
   project_name, "/", subproject_name, "/")
 ref_dir <- paste0(project_dir, "refs/")
 func_dir <- paste0(project_dir, "scripts/functions/")
-results_dir <- seurat_path <- paste0(project_dir, "results/")
+results_dir <- paste0(project_dir, "results/")
 seurat_dir <- paste0(project_dir, "raw_files/seurat_objects/", 
   sample_name, "/")
+copy_dist_dir <- paste0(results_dir, "/infercnv/", sample_name, 
+  "/distinguish_between_CNV_results/Rdata/")
 
 sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
   "/", sim_name, "/Rdata/")
@@ -55,7 +69,6 @@ general_sim_dir <- paste0(results_dir, "cancer_simulation/", sample_name,
 in_path <- paste0(results_dir, "infercnv/", sample_name, "/", sim_name, "/")
 in_dir <- paste0(in_path, denoise_value, "_denoising/", analysis_mode, 
   "_mode/")
-
 
 Robject_dir <- paste0(in_dir, "Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
@@ -234,7 +247,7 @@ if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
 ### 2. Calculate mean fold difference from CNV-neutral value per cell  ###
 ################################################################################
  
-if (sim_name == "normal" | sim_name == "filtered_normal") {
+if (sim_name == "normal" | sim_name == "filtered_normal" | sim_name == "real_cancer") {
  
   # determine neutral value (based on sd denoising):
   score_table <- table(round(unlist(epithelial_heatmap), 6))
@@ -439,11 +452,15 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
     }
   }
   
-  
+}
+
+
   ################################################################################
   ### 4. Create simulated CNV annotations  ###
   ################################################################################
-  
+
+if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_cancer") {  
+ 
   if (!file.exists(paste0(Robject_dir, "grid_sim_plot.Rdata"))) {
 
     # create CNV annotation based on fold change CNV:
@@ -522,11 +539,16 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
     grid_sim_plot <- readRDS(paste0(Robject_dir, "grid_sim_plot.Rdata"))
   }
   
+}
+
   
-  ################################################################################
-  ### 5. Determine neutral regions  ###
-  ################################################################################
+################################################################################
+### 5. Determine neutral regions  ###
+################################################################################
   
+if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_cancer") {  
+ 
+
   # record gain or loss in each genomic segment:
   CNV_indices$type <- "neutral"
   CNV_indices$type[CNV_indices$multiplier > 1] <- "gain"
@@ -576,11 +598,15 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
     dev.off()
   }
   
-  
-  ################################################################################
-  ### 6. Determine accuracy calls  ###
-  ################################################################################
+}
 
+
+################################################################################
+### 6. Determine accuracy calls  ###
+################################################################################
+
+if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_cancer") {  
+ 
   if (!file.exists(paste0(Robject_dir, "accuracy_calls.Rdata"))) {
     
     CNV_indices_list <- split(CNV_indices, 1:nrow(CNV_indices))
@@ -656,11 +682,15 @@ if (sim_name == "normal" | sim_name == "filtered_normal") {
     ))
   }
   
+}
+
   
-  ################################################################################
-  ### 7. Determine accuracy calls  ###
-  ################################################################################
+################################################################################
+### 7. Determine accuracy calls  ###
+################################################################################
   
+if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_cancer") {  
+ 
   if (!file.exists(paste0(table_dir, "accuracy_metrics.txt")) | 
     !file.exists(paste0(Robject_dir, "accuracy_annotation_vector.Rdata")) | 
     !file.exists(paste0(Robject_dir, "accuracy_heatmap_obj.Rdata"))
@@ -853,7 +883,7 @@ x_coord <- longest_cluster_name*0.0037
 
 if (!file.exists(paste0(plot_dir, "annotated_infercnv_plot.png"))) {
 
-  if (sim_name == "normal" | sim_name == "filtered_normal") {
+  if (sim_name == "normal" | sim_name == "filtered_normal" | sim_name == "real_cancer") {
     final_heatmap <- Heatmap(
       plot_object, 
       name = paste0("hm"),
@@ -922,7 +952,7 @@ if (!file.exists(paste0(plot_dir, "annotated_infercnv_plot.png"))) {
     units = "in"
   )
   
-  if (sim_name == "normal" | sim_name == "filtered_normal") {
+  if (sim_name == "normal" | sim_name == "filtered_normal" | sim_name == "real_cancer") {
   
     grid.newpage()
     pushViewport(viewport(x = 0.07, y = 0.1, width = 0.92, height = 0.85, 
@@ -1082,7 +1112,7 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
     units = "in"
   )
   
-    if (sim_name == "normal" | sim_name == "filtered_normal") {
+    if (sim_name == "normal" | sim_name == "filtered_normal" | sim_name == "real_cancer") {
   
       grid.newpage()
       pushViewport(viewport(x = 0.15, y = 0.15, width = 0.8, height = 0.8, 
@@ -1158,12 +1188,10 @@ print(paste0("Heatmap created, output in ", plot_dir))
 
 
 #################################################################################
-#### 12. Plot average signal vs accuracy annotation ###
+#### 12. Detect CNV peaks ###
 #################################################################################
 
-if (sim_name != "normal" & 
-  sim_name != "filtered_normal" & 
-	!file.exists(paste0(Robject_dir, "/CNV_data.Rdata"))) {
+if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_cancer" & !file.exists(paste0(Robject_dir, "/CNV_data.Rdata"))) {
   
   # create area plot presenting InferCNV signal:
   area_df <- data.frame(
@@ -1177,6 +1205,397 @@ if (sim_name != "normal" &
   area_df$type[area_df$average_score > 0] <- "gain"
   area_df$type[area_df$average_score < 0] <- "loss"
 
+  ######
+  # determine whether there is a gain or loss signal for each gene:
+  CNV_by_gene <- apply(epithelial_heatmap, 2, function(x) {
+    if (length(which(round(x, 6) > neutral_value)) >= 
+      length(x)*min_CNV_proportion) {
+      return("gain")
+    } else if (length(which(round(x, 6) < neutral_value)) >= 
+      length(x)*min_CNV_proportion) {
+      return("loss")
+    } else {
+      return("neutral")
+    }
+  })
+
+  # remove gain or loss CNVs in <10 gene stretches:
+  run_length <- rle(CNV_by_gene)
+  rle_df <- data.frame(
+    row.names = c(
+      colnames(epithelial_heatmap)[1],
+      names(run_length$lengths)[1:(length(run_length$lengths)-1)]
+    ),
+    length = run_length$lengths,
+    value = run_length$values
+  )
+  temp_CNV_df <- rle_df[rle_df$value != "neutral",]
+  non_CNV <- temp_CNV_df[temp_CNV_df$length < min_CNV_length,]
+
+  if (nrow(non_CNV) > 0) {
+    for (r in 1:nrow(non_CNV)) {
+      gene_ind <- which(names(CNV_by_gene) == rownames(non_CNV)[r])
+      CNV_by_gene[gene_ind:(gene_ind + non_CNV$length[r] - 1)] <- 
+        "neutral"
+    }
+  }
+
+  # record CNV indices:
+  CNV_df <- data.frame(
+    index = 1:length(CNV_by_gene),
+    type = CNV_by_gene
+  )
+  # split by type:
+  split_CNV <- split(CNV_df, rleid(CNV_df$type))
+  # convert into indices:
+  split_indices <- lapply(split_CNV, function(x) {
+    return(
+      data.frame(
+        start = x$index[1],
+        end = x$index[nrow(x)],
+        type = as.character(x$type[1])
+      )
+    )
+  })
+  detected_CNV <- do.call("rbind", split_indices)
+
+  # fetch chromosome info:
+  chr_data <- fetch_chromosome_boundaries(epithelial_heatmap, ref_dir)
+
+  for (m in 1:nrow(detected_CNV)) {
+    if (m==1) {
+      heatmap_CNV <- detected_CNV$start[m]:detected_CNV$end[m]
+    } else {
+      heatmap_CNV <- c(heatmap_CNV,
+        detected_CNV$start[m]:detected_CNV$end[m]
+      )
+    }   
+  }  
+  for (k in 1:length(chr_data$ends)) {
+    if (k==1) {
+
+      detected_CNV$start_chr[
+        detected_CNV$start <= chr_data$ends[k]
+      ] <- names(chr_data$ends)[k]
+
+      detected_CNV$end_chr[
+        detected_CNV$end <= chr_data$ends[k]
+      ] <- names(chr_data$ends)[k]
+
+    } else {
+
+      detected_CNV$start_chr[
+        detected_CNV$start <= chr_data$ends[k] & 
+        detected_CNV$start > chr_data$ends[k-1]
+      ] <- names(chr_data$ends)[k]
+
+      detected_CNV$end_chr[
+        detected_CNV$end <= chr_data$ends[k] & 
+        detected_CNV$end > chr_data$ends[k-1]
+      ] <- names(chr_data$ends)[k]
+
+    }
+  }
+
+  # isolate CNVs only and join adjacent ones <20 genes apart:
+  CNV_only <- detected_CNV[detected_CNV$type != "neutral",]
+  CNV_only$keep <- TRUE
+  for (i in 2:nrow(CNV_only)) {
+    if ( (CNV_only$start[i] - CNV_only$end[i-1]) <= 20 ) {
+      CNV_only$keep[i] <- FALSE
+      CNV_only$keep[i-1] <- FALSE
+      new_row <- data.frame(
+        start = CNV_only$start[i-1],
+        end = CNV_only$end[i],
+        type = CNV_only$type[i],
+        start_chr = CNV_only$start_chr[i-1],
+        end_chr = CNV_only$end_chr[i],
+        keep = TRUE
+      )
+      CNV_only <- rbind(CNV_only, new_row)
+    }
+  }
+  # remove old indices of CNVs that have been concatenated, and keep column:
+  CNV_only <- CNV_only[CNV_only$keep,]
+  CNV_only <- subset(
+    CNV_only[order(CNV_only$start),], select = -keep
+  )
+
+}
+
+
+#################################################################################
+#### 12. Predict copy number of CNV peaks ###
+#################################################################################
+
+if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_cancer" & !file.exists(paste0(Robject_dir, "/CNV_data.Rdata"))) {
+ 
+  # fetch signal values for each CNV and estimate copy number for all CNVs
+  # by comparing this distribution to copy number signal across all simulations:
+  copy_dist<- readRDS(
+  	paste0(
+      copy_dist_dir, 
+      "all_true_positive_CNV_signal_per_multiplier.Rdata"
+  	)
+  )
+
+  # fetch signal values and estimate copy number for all CNVs:
+  for (r in 1:nrow(CNV_only)) {
+    
+    # fetch signal values:
+    CNV_signal <- area_df$average_score[(CNV_only$start[r]):(CNV_only$end[r])]
+    
+    # determine which copy number distribution CNV_signal belongs to 
+    # (highest p-value of wilcox test):
+    wilcox_p <- lapply(copy_dist, function(x) {
+      return(wilcox.test(CNV_signal, x$signal)$p.value)
+    })
+
+    if (r==1) {
+      wilcox_ps <- list(wilcox_p)
+    } else {
+      wilcox_ps[[r]] <- wilcox_p
+    }
+
+    CNV_only$copy_no[r] <- names(which.max(unlist(wilcox_p)))
+    
+  }
+
+  # define text colour and midpoints for plotting:
+  CNV_only$midpoint <- CNV_only$start + (floor((CNV_only$end - CNV_only$start)/2))
+  CNV_only$estimate_colour[CNV_only$copy_no > 1] <- "#BF3667"
+  CNV_only$estimate_colour[CNV_only$copy_no < 1] <- "#58B9DB"
+
+  # split into gain and loss estimate dfs:
+  all_peak_estimates <- CNV_only
+  peak_estimates <- list(
+    gain = CNV_only[CNV_only$type == "gain",],
+    loss = CNV_only[CNV_only$type == "loss",]
+  )
+
+  # insert newlines where needed for labelling:
+  peak_estimates <- lapply(peak_estimates, function(x) {
+
+    newline_record <- data.frame(
+      row.names = 1:3,
+      in_label = rep(FALSE, 3)
+    )
+    x$estimate_lab <- x$copy_no
+    for (i in 2:nrow(x)) {
+      if ( (x$midpoint[i] - x$midpoint[i-1]) < 140 ) {
+        if ( length(grep("\n", x$estimate_lab[i-1])) != 0 ) {
+    
+          if ( length(strsplit(x$estimate_lab[i-1], "\n")[[1]]) == 3 ) {
+    
+            x$estimate_lab[i] <- paste0("\n\n\n", x$estimate_lab[i])
+            newline_record["3",1] <- TRUE
+    
+          } else if ( length(strsplit(x$estimate_lab[i-1], "\n")[[1]]) == 2 ) {
+     
+            x$estimate_lab[i] <- paste0("\n\n", x$estimate_lab[i])
+            newline_record["2",1] <- TRUE
+     
+          } 
+    
+        } else {
+          x$estimate_lab[i] <- paste0("\n", x$estimate_lab[i])
+        newline_record["1",1] <- TRUE
+        }
+      }
+    }
+    return(x)
+
+  })
+
+}  
+
+
+#################################################################################
+#### 13. Determine which calls were accurate and save ###
+#################################################################################
+
+if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_cancer" & !file.exists(paste0(Robject_dir, "/CNV_data.Rdata"))) {
+ 
+  # annotate all genes with chromosome position:
+  for (l in 1:length(chr_data$lengths)) {
+    if (l==1) {
+      chrs <- rep(names(chr_data$lengths)[l], chr_data$lengths[l])
+    } else {
+      chrs <- c(chrs, rep(names(chr_data$lengths)[l], chr_data$lengths[l]))
+    }
+  }
+  chr_positions <- data.frame(
+    gene = rownames(area_df),
+    chr = chrs
+  )
+  chr_positions <- do.call(
+    "rbind",
+    lapply(
+      split(chr_positions, chr_positions$chr),
+      function(x) {
+        x$index <- 1:nrow(x)
+        return(x)
+      }
+    )
+  )
+  chr_positions <- chr_positions[naturalorder(chr_positions$chr),]
+
+  # isolate CNV indices only and annotate chromosomal start and end positions:
+  CNV_only_indices <- CNV_indices[CNV_indices$multiplier != 1,]
+  CNV_only_indices <- subset(
+    CNV_only_indices, 
+    select = c(start, end, multiplier, start_chr, end_chr)
+  )
+  colnames(CNV_only_indices) <- gsub(
+    "multiplier", "copy_no", colnames(CNV_only_indices)
+  )
+
+  # split CNVs over 2 chromosomes as they cannot be added to GRanges objects:
+  prepare_for_granges <- function(indices_df) {
+    for (r in 1:nrow(indices_df)) {
+      if (indices_df$start_chr[r] != indices_df$end_chr[r]) {
+  
+        # add additional range for second chromosome:
+        new_range <- indices_df[r,]
+        new_range$start <- chr_data$ends[
+          names(chr_data$ends) == new_range$start_chr
+        ] + 1
+        new_range$start_chr <- new_range$end_chr
+        indices_df <- rbind(indices_df, new_range)
+  
+        # adjust current range:
+        indices_df$end[r] <- new_range$start-1
+        indices_df$end_chr[r] <- indices_df$start_chr[r]
+  
+      }
+    }
+    indices_df <- indices_df[order(indices_df$start),]
+    indices_df <- indices_df[naturalorder(indices_df$start_chr),]
+  
+    indices_df$chr_start <- chr_positions$index[indices_df$start]
+    indices_df$chr_end <- chr_positions$index[indices_df$end]
+
+    return(indices_df)
+
+  }
+
+  CNV_only_indices <- prepare_for_granges(CNV_only_indices)
+  peak_estimates$gain <- prepare_for_granges(peak_estimates$gain)
+  peak_estimates$loss <- prepare_for_granges(peak_estimates$loss)
+  
+  # add known CNVs to granges object:
+  known_gr <- GRanges(
+	  seqnames = Rle(CNV_only_indices$start_chr),
+    ranges = IRanges(
+      start = CNV_only_indices$chr_start, 
+      end = CNV_only_indices$chr_end
+    ),
+    strand = Rle("*"),
+    end_chr = CNV_only_indices$end_chr,
+    copy_no = CNV_only_indices$copy_no
+  )
+
+  count_calls <- function(estimated_df, known_gr) {
+
+    # add estimated CNVs to granges objects and check for overlaps:
+    estimate_gr <- GRanges(
+      seqnames = Rle(estimated_df$start_chr),
+      ranges = IRanges(
+        start = estimated_df$chr_start, 
+        end = estimated_df$chr_end
+      ),
+      strand = Rle("*"),
+      end_chr = estimated_df$end_chr,
+      copy_no = estimated_df$copy_no
+    )
+  
+    olaps <- findOverlaps(estimate_gr, known_gr)
+  
+    # annotate estimated CNVs with actual copy number:
+    estimate_gr$actual_copy_number <- NA
+    estimate_gr$actual_copy_number[queryHits(olaps)] <- 
+      known_gr$copy_no[subjectHits(olaps)]
+  
+    # add chromosomal end indices to chr_data:
+    chr_data$chr_ends <- chr_data$ends
+    for (c in rev(2:length(chr_data$chr_ends))) {
+      chr_data$chr_ends[c] <- chr_data$chr_ends[c] - chr_data$chr_ends[c-1]
+    }
+  
+    # convert estimate_gr to df:
+    estimate_df <- annoGR2DF(estimate_gr)
+    estimate_df <- subset(estimate_df, select = -width)
+    colnames(estimate_df) <- c(
+      "start_chr", "start", "end", "end_chr", "copy_no", "actual_copy_number"
+    )
+  
+    # resolve split CNVs:
+    # if start of range == 1 and end of previous range == chromosomal end, 
+    # merge:
+    estimate_df$keep <- T
+    for (r in 2:nrow(estimate_df)) {
+      if (
+        estimate_df$start[r] == 1 & 
+        estimate_df$end[r-1] == chr_data$chr_ends[
+          estimate_df$end_chr[r-1]
+        ]
+      ) {
+  
+        new_range <- estimate_df[r,]
+        new_range$start_chr <- estimate_df$start_chr[r-1]
+        new_range$start <- estimate_df$start[r-1]
+        estimate_df <- rbind(
+          estimate_df,
+          new_range
+        )
+  
+        estimate_df$keep[r] <- F
+        estimate_df$keep[r-1] <- F
+  
+      }
+    }
+    estimate_df <- estimate_df[estimate_df$keep,]
+    estimate_df <- estimate_df[order(estimate_df$start),]
+    estimate_df <- estimate_df[order(estimate_df$start_chr),]
+    estimate_df <- subset(estimate_df, select = -keep)
+
+    # remove NA values, which mark artefacts:
+    estimate_df <- estimate_df[!(is.na(estimate_df$actual_copy_number)),]
+  
+    # count correct estimates:
+    estimate_df$correct <- 
+      estimate_df$copy_no == estimate_df$actual_copy_number
+    
+    return(
+      list(
+        correct = length(which(estimate_df$correct)),
+        total = nrow(estimate_df),
+        estimated_vs_known = estimate_df
+      )
+    )
+
+  }
+
+  estimated_vs_known_gains <- count_calls(peak_estimates$gain, known_gr)
+  estimated_vs_known_losses <- count_calls(peak_estimates$loss, known_gr)
+
+  saveRDS(
+    list(
+      gains = estimated_vs_known_gains,
+      losses = estimated_vs_known_losses
+    ),
+    paste0(Robject_dir, "estimated_vs_known_counts.Rdata")
+  )
+
+}
+
+  
+#################################################################################
+#### 14. Create average signal vs accuracy annotation plot ###
+#################################################################################
+
+if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_cancer" & !file.exists(paste0(Robject_dir, "/CNV_data.Rdata"))) {
+ 
   if (!file.exists(paste0(plot_dir, "signal_vs_simulated_CNV_plot.png"))) {
 
     # define colours:
@@ -1309,7 +1728,6 @@ if (sim_name != "normal" &
       }
     }
     # convert barplot to grid object:
-  
     signal_plot <- ggplotGrob(p)
     dev.off()
   
@@ -1317,7 +1735,10 @@ if (sim_name != "normal" &
     all_accuracy <- unique(CNV_accuracy_df$accuracy_call)
     all_accuracy <- paste0(all_accuracy[order(all_accuracy)], collapse = "_")
   
-    # add accuracy annotation to barplot:
+    #################################################################################
+    #### 15. Plot average signal vs accuracy annotation ###
+    #################################################################################
+
     png(
       paste0(plot_dir, "signal_vs_simulated_CNV_plot.png"), 
       height = 8, 
@@ -1327,14 +1748,33 @@ if (sim_name != "normal" &
     )   
       grid.newpage()
   
+        # draw signal plot:
         pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
           just = c("left", "bottom")))
           grid.draw(signal_plot)
         popViewport()
+
+        # draw accuracy annotation:
         pushViewport(viewport(x = 0.13, y = 0.15, width = 0.793, height = 0.13, 
           just = c("left", "bottom")))
           grid.draw(accuracy_heatmap_obj)
         popViewport()
+
+        # draw accuracy legend:
+        pushViewport(viewport(x = unit(1, "cm"), y = unit(2, "cm"), 
+                          width = unit(5.5, "cm"), height = unit(4.5, "cm"), 
+                          just = c("left", "bottom")))
+    
+          #grid.rect()
+          if (all_accuracy == "false_positive_true_positive_wrong_call") {
+            true_pos_false_pos_wrong_legend()
+          } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive") {
+            true_pos_neg_false_pos_neg_legend()
+          }
+        
+        popViewport()
+
+        # label chromosomes:
         for ( e in 1:length(chr_data$lab_pos) ) {
           pushViewport(viewport(x = 0.105 + chr_data$lab_pos[e]/1.27, y = 0.86, width = 0.05, height = 0.05, 
             just = c("left", "bottom")))
@@ -1346,19 +1786,90 @@ if (sim_name != "normal" &
           popViewport()
         }
       
-        pushViewport(viewport(x = unit(1, "cm"), y = unit(2, "cm"), 
+    dev.off()
+
+    # plot signal vs simulated CNVs with CNV peak calls:
+    png(
+      paste0(plot_dir, "signal_vs_simulated_CNV_plot_with_peak_calls.png"), 
+      height = 8, 
+      width = 22,
+      res = 300,
+      units = "in"
+    )   
+      grid.newpage()
+  
+        # draw signal plot:
+        pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
+          just = c("left", "bottom")))
+          grid.draw(signal_plot)
+        popViewport()
+
+        # draw accuracy annotation:
+        pushViewport(viewport(x = 0.13, y = 0.15, width = 0.793, height = 0.13, 
+          just = c("left", "bottom")))
+          grid.draw(accuracy_heatmap_obj)
+        popViewport()
+
+        # draw accuracy legend:
+        pushViewport(viewport(x = unit(1, "cm"), y = unit(1, "cm"), 
                           width = unit(5.5, "cm"), height = unit(4.5, "cm"), 
                           just = c("left", "bottom")))
     
           #grid.rect()
           if (all_accuracy == "false_positive_true_positive_wrong_call") {
             true_pos_false_pos_wrong_legend()
-          } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive_wrong_call") {
+          } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive") {
             true_pos_neg_false_pos_neg_legend()
           }
-        
+        popViewport()
+
+        # label gain copy number estimates:
+        pushViewport(viewport(x = 0.082, y = 0.857, width = 0.05, height = 0.05))
+          #grid.rect()
+          grid.text("Gain copy estimate:", gp=gpar(fontsize=16, fontface="bold", col = "#BF3667"))
         popViewport()
     
+        pushViewport(viewport(x = 0.526, y = 0.857, width = 0.785, height = 0.05))
+          #grid.rect()
+          for (k in 1:nrow(peak_estimates$gain)) {
+            pushViewport(viewport(x = peak_estimates$gain$midpoint[k]/nrow(area_df), width = 0.01, height = 0.8))
+              #grid.rect()
+              grid.text(peak_estimates$gain$estimate_lab[k], gp=gpar(fontsize=16, fontface="bold", col = peak_estimates$gain$estimate_colour[k]))
+            popViewport()
+          }
+        popViewport()
+    
+        # label loss copy number estimates:
+        pushViewport(viewport(x = 0.082, y = 0.31, width = 0.05, height = 0.05))
+          #grid.rect()
+          grid.text("Loss copy estimate:", gp=gpar(fontsize=16, fontface="bold", col = "#58B9DB"))
+        popViewport()
+    
+        pushViewport(viewport(x = 0.526, y = 0.31, width = 0.785, height = 0.05))
+          #grid.rect()
+          for (k in 1:nrow(peak_estimates$loss)) {
+            pushViewport(viewport(x = peak_estimates$loss$midpoint[k]/nrow(area_df), width = 0.01, height = 0.8))
+              #grid.rect()
+              grid.text(
+                peak_estimates$loss$estimate_lab[k], 
+                gp=gpar(fontsize=16, fontface="bold", col = peak_estimates$loss$estimate_colour[k])
+              )
+            popViewport()
+          }
+        popViewport()
+
+        # label chromosomes:
+        for ( e in 1:length(chr_data$lab_pos) ) {
+          pushViewport(viewport(x = 0.105 + chr_data$lab_pos[e]/1.27, y = 0.86, width = 0.05, height = 0.05, 
+            just = c("left", "bottom")))
+            if (e==1) {
+              grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=13, fontface = "bold"))
+            } else {
+              grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=13, fontface = "bold"))
+            }
+          popViewport()
+        }
+      
     dev.off()
   }
 
@@ -1387,4 +1898,125 @@ if (sim_name == "filtered_normal") {
 
 
 
+##################################################################################
+#
+#p <- ggplot(area_df, aes(x=index, y=average_score, fill = type))   
+#p <- p + scale_x_continuous(
+#  limits = c(
+#    0,length(log_modified_fold_change_df$count)
+#  ), 
+#  expand = c(0, 0),
+#  breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
+#  labels = stag_lab
+#)
+#p <- p + scale_y_continuous(
+#  limits = c(-0.09, 0.09),
+#  sec.axis = sec_axis(
+#    ~., 
+#    "Copy number\nfold change", 
+#    breaks = c(-0.08, 0, 0.08),
+#    labels = c("Total\nloss", "1", "3")
+#  )
+#)
+#p <- p + theme_cowplot(12)
+#p <- p + theme(
+#  axis.title.x = element_text(size=25, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+#  axis.text.x = element_text(size=18, margin = margin(t = 70, r = 0, b = 0, l = 0)),
+#  axis.ticks.x = element_blank(),
+#  axis.text.y = element_text(size=24),
+#  axis.title.y = element_text(size=25, margin = margin(t = 0, r = 30, b = 0, l = 0)),
+#  axis.title.y.right = element_text(size=25, margin = margin(t = 0, r = 0, b = 0, l = 0)),
+#  legend.position = "none"
+#)
+#p <- p + ylab("Mean CNV signal")
+#p <- p + xlab("CNV length (genes)")
+#for (c_end in chr_data$ends) {
+#  p <- p + geom_vline(xintercept=c_end)
+#}
+## convert barplot to grid object:
+#mock_signal_plot <- ggplotGrob(p)
+#dev.off()
 
+#png(
+#  paste0(plot_dir, "mock_signal_vs_simulated_CNV_plot2.png"), 
+#  height = 8, 
+#  width = 22,
+#  res = 300,
+#  units = "in"
+#)   
+#
+#  grid.newpage()
+#
+#    # draw signal plot:
+#    pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
+#      just = c("left", "bottom")))
+#      grid.draw(mock_signal_plot)
+#    popViewport()
+#
+#    # draw accuracy annotation:
+#    pushViewport(viewport(x = 0.13, y = 0.15, width = 0.793, height = 0.13, 
+#      just = c("left", "bottom")))
+#      grid.draw(accuracy_heatmap_obj)
+#    popViewport()
+#
+#    # draw accuracy legend:
+#    pushViewport(viewport(x = unit(1, "cm"), y = unit(2, "cm"), 
+#                      width = unit(5.5, "cm"), height = unit(4.5, "cm"), 
+#                      just = c("left", "bottom")))
+#      #grid.rect()
+#      if (all_accuracy == "false_positive_true_positive_wrong_call") {
+#        true_pos_false_pos_wrong_legend()
+#      } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive_wrong_call") {
+#        true_pos_neg_false_pos_neg_legend()
+#      }
+#    popViewport()
+#
+#    # label gain copy number estimates:
+#    pushViewport(viewport(x = 0.082, y = 0.857, width = 0.05, height = 0.05))
+#      #grid.rect()
+#      grid.text("Gain copy estimate:", gp=gpar(fontsize=16, fontface="bold", col = "#BF3667"))
+#    popViewport()
+#
+#    pushViewport(viewport(x = 0.526, y = 0.857, width = 0.785, height = 0.05))
+#      #grid.rect()
+#      for (k in 1:nrow(peak_estimates$gain)) {
+#        pushViewport(viewport(x = peak_estimates$gain$midpoint[k]/nrow(area_df), width = 0.01, height = 0.8))
+#          #grid.rect()
+#          grid.text(peak_estimates$gain$estimate_lab[k], gp=gpar(fontsize=16, fontface="bold", col = peak_estimates$gain$estimate_colour[k]))
+#        popViewport()
+#      }
+#    popViewport()
+#
+#    # label loss copy number estimates:
+#    pushViewport(viewport(x = 0.082, y = 0.31, width = 0.05, height = 0.05))
+#      #grid.rect()
+#      grid.text("Loss copy estimate:", gp=gpar(fontsize=16, fontface="bold", col = "#58B9DB"))
+#    popViewport()
+#
+#    pushViewport(viewport(x = 0.526, y = 0.31, width = 0.785, height = 0.05))
+#      #grid.rect()
+#      for (k in 1:nrow(peak_estimates$loss)) {
+#        pushViewport(viewport(x = peak_estimates$loss$midpoint[k]/nrow(area_df), width = 0.01, height = 0.8))
+#          #grid.rect()
+#          grid.text(
+#            peak_estimates$loss$estimate_lab[k], 
+#            gp=gpar(fontsize=16, fontface="bold", col = peak_estimates$loss$estimate_colour[k])
+#          )
+#        popViewport()
+#      }
+#    popViewport()
+#
+#    # label chromosomes:
+#    for ( e in 1:length(chr_data$lab_pos) ) {
+#      pushViewport(viewport(x = 0.105 + chr_data$lab_pos[e]/1.27, y = 0.89, width = 0.05, height = 0.05, 
+#        just = c("left", "bottom")))
+#        if (e==1) {
+#          grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=13, fontface = "bold"))
+#        } else {
+#          grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=13, fontface = "bold"))
+#        }
+#      popViewport()
+#    }
+#
+#dev.off()
+#

@@ -293,23 +293,13 @@ if (!file.exists(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata")))
       quote = F, col.names = F, row.names = F)
   }
 
-  epithelial_df <- count_df[
-    ,as.character(infercnv_metadata$metadata$cell_ids[grep("pithelial", infercnv_metadata$metadata$cell_type)])
-  ]
-
-  print(
-    paste0(
-      "Dimensions of epithelial df = ", paste(as.character(dim(epithelial_df)), collapse=",")
-    )
-  )
-
   # create density plots of nUMI and nGene:
   QC <- data.frame(
-    row.names = colnames(epithelial_df),
-    nUMI = apply(epithelial_df, 2, sum),
-    nGene = apply(epithelial_df, 2, function(x) length(x[x!=0]))
+    row.names = colnames(count_df),
+    nUMI = apply(count_df, 2, sum),
+    nGene = apply(count_df, 2, function(x) length(x[x!=0]))
   )
-  QC <- QC[colnames(epithelial_df),]
+  QC <- QC[colnames(count_df),]
   nUMI_density_plot <- density(QC$nUMI)
   pdf(paste0(common_plot_dir, "nUMI_density_plot.pdf"))
     plot(nUMI_density_plot, main=NA, xlab = "nUMI")
@@ -338,17 +328,18 @@ if (!file.exists(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata")))
   png(paste0(common_plot_dir, "log10_nGene_density_plot.png"))
     plot(log_nGene_density_plot, main=NA, xlab = "log10 nGene")
   dev.off()
+  
   # filter out cells with nUMI < nUMI_threshold and nGene < nGene_threshold
   print(paste0("Number of cells before filtering out low coverage: ",
     nrow(QC)))
   cells_to_keep <- rownames(QC)[QC$nUMI > nUMI_threshold & QC$nGene > nGene_threshold]
   print(paste0("Number of cells after filtering out low coverage: ",
     length(cells_to_keep)))
-  epithelial_df <- epithelial_df[
-    ,colnames(epithelial_df) %in% cells_to_keep
+  count_df <- count_df[
+    ,colnames(count_df) %in% cells_to_keep
   ]
-  saveRDS(epithelial_df, paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))
-
+  print(paste0("Number of cells after filtering out low coverage: ",
+    nrow(count_df)))
   
   p <- ggplot(QC, aes(x=nUMI, y=nGene))
   p <- p + geom_point()
@@ -381,6 +372,14 @@ if (!file.exists(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata")))
   png(paste0(common_plot_dir, "log10_total_count_density_plot.png"))
     plot(log_total_count_density_plot, main=NA, xlab = "Total counts")
   dev.off()
+
+  epithelial_df <- count_df[
+    ,as.character(infercnv_metadata$metadata$cell_ids[grep("pithelial", infercnv_metadata$metadata$cell_type)])
+  ]
+
+saveRDS(epithelial_df, paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))
+
+  
   
 } else {
   epithelial_df <- readRDS(paste0(common_Robject_dir, "/1.original_epithelial_df.Rdata"))
@@ -1554,11 +1553,11 @@ if (downsample) {
       mean_coverage,
       data.frame(
         downsample_proportion = paste0(proportion, "_gene"),
-        nUMI = round(mean(apply(downsampled_counts, 2, sum)), 0),
+        nUMI = round(mean(apply(gene_downsampled_counts, 2, sum)), 0),
         nGene = round(
           mean(
             apply(
-              downsampled_counts, 2, function(x) length(which(x > 0))
+              gene_downsampled_counts, 2, function(x) length(which(x > 0))
             )
           ), 0
         )

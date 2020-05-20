@@ -6,8 +6,20 @@ project_name <- "thesis"
 subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
 sample_name <- args[1]
 print(paste0("Sample name = ", sample_name))
+nUMI_threshold <- as.numeric(args[2])
+print(paste0("nUMI_threshold = ", nUMI_threshold))
+nGene_threshold <- as.numeric(args[3])
+print(paste0("nGene_threshold = ", nGene_threshold))
+numcores <- as.numeric(args[4])
+analysis_mode <- args[5]
+denoise_value <- as.numeric(args[6])
 
-#sample_name <- "CID4520N"
+sample_name <- "CID4515"
+nUMI_threshold <- 25000
+nGene_threshold <- 5000
+numcores <- as.numeric("6")
+analysis_mode <- "samples"
+denoise_value <- as.numeric("1.3")
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -27,7 +39,10 @@ func_dir <- paste0(project_dir, "scripts/functions/")
 
 in_dir <- paste0(project_dir, "raw_files/seurat_objects/", sample_name, "/")
 
-out_path <- paste0(results_dir, "infercnv/", sample_name, "/normal/")
+out_path <- paste0(results_dir, "infercnv/", sample_name, "/real_cancer/",
+  denoise_value, "_denoising/", analysis_mode, "_mode/")
+setwd(out_path)
+
 Robject_dir <- paste0(out_path, "/Rdata/")
 plot_dir <- paste0(out_path, "/plots/")
 system(paste0("mkdir -p ", Robject_dir))
@@ -71,10 +86,6 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
       "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
     )
   )
-
-  ######
-  #count_df <- count_df[1:6000,]
-  ######
 
   # create metadata df:
   print("Creating inferCNV metadata file...")
@@ -224,22 +235,110 @@ if (
   )
   
   # save all dfs:
-  saveRDS(epithelial_df, paste0(Robject_dir, "/2a.epithelial_df.Rdata"))
-  saveRDS(non_epithelial_df, paste0(Robject_dir, "/2b.non_epithelial_df.Rdata"))
-  saveRDS(gene_annotation, paste0(Robject_dir, "/2c.gene_annotation.Rdata"))
-
-  # save normal dataset infercnv input files:
-  write.table(combined_df, paste0(input_dir, "input_matrix.txt"), quote=F,
-    sep="\t", col.names=T, row.names=T)
-  write.table(final_metadata, paste0(input_dir, "metadata.txt"), 
-    sep = "\t", quote = F, col.names = F, row.names = F)
+  saveRDS(epithelial_df, paste0(Robject_dir, "/2a.non_filtered_epithelial_df.Rdata"))
+  saveRDS(non_epithelial_df, paste0(Robject_dir, "/2b.non_filtered_non_epithelial_df.Rdata"))
+  saveRDS(gene_annotation, paste0(Robject_dir, "/2c.non_filtered_gene_annotation.Rdata"))
 
 } else {
 
-  epithelial_df <- readRDS(paste0(Robject_dir, "/2a.epithelial_df.Rdata"))
-  non_epithelial_df <- readRDS(paste0(Robject_dir, "/2b.non_epithelial_df.Rdata"))
-  gene_annotation <- readRDS(paste0(Robject_dir, "/2c.gene_annotation.Rdata"))
+  epithelial_df <- readRDS(paste0(Robject_dir, "/2a.non_filtered_epithelial_df.Rdata"))
+  non_epithelial_df <- readRDS(paste0(Robject_dir, "/2b.non_filtered_non_epithelial_df.Rdata"))
+  gene_annotation <- readRDS(paste0(Robject_dir, "/2c.non_filtered_gene_annotation.Rdata"))
 
 }
+
+
+################################################################################
+### 3. Filter out lower coverage cells ###
+################################################################################
+
+if (
+  !file.exists(paste0(Robject_dir, "/3a.filtered_epithelial_df.Rdata")) | 
+  !file.exists(paste0(Robject_dir, "/3b.non_epithelial_df.Rdata")) | 
+  !file.exists(paste0(Robject_dir, "/3c.metadata.Rdata")) |
+  !file.exists(paste0(input_dir, "input_matrix.txt"))
+) {
+
+  # create coverage df of nUMI and nGene:
+  QC <- data.frame(
+    row.names = colnames(epithelial_df),
+    nUMI = apply(epithelial_df, 2, sum),
+    nGene = apply(epithelial_df, 2, function(x) length(x[x!=0]))
+  )
+  QC <- QC[colnames(epithelial_df),]
+  
+  # filter out cells with nUMI < nUMI_threshold and nGene < nGene_threshold
+  print(paste0("Number of cells before filtering out low coverage: ",
+    nrow(QC)))
+  cells_to_keep <- rownames(QC)[QC$nUMI > nUMI_threshold & QC$nGene > nGene_threshold]
+  print(paste0("Number of cells after filtering out low coverage: ",
+    length(cells_to_keep)))
+  filtered_epithelial_df <- epithelial_df[
+    ,colnames(epithelial_df) %in% cells_to_keep
+  ]
+  
+  filtered_counts <- cbind(
+    filtered_epithelial_df,
+    non_epithelial_df
+  )
+  filtered_metadata <- final_metadata[
+    final_metadata$cell_ids %in% colnames(filtered_counts),
+  ]
+  print(paste0("Number of cells after combining with non-epithelial: ",
+    ncol(filtered_counts)))
+  
+  # write as infercnv input files:
+  if (!file.exists(paste0(input_dir, "input_matrix.txt"))) {
+    write.table(filtered_counts, paste0(input_dir, "input_matrix.txt"), quote=F,
+      sep="\t", col.names=T, row.names=T)
+    write.table(filtered_metadata, paste0(input_dir, "metadata.txt"), sep = "\t",
+    quote = F, col.names = F, row.names = F)
+  }
+  
+  # save data:
+  saveRDS(epithelial_df, paste0(Robject_dir, "/3a.filtered_epithelial_df.Rdata"))
+  saveRDS(non_epithelial_df, paste0(Robject_dir, "/3b.non_epithelial_df.Rdata"))
+  saveRDS(filtered_metadata, paste0(Robject_dir, "/3c.metadata.Rdata"))
+
+}
+
+
+################################################################################
+### 4. Run InferCNV ###
+################################################################################
+
+# define normals which will act as InferCNV reference cells:
+normals <- "Non_epithelial"
+print(paste0("Normal is: ", normals))
+
+print("Creating inferCNV object...")
+raw_path <- paste0(input_dir, "input_matrix.txt")
+annotation_path <- paste0(input_dir, "metadata.txt")
+gene_path <- paste0(ref_dir, "infercnv_gene_order.txt")
+initial_infercnv_object <- CreateInfercnvObject(
+  raw_counts_matrix=raw_path,
+  annotations_file=annotation_path,
+  delim="\t",
+  gene_order_file=gene_path,
+  ref_group_names=normals
+)
+print("InferCNV object created, running InferCNV...")
+
+system.time(
+  infercnv_output <- try(
+    infercnv::run(
+      initial_infercnv_object,
+      num_threads=numcores-1,
+      out_dir=".",
+      cutoff=0.1,
+      window_length=101,
+      max_centered_threshold=3,
+      plot_steps=F,
+      denoise=T,
+      sd_amplifier=denoise_value,
+      analysis_mode = analysis_mode
+    )
+  )
+)
 
 

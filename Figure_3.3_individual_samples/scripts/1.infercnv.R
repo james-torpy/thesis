@@ -6,31 +6,17 @@ project_name <- "thesis"
 subproject_name <- "Figure_3.3_individual_samples"
 numcores <- 10
 sample_name <- args[1]
-analysis_mode <- args[2]
 
-sample_name <- "CID4515"
-analysis_mode <- "subclusters"
+#sample_name <- "CID4463"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
 print(paste0("Number cores = ", numcores))
-print(paste0("Analysis mode= ", analysis_mode))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
-#library(cluster, lib.loc = lib_loc)
-library(scales, lib.loc=lib_loc)
-library(ggplot2)
 library(Seurat)
-library(dplyr, lib.loc=lib_loc)
 library(infercnv, lib.loc=lib_loc)
-#library(RColorBrewer)
-#library(ComplexHeatmap, lib.loc=lib_loc)
-#library(circlize, lib.loc = lib_loc)
-#library(reshape2)
-#library(ggplot2)
-#library(scales, lib.loc = lib_loc)
-#library(fpc, lib.loc = lib_loc)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", project_name, "/", 
@@ -77,11 +63,8 @@ prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"
 seurat_10X <- readRDS(paste0(in_dir, "03_seurat_object_processed.Rdata"))
 Idents(seurat_10X) <- seurat_10X@meta.data$PC_A_res.1
 
-# create raw matrix input file and subset if necessary:
+# create raw matrix input file:
 count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
-if (subset_data) {
-  count_df <- count_df[1:500, 1:500]
-}
 print(
   paste0(
     "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
@@ -202,7 +185,7 @@ if (length(epithelial_clusters) < 1) {
         plot_steps=F,
         denoise=T,
         sd_amplifier=1.3,
-        analysis_mode = analysis_mode
+        analysis_mode = "subclusters"
       )
     )
   )

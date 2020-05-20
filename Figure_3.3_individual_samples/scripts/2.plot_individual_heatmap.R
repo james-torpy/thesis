@@ -20,21 +20,39 @@ all_cell_PC <- args[2]
 all_cell_res <- args[3]
 malignant_PC <- args[4]
 malignant_res <- args[5]
-
-sample_name <- "CID4515"
-all_cell_PC <- "C"
-all_cell_res <- "PC_C_res.0.6"
-malignant_PC <- "D"
-malignant_res <- "SUBSET_D_res.0.8"
-broad_markers <- c(
-  "ACTB", "PTPRC", "CD19", "CD3D", 
-  "CD68", "PDGFRB", "PECAM1", "EPCAM"
-  
+broad_markers <- unlist(
+  strsplit(
+    args[6],
+    "_"
+  )
 )
-epithelial_markers <- c(
-  "ACTB", "EPCAM", "KRT18", "KRT5", 
-  "MKI67"
+epithelial_markers <- unlist(
+  strsplit(
+    args[7],
+    "_"
+  )
 )
+#sample_name <- "CID4515"
+#all_cell_PC <- "C"
+#all_cell_res <- "PC_C_res.0.6"
+#malignant_PC <- "D"
+#malignant_res <- "SUBSET_D_res.0.8"
+#broad_markers <- unlist(
+#  strsplit(
+#    c(
+#      "ACTB_PTPRC_CD19_CD3D_CD68_PDGFRB_PECAM1_EPCAM"
+#    ),
+#    "_"
+#  )
+#)
+#epithelial_markers <- unlist(
+#  strsplit(
+#    c(
+#      "ACTB_EPCAM_KRT18_KRT5_MKI67"
+#    ),
+#    "_"
+#  )
+#)
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -95,20 +113,6 @@ col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3"), brewe
   "#9B59B6", "#74add1","#1b7837", "#b8e186", "#fed976","#e7298a", "#18ffff", "#ef6c00",
   "#A93226", "#E611ED","orange", "#b8bc53", "#5628ce", "#fa909c", "#8ff331","#270e26")
 col_palette <- col_palette[-7]
-
-#col_palette_2 <- c(
-#  # B cells:
-#  brewer.pal(9, "Reds")[3:9], 
-#  # 
-#  brewer.pal(9, "Oranges")[4:9],
-#  brewer.pal(3, "BrBG")[1:2],
-#  brewer.pal(9, "Purples")[2:9],
-#  brewer.pal(4, "PiYG"),
-#  brewer.pal(11, "BrBG")[7:11],
-#  brewer.pal(9, "Blues")[2:9],
-#  brewer.pal(9, "Greens")[7:9],
-#  brewer.pal(9, "Greys")[7:9]
-#)
 
 
 #################################################################################
@@ -390,15 +394,6 @@ if (
       )  
     }
   }
-#  # remove cells not in epithelial_metadata:
-#  subcluster_df <- data.frame(
-#  	row.names = rownames(subcluster_df)[
-#  	  rownames(subcluster_df) %in% rownames(epithelial_metadata)
-#  	],
-#  	subcluster_id = subcluster_df$subcluster_id[
-#  	  rownames(subcluster_df) %in% rownames(epithelial_metadata)
-#  	]
-#  )
   
   # add to epithelial_metadata:
   epithelial_metadata <- merge(epithelial_metadata, subcluster_df, by="row.names")
@@ -410,76 +405,6 @@ if (
     order(epithelial_metadata$subcluster_id),
   ]
   epithelial_heatmap <- epithelial_heatmap[rownames(epithelial_metadata),]
-
-#  # remove subclusters without enough cells:
-#  remove_cells <- rownames(epithelial_metadata)[
-#    epithelial_metadata$subcluster_id == remove_subclusters
-#  ]
-#  epithelial_metadata <- epithelial_metadata[
-#    !(rownames(epithelial_metadata) %in% remove_cells),
-#  ]
-#  epithelial_heatmap <- epithelial_heatmap[
-#    !(rownames(epithelial_heatmap) %in% remove_cells),
-#  ]
-
-#  ######
-#
-#  # prepare df for plotting:
-#  plot_object <- epithelial_heatmap
-#  colnames(plot_object) <- rep("la", ncol(plot_object))
-#  # define heatmap colours:
-#  na_less_vector <- unlist(plot_object)
-#  na_less_vector <- na_less_vector[!is.na(na_less_vector)]
-#  heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
-#        c("#00106B", "white", "#680700"), space = "sRGB")
-#
-#  print("Generating final heatmap...")
-#  # create main CNV heatmap:
-#  final_heatmap <- Heatmap(
-#    as.matrix(plot_object), name = paste0("hm"), 
-#    col = heatmap_cols,
-#    cluster_columns = F, cluster_rows = F,
-#    show_row_names = F, show_column_names = T,
-#    column_names_gp = gpar(col = "white"),
-#    show_row_dend = F,
-#    show_heatmap_legend = F,
-#    heatmap_legend_param = list(labels_gp = gpar(col = "red", fontsize = 12)),
-#    use_raster = T, raster_device = c("png")
-#  )
-#  
-#  ht_list <- final_heatmap
-#  
-#  annotated_heatmap <- grid.grabExpr(
-#    draw(ht_list, gap = unit(6, "mm"), heatmap_legend_side = "left")
-#  )
-#  dev.off()
-#
-#  # fetch chromosome boundary co-ordinates:
-#  if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
-#    chr_data <- fetch_chromosome_boundaries(epithelial_heatmap, ref_dir)
-#    saveRDS(chr_data, paste0(Robject_dir, "chromosome_data.Rdata"))
-#  } else {
-#    chr_data <- readRDS(paste0(Robject_dir, "chromosome_data.Rdata"))
-#  }
-#
-#  png(paste0(plot_dir, "infercnv_plot_post_sorted.png"), 
-#  height = 13, width = 20, res = 300, units = "in") 
-#
-#  grid.newpage()
-#    pushViewport(viewport(x = 0.155, y = 0.065, width = 0.752, height = 0.78, 
-#      just = c("left", "bottom")))
-#      grid.draw(annotated_heatmap)
-#      decorate_heatmap_body("hm", {
-#        for ( e in 1:length(chr_data$end_pos) ) {
-#        grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
-#          gp = gpar(lwd = 1, col = "#383838"))
-#        }
-#      })
-#    popViewport()
-#   
-#  dev.off()
-#
-#  ######
 
   print(paste0(
     "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
@@ -548,36 +473,6 @@ nGene_annotation <- rowAnnotation(
 )
 nGene_annotation@name <- "nGene"
 
-#######
-#
-#group_annot_grid <- grid.grabExpr(
-#  draw(group_annotation)
-#)
-#dev.off()
-#
-#png(paste0(plot_dir, "group_annot.png"), 
-#  height = 13, width = 20, res = 300, units = "in")
-#  grid.newpage()
-#  pushViewport(viewport(x = unit(5, "cm"), y = unit(15, "cm"), width = unit(2, "cm"), 
-#      height = unit(10, "cm"), just = c("right", "bottom")))
-#      grid.draw(group_annot_grid)
-#  popViewport()
-#dev.off()
-#
-#######
-
-######
-
-#png(paste0(plot_dir, "nUMI_annot.png"), 
-#  height = 13, width = 20, res = 300, units = "in")
-#  grid.newpage()
-#  pushViewport(viewport(x = unit(5, "cm"), y = unit(15, "cm"), width = unit(2, "cm"), 
-#      height = unit(10, "cm"), just = c("right", "bottom")))
-#      draw(nUMI_annotation)
-#  popViewport()
-#dev.off()
-
-######
 
 # create subcluster annotation:
 subcluster_annot_df <- subset(epithelial_metadata, select = subcluster_id)

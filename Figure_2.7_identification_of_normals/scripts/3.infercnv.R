@@ -3,45 +3,50 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
+subproject_name <- "Figure_2.7_identification_of_normals"
 sample_name <- args[1]
-print(paste0("Sample name = ", sample_name))
+numcores <- as.numeric(args[2])
+analysis_mode <- args[3]
+denoise_value <- as.numeric(args[4])
 
-#sample_name <- "CID4520N"
+project_name <- "thesis"
+subproject_name <- "Figure_2.7_identification_of_normals"
+sample_name <- "CID4515"
+numcores <- 6
+analysis_mode <- "samples"
+denoise_value <- as.numeric("1.3")
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
+print(paste0("Number cores = ", numcores))
+print(paste0("Analysis mode = ", analysis_mode))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(Seurat)
-library(ggplot2)
 library(infercnv, lib.loc=lib_loc)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", 
   project_name, "/", subproject_name, "/")
 ref_dir <- paste0(project_dir, "refs/")
-results_dir <- paste0(project_dir, "results/")
+results_dir <- seurat_path <- paste0(project_dir, "results/")
 func_dir <- paste0(project_dir, "scripts/functions/")
 
 in_dir <- paste0(project_dir, "raw_files/seurat_objects/", sample_name, "/")
-
-out_path <- paste0(results_dir, "infercnv/", sample_name, "/normal/")
-Robject_dir <- paste0(out_path, "/Rdata/")
-plot_dir <- paste0(out_path, "/plots/")
-system(paste0("mkdir -p ", Robject_dir))
-system(paste0("mkdir -p ", plot_dir))
-
-input_dir <- paste0(out_path, "input_files/")
+out_dir <- paste0(results_dir, "infercnv/", sample_name, "/")
+input_dir <- paste0(out_dir, "input_files/")
 system(paste0("mkdir -p ", input_dir))
+Robject_dir <- paste0(out_dir, "Rdata/")
+system(paste0("mkdir -p ", Robject_dir))
+
+setwd(out_dir)
 
 print(paste0("Sample directory = ", input_dir))
 print(paste0("Reference directory = ", ref_dir))
-print(paste0("InferCNV input file directory = ", input_dir))
+print(paste0("Output directory = ", out_dir))
 
-print(paste0("Preparing normal breast InferCNV input files for ", sample_name,
-  "..."))
+print(paste0("Running InferCNV on ", sample_name))
 
 
 ################################################################################
@@ -52,8 +57,8 @@ prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"
 
 
 ################################################################################
-### 1. Fetch counts matrix from normal sample, create original infercnv input 
-# files and filter for high coverage cells  ###
+### 1. Fetch counts matrix from normal sample and create original infercnv input 
+# files  ###
 ################################################################################
 
 if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) | 
@@ -71,10 +76,6 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
       "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
     )
   )
-
-  ######
-  #count_df <- count_df[1:6000,]
-  ######
 
   # create metadata df:
   print("Creating inferCNV metadata file...")
@@ -209,14 +210,6 @@ if (
 
   print(
     paste0(
-      "Gene numbers of InferCNV epithelial, non_epithelial, combined and gene_annotation",
-      " dfs are now ", nrow(epithelial_df), ", ", nrow(non_epithelial_df), ", ", 
-      nrow(combined_df), " and ", nrow(gene_annotation), " respectively"
-    )
-  )
-
-  print(
-    paste0(
       "Cell numbers of InferCNV epithelial, non_epithelial, combined and metadata dfs are ", 
       ncol(epithelial_df), ", ", ncol(non_epithelial_df), ", ", ncol(combined_df), " and ",
       nrow(final_metadata), " respectively"
@@ -242,4 +235,42 @@ if (
 
 }
 
+
+################################################################################
+### 3. Run InferCNV ###
+################################################################################
+
+# define normals which will act as InferCNV reference cells:
+normals <- "Non_epithelial"
+print(paste0("Normal is: ", normals))
+
+print("Creating inferCNV object...")
+raw_path <- paste0(input_dir, "input_matrix.txt")
+annotation_path <- paste0(input_dir, "metadata.txt")
+gene_path <- paste0(ref_dir, "infercnv_gene_order.txt")
+initial_infercnv_object <- CreateInfercnvObject(
+  raw_counts_matrix=raw_path,
+  annotations_file=annotation_path,
+  delim="\t",
+  gene_order_file=gene_path,
+  ref_group_names=normals
+)
+print("InferCNV object created, running inferCNV...")
+
+system.time(
+  infercnv_output <- try(
+    infercnv::run(
+      initial_infercnv_object,
+      num_threads=numcores-1,
+      out_dir=".",
+      cutoff=0.1,
+      window_length=101,
+      max_centered_threshold=3,
+      plot_steps=F,
+      denoise=T,
+      sd_amplifier=denoise_value,
+      analysis_mode=analysis_mode
+    )
+  )
+)
 

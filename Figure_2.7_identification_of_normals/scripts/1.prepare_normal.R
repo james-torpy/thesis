@@ -3,7 +3,7 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
+subproject_name <- "Figure_2.7_identification_of_normals"
 sample_name <- args[1]
 print(paste0("Sample name = ", sample_name))
 
@@ -28,8 +28,8 @@ func_dir <- paste0(project_dir, "scripts/functions/")
 in_dir <- paste0(project_dir, "raw_files/seurat_objects/", sample_name, "/")
 
 out_path <- paste0(results_dir, "infercnv/", sample_name, "/normal/")
-Robject_dir <- paste0(out_path, "/Rdata/")
-plot_dir <- paste0(out_path, "/plots/")
+Robject_dir <- paste0(out_path, "Rdata/")
+plot_dir <- paste0(out_path, "plots/")
 system(paste0("mkdir -p ", Robject_dir))
 system(paste0("mkdir -p ", plot_dir))
 
@@ -71,10 +71,6 @@ if (!file.exists(paste0(Robject_dir, "/1a.original_epithelial_df.Rdata")) |
       "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
     )
   )
-
-  ######
-  #count_df <- count_df[1:6000,]
-  ######
 
   # create metadata df:
   print("Creating inferCNV metadata file...")

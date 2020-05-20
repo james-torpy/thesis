@@ -77,9 +77,9 @@ col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3"), brewe
 col_palette <- col_palette[-7]
 
 
-#################################################################################
-### 1. Load epithelial heatmap and metadata ###
-#################################################################################
+################################################################################
+### 1. Load and format data ###
+################################################################################
 
 print("Loading heatmap and metadata dfs...")
 epithelial_heatmap <- readRDS(paste0(Robject_dir, 
@@ -90,11 +90,6 @@ print(paste0(
   "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
   identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
 ))
-
-
-################################################################################
-### 2. Identify CNVs in each subpopulation and calculate genomic lengths ###
-################################################################################
 
 # determine neutral CNV value as most frequent infercnv score and check:
 score_table <- table(round(unlist(epithelial_heatmap), 6))
@@ -156,7 +151,12 @@ coord_list <- lapply(coord_list, function(x) {
 })
 gene_coords <- do.call("rbind", coord_list)
 
-# determine CNV co-ordinates and start and end genomic positinos for each subpop:
+
+################################################################################
+### 2. Identify CNVs in each subpopulation and calculate genomic lengths ###
+################################################################################
+
+# determine CNV co-ordinates and start and end genomic positions for each subpop:
 subpop_CNV_data <- lapply(subpop_matrices, function(x) {
 
   # if at least 50% of cells have signal above or below neutral_value, 
@@ -314,10 +314,35 @@ subpop_CNV_data <- lapply(subpop_matrices, function(x) {
 
 # create CNV only list:
 subpop_CNV_only <- lapply(subpop_CNV_data, function(x) {
-  CNV_only <- CNV_indices[CNV_indices$call != "neutral",]
+  CNV_only <- x[x$call != "neutral",]
   # remove CNVs less than min_CNV_length:
   return(CNV_only[CNV_only$length >= 20,])
 })
+
+# save mean, min and max CNV lengths:
+all_CNV_only <- do.call("rbind", subpop_CNV_only)
+CNV_lengths <- data.frame(
+  metric = c(
+    "gene_mean", "gene_min", "gene_max", 
+    "genomic_mean", "genomic_min", "genomic_max"
+  ),
+  value = c(
+    round(mean(all_CNV_only$length), 0), 
+    min(all_CNV_only$length),
+    max(all_CNV_only$length),
+    round(mean(all_CNV_only$genomic_length), 1),
+    min(all_CNV_only$genomic_length),
+    max(all_CNV_only$genomic_length)
+  )
+)
+write.table(
+  CNV_lengths,
+  paste0(table_dir, "/CNV_length_stats.txt"),
+  quote = F,
+  sep = "\t",
+  row.names = F,
+  col.names = T
+)
 
 
 ################################################################################

@@ -5,26 +5,22 @@
 # DAG command:
 # snakemake --dag | dot -Tsvg > dag.svg
 
-# to change when no longer subsetting:
-# comment out subset line in 1.prepare_normal.R
-# change nUMI_threshold to 25000
-# change nGene_threshold to 5000
-
 # define directories:
 R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
 
 # define variables:
-#SAMPLES = list(range(1, 31, 1))
-SAMPLES = [1]
+SAMPLES = list(range(1, 31, 1))
+#SAMPLES = [17]
 SAMPLES = list(map(str, SAMPLES))
-SAMPLES = ['filtered_normal'] + ['sim' + s for s in SAMPLES]
+#SAMPLES = ['filtered_normal'] + ['sim' + s for s in SAMPLES]
+SAMPLES = ['sim' + s for s in SAMPLES]
 samples = [".".join(SAMPLES)]
 
 #DENOISING_VALS = ['no', '0.5', '1', '1.1', '1.2', '1.3', '1.4', '1.5', '2']
-DENOISING_VALS = ['no']
+DENOISING_VALS = ['1.3']
 denoising_vals = "_".join(DENOISING_VALS)
 
-# prepare_normal parameters:
+# prepare_normals parameters:
 ncores = "10"
 
 # simulate cancer parameters:
@@ -67,7 +63,7 @@ rule all:
 
 
 ####################################################################################
-### Normal no noise ###
+### Normal no denoise ###
 ####################################################################################
 
 rule prepare_normal:
@@ -78,11 +74,11 @@ rule prepare_normal:
     threads: 10
     shell:
         "module load briglo/R/3.6.0; " + 
-        "mkdir -p logs/prepare_normal/; " +
-        "cd logs/prepare_normal/; " + 
+        "mkdir -p logs/prepare_normals/; " +
+        "cd logs/prepare_normals/; " + 
         "{R_dir}/R CMD BATCH  --no-save '--args" + 
         " CID4520N" + 
-        "' ../../scripts/1.prepare_normal.R"
+        "' ../../scripts/1.prepare_normals.R"
 
 rule normal_infercnv_no_denoise:
     input:
@@ -179,8 +175,12 @@ rule plot:
         "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
         "infercnv.png"
     output:
-        "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
-            "Rdata/CNV_data.Rdata"
+        CNV_heatmap = "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "plots/infercnv_plot.png",
+        CNV_data = "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "Rdata/CNV_data.Rdata",
+        estimated_vs_known = "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "Rdata/estimated_vs_known_counts.Rdata"
     threads: 10
     shell:
         "module load briglo/R/3.6.0; " + 
@@ -205,12 +205,27 @@ rule final_plot:
         ),
         sim_no_denoising = expand(
             "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
+            "plots/infercnv_plot.png",
+            sample=SAMPLES
+        ),
+        sim_no_denoising_CNV_data = expand(
+            "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
             "Rdata/CNV_data.Rdata",
             sample=SAMPLES
         ),
         sim = expand(
         	"results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "plots/infercnv_plot.png",
+            sample=SAMPLES, denoise_val=DENOISING_VALS
+        ),
+        sim_CNV_data = expand(
+            "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
             "Rdata/CNV_data.Rdata",
+            sample=SAMPLES, denoise_val=DENOISING_VALS
+        ),
+        estimated_vs_known = expand(
+            "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "Rdata/estimated_vs_known_counts.Rdata",
             sample=SAMPLES, denoise_val=DENOISING_VALS
         )
     output:

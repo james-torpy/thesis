@@ -74,8 +74,16 @@ if (include_t_cells) {
     sample_name, "/", CNV_type, "/")
 }
 
+sim_path <- paste0(results_dir, "cancer_simulation/", sample_name,
+  "/", CNV_type, "/")
+
 out_dir <- paste0(in_path, downsample_type, "_downsampling_final_results/")
 system(paste0("mkdir -p ", out_dir))
+
+
+################################################################################
+### 1. Fetch data ###
+################################################################################
 
 # convert downsample_proportions to list:
 downsample_list <- as.list(downsample_proportions)
@@ -179,51 +187,76 @@ final_metrics <- lapply(split_metrics3, function(x) {
 })
 final_metric_df <- do.call("rbind", final_metrics)
 
-cols <- c("#C02456", "#58B9DB", "#F4D30B", "#B066B2")
 
-p <- ggplot(final_metric_df, aes(x = Proportion, y = Score)) 
-p <- p + geom_line(aes(color = Metric))
-p <- p + geom_errorbar(aes(ymin=Score-SE, ymax=Score+SE))
-p <- p + scale_color_manual(values = cols[1:5])
-p <- p + scale_x_continuous(
-  breaks = c(0, 5, seq(10, 100, 10))
-)
-p <- p + scale_y_continuous(
-  breaks = seq(
-    round(
-      min(
-        plot_metrics$Score
-      ), 1
-    ), 1, 0.1
+################################################################################
+### 2. Fetch mean nUMI and nGene per proportion ###
+################################################################################
+
+for (k in 1:length(simulation_numbers)) {
+
+  temp_coverage <- read.table(
+    paste0(sim_path, simulation_numbers[k], "/tables/mean_coverage_values.txt")
   )
-)
-p <- p + theme(
-  panel.grid.minor = element_blank(),
-  axis.title.x = element_text(size = 9),
-  axis.title.y = element_blank(),
-  legend.title = element_blank()
-)
-if (downsample_type == "UMI") {
-  p <- p + xlab("Proportion UMIs (%)")
-} else {
-  p <- p + xlab("Proportion genes (%)")
+
+  if (k==1) {
+    coverage_df <- data.frame(
+      simulation_number = k,
+      downsample_proportion = temp_coverage$downsample_proportion,
+      mean_nUMI = temp_coverage$nUMI,
+      mean_nGene = temp_coverage$nGene
+    )
+  } else {
+    coverage_df <- rbind(
+      coverage_df,
+      data.frame(
+        simulation_number = k,
+        downsample_proportion = temp_coverage$downsample_proportion,
+        mean_nUMI = temp_coverage$nUMI,
+        mean_nGene = temp_coverage$nGene
+      )
+    )
+  }
+
 }
 
-pdf(
-  paste0(out_dir, "all_downsampling_results.pdf"), 
-  width = 7, height = 5
-)
-  print(p)
-dev.off()
+# split coverage_df by downsample proportion:
+split_coverage <- split(coverage_df, coverage_df$downsample_proportion)
+proportion_coverages <- lapply(split_coverage, function(x) {
+  return(
+    data.frame(
+      nUMI = round(mean(x$mean_nUMI), 0),
+      nGene = round(mean(x$mean_nGene), 0)
+    )
+  )
+})
+final_coverages <- do.call("rbind", proportion_coverages)
 
-png(
-  paste0(out_dir, "all_downsampling_results.png"), 
-  width = 7, height = 5, units = "in", res = 300
-)
-  print(p)
-dev.off()
+if (downsample_type == "UMI") {
+  final_coverages <- final_coverages[
+    grep("gene", rownames(final_coverages), invert=T),
+  ]
+  final_coverages$Proportion <- as.numeric(
+    gsub("no", "1", rownames(final_coverages))
+  )*100
+} else {
+  final_coverages <- final_coverages[
+    grep("gene|no", rownames(final_coverages)),
+  ]
+  final_coverages$Proportion <- as.numeric(
+    gsub(
+      "_gene", "", gsub(
+        "no", "1", rownames(final_coverages)
+      )
+    )
+  )*100
+}
+final_metric_df <- merge(final_metric_df, final_coverages, by="Proportion")
 
-# plot precision and specificity only:
+
+################################################################################
+### 3. Plot sensitivity and specificity only ###
+################################################################################
+
 subset_df <- final_metric_df[
   final_metric_df$Metric %in% c("Sensitivity", "Specificity"),
 ]
@@ -233,25 +266,44 @@ subset_df$Metric <- factor(
 )
 cols <- c("#58B9DB", "#D95F02")
 
-p <- ggplot(
-  subset_df, 
-  aes(x = Proportion, y = Score, group = Metric, color = Metric)
-) 
-p <- p + geom_line()
-p <- p + geom_errorbar(
-  aes(ymin=Score-SE, ymax=Score+SE), 
-  width=2
-)
-p <- p + scale_color_manual(values = cols)
-
-p <- p + xlab("Gap length")
 if (downsample_type == "UMI") {
-  p <- p + xlab("Proportion UMIs (%)")
+  p <- ggplot(
+    subset_df, 
+    aes(x = nUMI, y = Score, group = Metric, color = Metric)
+  ) 
+  p <- p + xlab("Mean UMI/cell")
+  p <- p + geom_errorbar(
+    aes(ymin=Score-SE, ymax=Score+SE), 
+    width=floor(max(subset_df$nUMI)/50)
+  )
+  p <- p + scale_x_continuous(
+    breaks = seq(0, 14000, 2000),
+    labels = seq(0, 14000, 2000)
+  )
 } else {
-  p <- p + xlab("Proportion genes (%)")
+  p <- ggplot(
+    subset_df, 
+    aes(x = nGene, y = Score, group = Metric, color = Metric)
+  )
+  p <- p + xlab("Mean gene number/cell")
+  p <- p + geom_errorbar(
+    aes(ymin=Score-SE, ymax=Score+SE), 
+    width=floor(max(subset_df$nGene)/50)
+  )
+  p <- p + scale_x_continuous(
+    breaks = seq(0, 2500, 500),
+    labels = seq(0, 2500, 500)
+  )
 }
 p <- p + ylab("Accuracy score")
-
+p <- p + geom_line()
+p <- p + scale_color_manual(values = cols)
+p <- p + theme_cowplot(12)
+p <- p + theme(
+  axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+  axis.title.y.right = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0)),
+  
+)
 pdf(
   paste0(out_dir, "downsampling_sensitivity_specificity.pdf"), 
   width = 7, height = 5
@@ -268,4 +320,54 @@ dev.off()
 
 print(paste0("All output plots in", out_dir))
 
+
+################################################################################
+### 4. Plot all metrics ###
+################################################################################
+
+cols <- c("#C02456", "#58B9DB", "#F4D30B", "#B066B2")
+
+if (downsample_type == "UMI") {
+  p <- ggplot(final_metric_df, aes(x = nUMI, y = Score)) 
+  p <- p + xlab("Mean UMI/cell")
+} else {
+  p <- ggplot(final_metric_df, aes(x = nGene, y = Score)) 
+  p <- p + xlab("Mean gene number/cell")
+}
+p <- p + geom_line(aes(color = Metric))
+p <- p + geom_errorbar(aes(ymin=Score-SE, ymax=Score+SE))
+p <- p + scale_color_manual(values = cols[1:5])
+p <- p + scale_x_continuous(
+  breaks = seq(0, 14000, 2000)
+)
+p <- p + scale_y_continuous(
+  breaks = seq(
+    round(
+      min(
+        plot_metrics$Score
+      ), 1
+    ), 1, 0.1
+  )
+)
+p <- p + theme_cowplot(12)
+p <- p + theme(
+  panel.grid.minor = element_blank(),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_blank(),
+  legend.title = element_blank()
+)
+
+pdf(
+  paste0(out_dir, "all_downsampling_results.pdf"), 
+  width = 7, height = 5
+)
+  print(p)
+dev.off()
+
+png(
+  paste0(out_dir, "all_downsampling_results.png"), 
+  width = 7, height = 5, units = "in", res = 300
+)
+  print(p)
+dev.off()
 

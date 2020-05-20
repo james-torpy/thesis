@@ -1,0 +1,85 @@
+# Run command:
+# snakemake --reason --cores 180 --cluster "qsub -pe smp 10 -N fig3.3.smk -b y -j y -V -P TumourProgression" -j 18
+
+# DAG command:
+# snakemake --dag | dot -Tsvg > dag.svg
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+# define variables:
+SAMPLES = list(["CID3586", "CID4066", "CID4471", "CID4515", 
+    "CID3921", "CID4067", "CID4495", "CID45171", 
+    "CID3941", "CID4290A", "CID4461", "CID44971", 
+    "CID4523", "CID3948", "CID4463", "CID44991", 
+    "CID4530N", "CID3963", "CID44041", "CID4465", 
+    "CID4513", "CID4535"])
+#SAMPLES = list(["CID4515", "CID4463"])
+
+# plot parameters:
+all_cell_PC = "C"
+all_cell_res = "PC_C_res.0.6"
+malignant_PC = "D"
+malignant_res = "SUBSET_D_res.0.8"
+broad_markers = "ACTB_PTPRC_CD19_CD3D_CD68_PDGFRB_PECAM1_EPCAM"
+epithelial_markers = "ACTB_EPCAM_KRT18_KRT5_MKI67"
+
+#####
+rule all:
+    input:
+        expand(
+            "results/infercnv/{sample}/infercnv.12_denoised.png",
+            sample=sample
+        )
+#####
+
+#######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/{sample}/plots/infercnv_plot.png",
+#            sample=SAMPLES
+#        ),
+#        expand(
+#            "results/infercnv/{sample}/tables/epithelial_metadata.txt",
+#            sample=SAMPLES
+#        )
+######
+
+rule infercnv:
+    input:
+        "raw_files/seurat_objects/{sample}/03_seurat_object_processed.Rdata",
+    output:
+        "results/infercnv/{sample}/infercnv.12_denoised.png"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/infercnv/{wildcards.sample}/; " +
+        "cd logs/infercnv/{wildcards.sample}/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" + 
+        " {threads}" + 
+        "' ../../../scripts/1.infercnv.R"
+
+rule plot:
+    input:
+        "results/infercnv/{sample}/infercnv.12_denoised.png"
+    output:
+        infercnv = "results/infercnv/{sample}/plots/infercnv_plot.png",
+        metadata = "results/infercnv/{sample}/tables/epithelial_metadata.txt"
+    threads: 10
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/plot/{wildcards.sample}/; " +
+        "cd logs/plot/{wildcards.sample}; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" +  
+        " {all_cell_PC}" + 
+        " {all_cell_res}" + 
+        " {malignant_PC}" +
+        " {malignant_res}" +
+        "' ../../../scripts/2.plot_individual_heatmap.R"
+
+
+
+
