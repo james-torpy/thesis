@@ -4,10 +4,13 @@ args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
 subproject_name <- "Figure_3.3_individual_samples"
-numcores <- 10
 sample_name <- args[1]
+numcores <- as.numeric(args[2])
+subcluster_method <- args[3]
 
 #sample_name <- "CID4463"
+#numcores <- 10
+#subcluster_method <- "random_trees"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -185,7 +188,8 @@ if (length(epithelial_clusters) < 1) {
         plot_steps=F,
         denoise=T,
         sd_amplifier=1.3,
-        analysis_mode = "subclusters"
+        analysis_mode = "subclusters",
+        tumor_subcluster_partition_method = subcluster_method
       )
     )
   )

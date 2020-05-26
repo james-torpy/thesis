@@ -587,8 +587,6 @@ if (gap_or_CNV == "CNV") {
     # mean signal within neutral_signal_ranges or the range of the opposite CNV type
     # in at least 80% of genes:
     feature_indices$call <- "feature_not_called"
-<<<<<<< HEAD:Figure_2.3_min_length_and_gap/scripts/4b.plot_individual_heatmap.R
-
 
     for (r in 1:nrow(feature_indices)) {
 
@@ -598,13 +596,12 @@ if (gap_or_CNV == "CNV") {
         heatmap_segment <- epithelial_heatmap[,g:(g+(min_gap_length-1))]
 
         if (CNV_type == "gain") {
-=======
+
 
     for (r in 1:nrow(feature_indices)) {
 
       heatmap_segment <- epithelial_heatmap[,feature_indices[r,]$start:feature_indices[r,]$end]
       #cell_means <- apply(heatmap_segment, 1, mean)
->>>>>>> starting_fig_2.7:Figure_2.4_min_length_and_gap/scripts/4b.plot_individual_heatmap.R
 
       if (CNV_type == "gain") {
 

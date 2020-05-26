@@ -1,5 +1,5 @@
 # Run command:
-# snakemake --reason --cores 180 --cluster "qsub -pe smp 10 -N fig3.3.smk -b y -j y -V -P TumourProgression" -j 18
+# snakemake -k --reason --cores 28 --cluster "qsub -pe smp 2 -N fig3.3.smk -b y -j y -V -P TumourProgression" -j 14
 
 # DAG command:
 # snakemake --dag | dot -Tsvg > dag.svg
@@ -8,13 +8,19 @@
 R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
 
 # define variables:
-SAMPLES = list(["CID3586", "CID4066", "CID4471", "CID4515", 
-    "CID3921", "CID4067", "CID4495", "CID45171", 
-    "CID3941", "CID4290A", "CID4461", "CID44971", 
-    "CID4523", "CID3948", "CID4463", "CID44991", 
-    "CID4530N", "CID3963", "CID44041", "CID4465", 
-    "CID4513", "CID4535"])
-#SAMPLES = list(["CID4515", "CID4463"])
+
+# random tree samples:
+SAMPLES = list(["CID4066", "CID4515", "CID3921", "CID4067", 
+   "CID45171", "CID3941", "CID4523", "CID3948", 
+   "CID4463", "CID4530N", "CID3963", "CID44041", 
+   "CID4465", "CID4535"])
+
+## random tree did not work with 10 cores for these samples:
+#SAMPLES = list(["CID3586", "CID4471", "CID4495","CID4290A", 
+#    "CID44971", "CID44991", "CID4513"])
+
+# infercnv parameters:
+subcluster_method = "random_trees"
 
 # plot parameters:
 all_cell_PC = "C"
@@ -23,28 +29,54 @@ malignant_PC = "D"
 malignant_res = "SUBSET_D_res.0.8"
 broad_markers = "ACTB_PTPRC_CD19_CD3D_CD68_PDGFRB_PECAM1_EPCAM"
 epithelial_markers = "ACTB_EPCAM_KRT18_KRT5_MKI67"
+nUMI_threshold = "8000"
+nGene_threshold = "1300"
+min_proportion_cells_for_subcluster = "0.005"
 
-#####
-rule all:
-    input:
-        expand(
-            "results/infercnv/{sample}/infercnv.12_denoised.png",
-            sample=sample
-        )
-#####
+# Subcluster plot parameters:
+min_CNV_length = 20
+min_CNV_proportion = "0.5"
+loose_min_proportion = "0.4"
+malignant_res = "SUBSET_D_res.0.8"
+
+######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/{sample}/infercnv.12_denoised.png",
+#            sample=SAMPLES
+#        )
+######
 
 #######
 #rule all:
 #    input:
 #        expand(
-#            "results/infercnv/{sample}/plots/infercnv_plot.png",
+#            "results/infercnv/{sample}/plots/infercnv_plot_good_coverage_only.png",
 #            sample=SAMPLES
 #        ),
 #        expand(
-#            "results/infercnv/{sample}/tables/epithelial_metadata.txt",
+#            "results/infercnv/{sample}/Rdata/3b.filtered_metadata_good_coverage_only.Rdata",
+#            sample=SAMPLES
+#        ),
+#        expand(
+#            "results/infercnv/{sample}/Rdata/3b.filtered_metadata_good_coverage_only.Rdata",
 #            sample=SAMPLES
 #        )
 ######
+
+######
+rule all:
+    input:
+        expand(
+            "results/infercnv/{sample}/plots/infercnv_plot_verified_subclusters.png",
+            sample=SAMPLES
+        ),
+        expand(
+            "results/infercnv/{sample}/Rdata/4.subcluster_revised_epithelial_metadata.Rdata",
+            sample=SAMPLES
+        )
+#####
 
 rule infercnv:
     input:
@@ -59,15 +91,17 @@ rule infercnv:
         "{R_dir}/R CMD BATCH  --no-save '--args" + 
         " {wildcards.sample}" + 
         " {threads}" + 
+        " {subcluster_method} " + 
         "' ../../../scripts/1.infercnv.R"
 
 rule plot:
     input:
         "results/infercnv/{sample}/infercnv.12_denoised.png"
     output:
-        infercnv = "results/infercnv/{sample}/plots/infercnv_plot.png",
-        metadata = "results/infercnv/{sample}/tables/epithelial_metadata.txt"
-    threads: 10
+        infercnv = "results/infercnv/{sample}/plots/infercnv_plot_good_coverage_only.png",
+        heatmap = "results/infercnv/{sample}/Rdata/3a.filtered_heatmap_good_coverage_only.Rdata",
+        metadata = "results/infercnv/{sample}/Rdata/3b.filtered_metadata_good_coverage_only.Rdata"
+    threads: 2
     shell:
         "module load briglo/R/3.6.0; "
         "mkdir -p logs/plot/{wildcards.sample}/; " +
@@ -78,7 +112,33 @@ rule plot:
         " {all_cell_res}" + 
         " {malignant_PC}" +
         " {malignant_res}" +
+        " {broad_markers}" +
+        " {epithelial_markers}" +
+        " {nUMI_threshold}" +
+        " {nGene_threshold}" +
+        " {min_proportion_cells_for_subcluster}" +
         "' ../../../scripts/2.plot_individual_heatmap.R"
+
+rule plot_subclusters:
+    input:
+        infercnv_in = "results/infercnv/{sample}/plots/infercnv_plot_good_coverage_only.png",
+        heatmap_in = "results/infercnv/{sample}/Rdata/3a.filtered_heatmap_good_coverage_only.Rdata",
+        metadata_in = "results/infercnv/{sample}/Rdata/3b.filtered_metadata_good_coverage_only.Rdata"
+    output:
+        infercnv_out = "results/infercnv/{sample}/plots/infercnv_plot_verified_subclusters.png",
+        metadata_out = "results/infercnv/{sample}/Rdata/4.subcluster_revised_epithelial_metadata.Rdata"
+    threads: 2
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/plot_subclusters/{wildcards.sample}/; " +
+        "cd logs/plot_subclusters/{wildcards.sample}; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" +  
+        " {min_CNV_length}" + 
+        " {min_CNV_proportion}" + 
+        " {loose_min_proportion}" +
+        " {malignant_res}" +
+        "' ../../../scripts/3.verify_and_plot_subcluster_signal.R"
 
 
 

@@ -32,6 +32,25 @@ epithelial_markers <- unlist(
     "_"
   )
 )
+nUMI_threshold <- as.numeric(args[8])
+nGene_threshold <- as.numeric(args[9])
+min_proportion_cells_for_subcluster <- as.numeric(args[10])
+
+print(paste0("Subproject name = ", subproject_name))
+print(paste0("Sample name = ", sample_name))
+print(paste0("All cell PC = ", all_cell_PC))
+print(paste0("All cell res = ", all_cell_res))
+print(paste0("Malignant PC = ", malignant_PC))
+print(paste0("Malignant res = ", malignant_res))
+print("Broad markers: ")
+print(broad_markers)
+print("Epithelial markers: ")
+print(epithelial_markers)
+print(paste0("nUMI threshold = ", nUMI_threshold))
+print(paste0("nGene threshold = ", nGene_threshold))
+print(paste0("Min proportion of cells for subcluster to be defined = ", 
+  min_proportion_cells_for_subcluster))
+
 #sample_name <- "CID4515"
 #all_cell_PC <- "C"
 #all_cell_res <- "PC_C_res.0.6"
@@ -53,11 +72,12 @@ epithelial_markers <- unlist(
 #    "_"
 #  )
 #)
-
-print(paste0("Subproject name = ", subproject_name))
-print(paste0("Sample name = ", sample_name))
+#nUMI_threshold <- as.numeric("8000")
+#nGene_threshold <- as.numeric("1300")
+#min_proportion_cells_for_subcluster <- as.numeric("0.005")
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
+library(MAST, lib.loc = lib_loc)
 library(scales, lib.loc = lib_loc)
 library(ggplot2)
 library(Seurat)
@@ -79,10 +99,8 @@ func_dir <- paste0(project_dir, "/scripts/functions/")
 results_dir <- paste0(project_dir, "results/")
 raw_dir <- paste0(project_dir, "raw_files/")
 seurat_dir <- paste0(raw_dir, "seurat_objects/", sample_name, "/")
-#integrated_dir <- paste0("/share/ScratchGeneral/sunwu/projects/MINI_ATLAS_PROJECT/",
-#	"Jun2019/04_reclustering_analysis/run06_v1.2.1/output/Epithelial/02_Rdata/")
-in_dir <- paste0(results_dir, "infercnv/CID4515/")
-input_dir <- paste0(results_dir, "infercnv/CID4515/input_files/")
+in_dir <- paste0(results_dir, "infercnv/", sample_name, "/")
+input_dir <- paste0(results_dir, "infercnv/", sample_name, "/input_files/")
 
 Robject_dir <- paste0(in_dir, "Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
@@ -207,95 +225,100 @@ if (!file.exists(paste0(plot_dir, "epithelial_feature.png"))) {
 # best PC/resolution ###
 #################################################################################
 
-seurat_malignant <- readRDS(paste0(seurat_dir, "05_seurat_object_malignant.Rdata"))
-Idents(seurat_malignant) <- paste0(
-  seurat_malignant@meta.data$garnett_call_ext_major,
-  " ",
-  eval(parse(text = paste0("seurat_malignant@meta.data$", malignant_res)))
-)
-levels(Idents(seurat_malignant)) <- naturalsort(levels(Idents(seurat_malignant)))
+if (file.exists(paste0(seurat_dir, "05_seurat_object_malignant.Rdata"))) {
 
-# define cluster annotation colours:
-cluster_number <- length(unique(Idents(seurat_malignant)))
-cluster_cols <- col_palette[1:cluster_number]
-names(cluster_cols) <- unique(Idents(seurat_malignant))
-
-
-if (!file.exists(paste0(plot_dir, malignant_res, "_epithelial_tsne.png"))) {
-
-  # isolate and plot epithelial cells:
-  epi_tSNE <- DimPlot(
-    object = seurat_malignant,
-    label.size = 40,
-    pt.size = 2,
-    reduction = paste0("TSNE", malignant_PC),
-    cols = cluster_cols
+  seurat_malignant <- readRDS(paste0(seurat_dir, "05_seurat_object_malignant.Rdata"))
+  Idents(seurat_malignant) <- paste0(
+    seurat_malignant@meta.data$garnett_call_ext_major,
+    " ",
+    eval(parse(text = paste0("seurat_malignant@meta.data$", malignant_res)))
   )
+  levels(Idents(seurat_malignant)) <- naturalsort(levels(Idents(seurat_malignant)))
   
-  png(
-    paste0(plot_dir, malignant_res, "_epithelial_tsne.png"),
-     width = 10, 
-     height = 8, 
-     res = 300, 
-     units = 'in'
-  )
-    print(epi_tSNE)
-  dev.off()
-  
-  epi_UMAP <- DimPlot(
-    object = seurat_malignant,
-    label.size = 40,
-    pt.size = 2,
-    reduction = paste0("UMAP", malignant_PC),
-    cols = cluster_cols
-  )
-  
-  png(
-    paste0(plot_dir, malignant_res, "_epithelial_umap.png"),
-     width = 10, 
-     height = 8, 
-     res = 300, 
-     units = 'in'
-  )
-    print(epi_UMAP)
-  dev.off()
+  # define cluster annotation colours:
+  cluster_number <- length(unique(Idents(seurat_malignant)))
+  cluster_cols <- col_palette[1:cluster_number]
+  names(cluster_cols) <- unique(Idents(seurat_malignant))
 
-}
+  saveRDS(cluster_cols, paste0(Robject_dir, "cluster_colours.Rdata"))
+  
+  if (!file.exists(paste0(plot_dir, malignant_res, "_epithelial_tsne.png"))) {
+  
+    # isolate and plot epithelial cells:
+    epi_tSNE <- DimPlot(
+      object = seurat_malignant,
+      label.size = 40,
+      pt.size = 2,
+      reduction = paste0("TSNE", malignant_PC),
+      cols = cluster_cols
+    )
+    
+    png(
+      paste0(plot_dir, malignant_res, "_epithelial_tsne.png"),
+       width = 10, 
+       height = 8, 
+       res = 300, 
+       units = 'in'
+    )
+      print(epi_tSNE)
+    dev.off()
+    
+    epi_UMAP <- DimPlot(
+      object = seurat_malignant,
+      label.size = 40,
+      pt.size = 2,
+      reduction = paste0("UMAP", malignant_PC),
+      cols = cluster_cols
+    )
+    
+    png(
+      paste0(plot_dir, malignant_res, "_epithelial_umap.png"),
+       width = 10, 
+       height = 8, 
+       res = 300, 
+       units = 'in'
+    )
+      print(epi_UMAP)
+    dev.off()
+  
+  }
+  
+  if (!file.exists(paste0(plot_dir, "expression_cluster_DGE_heatmap.png"))) {
+  
+    epi_DE <- FindAllMarkers(
+      only.pos = T,
+      object = seurat_malignant,
+      min.pct = 0.5, 
+      logfc.threshold = 0.7, 
+      test.use = 'MAST'
+    )
+    
+    epi_DE_sorted <- arrange(epi_DE, cluster, desc(avg_logFC))
+    
+    write.table(epi_DE_sorted, paste0(table_dir, "expression_cluster_DGE.txt"))
+    
+    heatmap_genes <- epi_DE_sorted %>% 
+      group_by(cluster) %>% 
+      top_n(10, avg_logFC)
+    
+    png(
+      paste0(plot_dir, "expression_cluster_DGE_heatmap.png"),
+      width = 12,
+      height = 9,
+      res = 300,
+      units = "in"
+    )
+      print(DoHeatmap(
+        seurat_malignant,
+        features = heatmap_genes$gene,
+        group.by = "ident",
+        group.colors = cluster_cols,
+        size = 3
+      ))
+    dev.off()
+    
+  }
 
-if (!file.exists(paste0(plot_dir, "expression_cluster_DGE_heatmap.png"))) {
-
-  epi_DE <- FindAllMarkers(
-    only.pos = T,
-    object = seurat_malignant,
-    min.pct = 0.5, 
-    logfc.threshold = 0.7, 
-    test.use = 'MAST'
-  )
-  
-  epi_DE_sorted <- arrange(epi_DE, cluster, desc(avg_logFC))
-  
-  write.table(epi_DE_sorted, paste0(table_dir, "expression_cluster_DGE.txt"))
-  
-  heatmap_genes <- epi_DE_sorted %>% 
-    group_by(cluster) %>% 
-    top_n(10, avg_logFC)
-  
-  png(
-    paste0(plot_dir, "expression_cluster_DGE_heatmap.png"),
-    width = 12,
-    height = 9,
-    res = 300,
-    units = "in"
-  )
-    print(DoHeatmap(
-      seurat_malignant,
-      features = heatmap_genes$gene,
-      group.by = "ident",
-      group.colors = cluster_cols,
-      size = 3
-    ))
-  dev.off()
-  
 }
 
 
@@ -593,8 +616,190 @@ png(paste0(plot_dir, "infercnv_plot.png"),
     
 dev.off()
 
-pdf(paste0(plot_dir, "infercnv_plot.pdf"), 
-  height = 13, width = 20) 
+print(paste0("Heatmap created, output in ", plot_dir))
+
+
+################################################################################
+### 7. Remove cells below nUMI/nGene threshold ###
+################################################################################
+
+if (!file.exists(paste0(Robject_dir, "/3a.epithelial_heatmap_good_coverage_only.Rdata"))) {
+
+  print(paste0(
+    "Number of cells before filtering for good UMI/gene coverage = ", 
+    nrow(epithelial_metadata)
+  ))
+
+  filtered_metadata <- epithelial_metadata[
+    epithelial_metadata$nUMI > nUMI_threshold & epithelial_metadata$nUMI > nGene_threshold,
+  ]
+
+  # throw subclusters with number of cells < (min_proportion_cells_for_subcluster*total cell number):
+  split_metadata <- split(
+    filtered_metadata, filtered_metadata$subcluster_id
+  )
+  subcluster_cell_no <- lapply(split_metadata, nrow)
+  to_remove <- split_metadata[
+    subcluster_cell_no < (min_proportion_cells_for_subcluster*sum(unlist(subcluster_cell_no)))
+  ]
+  cells_to_remove <- as.character(do.call("rbind", to_remove)$cell_ids)
+  filtered_metadata <- filtered_metadata[!(filtered_metadata$cell_ids %in% cells_to_remove),]
+
+  filtered_heatmap <- epithelial_heatmap[
+    rownames(epithelial_heatmap) %in% filtered_metadata$cell_ids,
+  ]
+
+  print(paste0(
+    "Number of cells after filtering for good UMI/gene coverage = ", 
+    nrow(filtered_metadata)
+  ))
+
+  print(paste0(
+    "Are filtered_metadata rownames in the same order as filtered_heatmap?? ",
+    identical(rownames(filtered_heatmap), rownames(filtered_metadata))
+  ))
+  
+  saveRDS(filtered_heatmap, paste0(Robject_dir, 
+    "/3a.filtered_heatmap_good_coverage_only.Rdata"))
+  saveRDS(filtered_metadata, paste0(Robject_dir, 
+    "/3b.filtered_metadata_good_coverage_only.Rdata"))
+
+} else {
+
+  print("Loading heatmap and metadata dfs...")
+  filtered_heatmap <- readRDS(paste0(Robject_dir, 
+    "/3a.filtered_heatmap_good_coverage_only.Rdata"))
+  filtered_metadata <- readRDS(paste0(Robject_dir, 
+    "/3b.filtered_metadata_good_coverage_only.Rdata"))
+
+  print(paste0(
+    "Are filtered_metadata rownames in the same order as filtered_heatmap? ",
+    identical(rownames(filtered_heatmap), rownames(filtered_metadata))
+  ))
+
+}
+
+
+################################################################################
+### 8. Add annotations and prepare heatmap ###
+################################################################################
+
+# create group annotation:
+group_annotation_df <- subset(filtered_metadata, select = cell_type)
+group_annotation <- Heatmap(
+  as.matrix(group_annotation_df), 
+  col = cluster_cols, 
+  name = "Expression\nclusters", 
+  width = unit(4, "mm"), 
+  show_row_names = F, show_column_names = F,
+  show_heatmap_legend = T
+)
+# create QC annotations:
+nUMI_annotation <- rowAnnotation(
+  nUMI = anno_barplot(
+    filtered_metadata$nUMI,
+    gp = gpar(
+      col = "#D8B72E", 
+      width = unit(4, "cm")
+    ), 
+    border = FALSE, 
+    which = "row", 
+    axis = F
+  ), show_annotation_name = FALSE
+)
+nUMI_annotation@name <- "nUMI"
+nGene_annotation <- rowAnnotation(
+  nGene = anno_barplot(
+    filtered_metadata$nGene, name = "nGene",
+    gp = gpar(
+      col = "#9ECAE1", 
+      width = unit(4, "cm")
+    ), 
+    border = FALSE, 
+    which = "row", 
+    axis = F
+  ), show_annotation_name = FALSE
+)
+nGene_annotation@name <- "nGene"
+
+# create subcluster annotation:
+subcluster_annot_df <- subset(filtered_metadata, select = subcluster_id)
+subcluster_cols <- rev(col_palette)[
+  1:length(unique(subcluster_annot_df$subcluster_id))
+]
+names(subcluster_cols) <- unique(subcluster_annot_df$subcluster_id)
+subcluster_annotation <- Heatmap(as.matrix(subcluster_annot_df), 
+  col = subcluster_cols, 
+  name = "subcluster_annotation", width = unit(6, "mm"), 
+  show_row_names = F, show_column_names = F, 
+  show_heatmap_legend = T
+)
+
+# fetch chromosome boundary co-ordinates:
+if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
+  chr_data <- fetch_chromosome_boundaries(epithelial_heatmap, ref_dir)
+  saveRDS(chr_data, paste0(Robject_dir, "chromosome_data.Rdata"))
+} else {
+  chr_data <- readRDS(paste0(Robject_dir, "chromosome_data.Rdata"))
+}
+
+# prepare df for plotting:
+plot_object <- filtered_heatmap
+colnames(plot_object) <- rep("la", ncol(plot_object))
+# define heatmap colours:
+na_less_vector <- unlist(plot_object)
+na_less_vector <- na_less_vector[!is.na(na_less_vector)]
+heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
+      c("#00106B", "white", "#680700"), space = "sRGB")
+
+print("Generating final heatmap...")
+# create main CNV heatmap:
+final_heatmap <- Heatmap(
+  as.matrix(plot_object), name = paste0("hm"), 
+  col = heatmap_cols,
+  cluster_columns = F, cluster_rows = F,
+  show_row_names = F, show_column_names = T,
+  column_names_gp = gpar(col = "white"),
+  show_row_dend = F,
+  show_heatmap_legend = F,
+  heatmap_legend_param = list(labels_gp = gpar(col = "red", fontsize = 12)),
+  use_raster = T, raster_device = c("png")
+)
+
+ht_list <- subcluster_annotation + group_annotation + final_heatmap + 
+  nUMI_annotation + nGene_annotation
+
+annotated_heatmap <- grid.grabExpr(
+  draw(ht_list, gap = unit(6, "mm"), heatmap_legend_side = "left")
+)
+dev.off()
+
+# determine where starting co-ordinates for heatmap are based upon longest cluster name
+# (0.00604 units per character):
+longest_cluster_name <- max(nchar(unique(as.character(filtered_metadata$cell_type))))
+x_coord <- longest_cluster_name*0.0037
+
+# generate heatmap legend:
+signal_ranges <- round(range(unlist(plot_object)), 2)
+lgd <- Legend(
+  at = c(signal_ranges[1], 1, signal_ranges[2]),
+  col_fun = heatmap_cols, 
+  title = "CNV signal", 
+  direction = "horizontal",
+  grid_height = unit(2.5, "cm"),
+  grid_width = unit(0.1, "cm"),
+  labels_gp = gpar(fontsize = 16),
+  title_gp = gpar(fontsize = 22, fontface = "plain")
+)
+
+
+################################################################################
+### 8. Plot heatmap ###
+################################################################################
+
+# plot final annotated heatmap:
+png(paste0(plot_dir, "infercnv_plot_good_coverage_only.png"), 
+  height = 13, width = 20, res = 300, units = "in") 
 
   grid.newpage()
     pushViewport(viewport(x = 0.155, y = 0.065, width = 0.752, height = 0.78, 
@@ -602,8 +807,18 @@ pdf(paste0(plot_dir, "infercnv_plot.pdf"),
       grid.draw(annotated_heatmap)
       decorate_heatmap_body("hm", {
         for ( e in 1:length(chr_data$end_pos) ) {
-        grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
-          gp = gpar(lwd = 1, col = "#383838"))
+          grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
+            gp = gpar(lwd = 3, col = "#383838"))
+          if (e==1) {
+            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=20))
+          } else if (e==21) {
+            grid.text(paste0("\n", gsub("chr", "", names(chr_data$lab_pos)[e])), chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=20))
+          } else {
+            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
+            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=20))        
+          }
         }
       })
     popViewport()
@@ -626,12 +841,4 @@ dev.off()
 
 print(paste0("Heatmap created, output in ", plot_dir))
 
-# print epithelial_metadata as table:
-write.table(epithelial_metadata, paste0(table_dir, "epithelial_metadata.txt"), 
-  sep="\t", quote=F, row.names=F, col.name=T)
-
-#convert pdf to png:
-system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo $f; ",
-"new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
-"convert -density 150 ", plot_dir, "$f -quality 90 ", plot_dir, "$new; done"))
 
