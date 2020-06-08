@@ -8,15 +8,11 @@ sample_name <- args[1]
 numcores <- as.numeric(args[2])
 subcluster_method <- args[3]
 res <- args[4]
-nUMI_threshold <- as.numeric(args[5])
-nGene_threshold <- as.numeric(args[6])
 
-sample_name <- "CID4463"
-numcores <- 20
-subcluster_method <- "random_trees"
-res <- "PC_A_res.1"
-nUMI_threshold <- as.numeric("1100")
-nGene_threshold <- as.numeric("300")
+#sample_name <- "CID44971"
+#numcores <- 80
+#subcluster_method <- "random_trees"
+#res <- "PC_A_res.1"
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -38,6 +34,7 @@ in_dir <- paste0(project_dir, "raw_files/seurat_objects/",
 setwd(in_dir)
 
 out_dir <- paste0(results_dir, "infercnv/", sample_name, "/p_0.05/")
+
 
 input_dir <- paste0(out_dir, "/input_files/")
 system(paste0("mkdir -p ", input_dir))
@@ -94,20 +91,17 @@ infercnv_metadata <- prepare_infercnv_metadata(
 seurat_10X <- infercnv_metadata$seurat
 print(paste0("Cell types are: ", unique(infercnv_metadata$metadata$cell_type)))
 
-# write original cell numbers to table:
-write.table(
-  infercnv_metadata$number_per_group, 
-  paste0(input_dir, "original_number_per_group.txt"), 
-  quote=F, 
-  sep="\t", 
-  col.names=F, 
-  row.names=F
-)
+# only keep cells in metadata df:
+print(paste0("No cells in count df before filtering for those in metadata df = ", 
+    ncol(count_df)))
+count_df <- count_df[,colnames(count_df) %in% infercnv_metadata$metadata$cell_ids]
+print(paste0("No cells in count df after filtering for those in metadata df = ", 
+    ncol(count_df)))
 
-# generate cluster metric plots for original epithelial clusters:
+# generate cluster metric plots for epithelial cluster:
 epithelial_clusters <- grep("pithelial", unique(infercnv_metadata$metadata$cell_type), value=T)
 print(paste0("Epithelial cluster = ", epithelial_clusters))
-if (!file.exists(paste0(plot_dir, "metrics_by_original_epithelial_clusters.png"))) {
+if (!file.exists(paste0(plot_dir, "metrics_by_epithelial_cluster.png"))) {
   png(paste0(plot_dir, "metrics_by_epithelial_cluster.png"),
     width=14, height=8, res=300, units='in')
     temp_violinplot <- VlnPlot(
@@ -120,51 +114,12 @@ if (!file.exists(paste0(plot_dir, "metrics_by_original_epithelial_clusters.png")
   dev.off()
 }
 
-# add nUMI and nGene columns to metadata:
-coverages <- data.frame(
-  cell_ids = rownames(seurat_10X@meta.data),
-  nUMI = seurat_10X@meta.data$nCount_RNA,
-  nGene = seurat_10X@meta.data$nFeature_RNA
-)
-infercnv_metadata$metadata <- merge(
-  infercnv_metadata$metadata, 
-  coverages, 
-  by = "cell_ids",
-  sort = F
-)
-
-
-################################################################################
-### 2. Filter input matrix and metadata files ###
-################################################################################
-
-# establish cell count record:
-count_record <- data.frame(
-  all_cells_pre_metadata_filtering = ncol(count_df),
-  all_cells_post_metadata_filtering = NA,
-  epithelial_cells_pre_normal_filtering = NA,
-  epithelial_cells_post_normal_filtering = NA,
-  all_cells_pre_coverage_filtering = NA,
-  all_cells_post_coverage_filtering = NA,
-  all_cells_pre_CAF_filtering = NA,
-  all_cells_post_CAF_filtering = NA,
-
-)
-
-
-
-# only keep cells in metadata df:
-print(paste0("No cells in count df before filtering for those in metadata df = ", 
-    ncol(count_df)))
-count_df <- count_df[,colnames(count_df) %in% infercnv_metadata$metadata$cell_ids]
-print(paste0("No cells in count df after filtering for those in metadata df = ", 
-    ncol(count_df)))
+# remove cluster information for epithelial cells:
+infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)] <- 
+gsub("_[0-9].*$", "", 
+  infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)])
 
 # keep only epithelial cells in malignant seurat object:
-print(paste0(
-  "No epithelial cells before filtering for those in malignant object = ", 
-  length(grep("pithelial", infercnv_metadata$metadata$cell_type))
-))
 seurat_malignant <- readRDS(paste0(in_dir, "05_seurat_object_malignant.Rdata"))
 to_remove <- infercnv_metadata$metadata$cell_ids[
   infercnv_metadata$metadata$cell_type == "Epithelial" &
@@ -173,65 +128,11 @@ to_remove <- infercnv_metadata$metadata$cell_ids[
 infercnv_metadata$metadata <- infercnv_metadata$metadata[
   !(infercnv_metadata$metadata$cell_ids %in% to_remove),
 ]
-print(paste0(
-  "No epithelial cells after filtering for those in malignant object = ", 
-  length(grep("pithelial", infercnv_metadata$metadata$cell_type))
-))
-
-# filter out cells below coverage thresholds:
-print(paste0(
-  "No cells before filtering out low coverage = ", 
-  nrow(infercnv_metadata$metadata)
-))
-to_remove <- infercnv_metadata$metadata$cell_ids[
-  infercnv_metadata$metadata$nUMI < nUMI_threshold |
-  infercnv_metadata$metadata$nUMI < nGene_threshold
-]
-infercnv_metadata$metadata <- infercnv_metadata$metadata[
-  !(infercnv_metadata$metadata$cell_ids %in% to_remove),
-]
-print(paste0(
-  "No cells after filtering out low coverage = ", 
-  nrow(infercnv_metadata$metadata)
-))
 
 # remove CAFs from analysis:
 infercnv_metadata$metadata <- infercnv_metadata$metadata[
   grep("CAF", infercnv_metadata$metadata$cell_type, invert=T),
 ]
-
-# write post-filtered cell numbers to table:
-write.table(
-  infercnv_metadata$number_per_group, 
-  paste0(input_dir, "original_number_per_group.txt"), 
-  quote=F, 
-  sep="\t", 
-  col.names=F, 
-  row.names=F
-)
-
-# generate cluster metric plots for post-filtered epithelial clusters:
-epithelial_clusters <- grep("pithelial", unique(infercnv_metadata$metadata$cell_type), value=T)
-print(paste0("Epithelial cluster = ", epithelial_clusters))
-if (!file.exists(paste0(plot_dir, "metrics_by_original_epithelial_clusters.png"))) {
-  png(paste0(plot_dir, "metrics_by_epithelial_cluster.png"),
-    width=14, height=8, res=300, units='in')
-    temp_violinplot <- VlnPlot(
-      object = seurat_10X,
-      features = c("nFeature_RNA", "nCount_RNA", "percent.mito"),
-      pt.size = 1.5,
-      idents = epithelial_clusters
-    )
-    print(temp_violinplot)
-  dev.off()
-}
-
-
-# remove cluster information for epithelial cells:
-infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)] <- 
-gsub("_[0-9].*$", "", 
-  infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)])
-
 # collapse all stromal cells into 'stromal' cell type:
 infercnv_metadata$metadata$cell_type[
   grep("pithelial", infercnv_metadata$metadata$cell_type, invert=T)
