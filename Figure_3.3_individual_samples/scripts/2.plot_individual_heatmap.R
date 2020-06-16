@@ -15,70 +15,72 @@
 project_name <- "thesis"
 subproject_name <- "Figure_3.3_individual_samples"
 args = commandArgs(trailingOnly=TRUE)
+
 sample_name <- args[1]
-all_cell_PC <- args[2]
-all_cell_res <- args[3]
-malignant_PC <- args[4]
-malignant_res <- args[5]
-broad_markers <- unlist(
-  strsplit(
-    args[6],
-    "_"
-  )
-)
-epithelial_markers <- unlist(
-  strsplit(
-    args[7],
-    "_"
-  )
-)
-nUMI_threshold <- as.numeric(args[8])
-nGene_threshold <- as.numeric(args[9])
-min_proportion_cells_for_subcluster <- as.numeric(args[10])
+subcluster_method <- args[2]
+subcluster_p <- args[3]
+if (subcluster_p != "none") {
+  subcluster_p <- as.numeric(subcluster_p)
+}
+nUMI_threshold <- as.numeric(args[4])
+nGene_threshold <- as.numeric(args[5])
+min_proportion_cells_for_subcluster <- as.numeric(args[6])
+order_by <- args[7]
+subcluster_annot <- as.logical(args[8])
+subcluster_legend <- as.logical(args[9])
+expression_annot <- as.logical(args[10])
+expression_legend <- as.logical(args[11])
+QC_annot <- as.logical(args[12])
+normal_annotation <- as.logical(args[13])
+remove_normals <- as.logical(args[14])
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
-print(paste0("All cell PC = ", all_cell_PC))
-print(paste0("All cell res = ", all_cell_res))
-print(paste0("Malignant PC = ", malignant_PC))
-print(paste0("Malignant res = ", malignant_res))
-print("Broad markers: ")
-print(broad_markers)
-print("Epithelial markers: ")
-print(epithelial_markers)
+print(paste0("Subclustered by ", subcluster_method))
+print(paste0("Subclustered by pval ", subcluster_p))
 print(paste0("nUMI threshold = ", nUMI_threshold))
 print(paste0("nGene threshold = ", nGene_threshold))
 print(paste0("Min proportion of cells for subcluster to be defined = ", 
   min_proportion_cells_for_subcluster))
+print(paste0("Order cells by = ", order_by))
+print(paste0("Print subcluster annotation? ", subcluster_annot))
+print(paste0("Print subcluster legend? ", subcluster_legend))
+print(paste0("Print expression annotation? ", expression_annot))
+print(paste0("Print expression legend?", expression_legend))
+print(paste0("Print QC annotations? ", QC_annot))
 
-#sample_name <- "CID4515"
-#all_cell_PC <- "C"
-#all_cell_res <- "PC_C_res.0.6"
-#malignant_PC <- "D"
-#malignant_res <- "SUBSET_D_res.0.8"
-#broad_markers <- unlist(
-#  strsplit(
-#    c(
-#      "ACTB_PTPRC_CD19_CD3D_CD68_PDGFRB_PECAM1_EPCAM"
-#    ),
-#    "_"
-#  )
-#)
-#epithelial_markers <- unlist(
-#  strsplit(
-#    c(
-#      "ACTB_EPCAM_KRT18_KRT5_MKI67"
-#    ),
-#    "_"
-#  )
-#)
-#nUMI_threshold <- as.numeric("8000")
-#nGene_threshold <- as.numeric("1300")
-#min_proportion_cells_for_subcluster <- as.numeric("0.005")
+project_name <- "thesis"
+subproject_name <- "Figure_3.3_individual_samples"
+sample_name <- "prca_filt"
+subcluster_method <- "none"
+subcluster_p <- "none"
+if (subcluster_p != "none") {
+  subcluster_p <- as.numeric(subcluster_p)
+}
+nUMI_threshold <- as.numeric("1100")
+nGene_threshold <- as.numeric("300")
+coverage_filter <- FALSE
+normal_epithelial <- "none"
+min_proportion_cells_for_subcluster <- as.numeric("0.005")
+order_by <- "expression"
+subcluster_annot <- FALSE
+subcluster_legend <- FALSE
+expression_annot <- TRUE
+expression_legend <- TRUE
+QC_annot <- TRUE
+normal_annot <- FALSE
+normal_legend <- FALSE
+plot_references <- TRUE
+seurat_filename <- "Final_FILT.Rds"
+cancer_x_threshold_sd_multiplier <- 2
+cancer_y_threshold_sd_multiplier <- 1.5
+normal_x_threshold_sd_multiplier <- 1
+normal_y_threshold_sd_multiplier <- 1.25
+remove_normals <- FALSE
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
-library(MAST, lib.loc = lib_loc)
 library(scales, lib.loc = lib_loc)
+library(cluster)
 library(ggplot2)
 library(Seurat)
 library(infercnv, lib.loc = lib_loc)
@@ -99,8 +101,9 @@ func_dir <- paste0(project_dir, "/scripts/functions/")
 results_dir <- paste0(project_dir, "results/")
 raw_dir <- paste0(project_dir, "raw_files/")
 seurat_dir <- paste0(raw_dir, "seurat_objects/", sample_name, "/")
-in_dir <- paste0(results_dir, "infercnv/", sample_name, "/")
-input_dir <- paste0(results_dir, "infercnv/", sample_name, "/input_files/")
+in_dir <- paste0(results_dir, "infercnv/", sample_name, "/", 
+  subcluster_method, "/p_", subcluster_p, "/")
+input_dir <- paste0(in_dir, "/input_files/")
 
 Robject_dir <- paste0(in_dir, "Rdata/")
 system(paste0("mkdir -p ", Robject_dir))
@@ -123,6 +126,9 @@ print(paste0("Plot directory = ", plot_dir))
 
 fetch_chromosome_boundaries <- dget(paste0(func_dir, 
   "fetch_chromosome_boundaries.R"))
+get_subpops <- dget(paste0(func_dir, "get_subpops.R"))
+define_normals <- dget(paste0(func_dir, "define_normals.R"))
+
 extra_colours <- c(brewer.pal(12, "Set3"), brewer.pal(12, "Paired"))
 col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3"), brewer.pal(8, "Accent"),
   "#660200", "#918940", "black", "#9ECAE1", "#3F007D", "#67000D", "#FDD0A2", "#08519C",
@@ -133,197 +139,8 @@ col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3"), brewe
 col_palette <- col_palette[-7]
 
 
-#################################################################################
-### 1. Load all cells seurat object and create tSNEs/UMAPs ###
-#################################################################################
-
-if (!file.exists(paste0(plot_dir, "epithelial_feature.png"))) {
-
-  seurat_10X <- readRDS(paste0(seurat_dir, "03_seurat_object_processed.Rdata"))
-  Idents(seurat_10X) <- paste0(
-    seurat_10X@meta.data$garnett_seurat_cluster_call_major_PC_C_res.0.6,
-    " ",
-    seurat_10X@meta.data$PC_C_res.0.6
-  )
-  
-  tSNE <- DimPlot(
-    object = seurat_10X,
-    label.size = 70,
-    pt.size = 2,
-    reduction = paste0("TSNE", all_cell_PC),
-     order = T
-  )
-  png(
-    paste0(plot_dir, all_cell_res, "_tsne.png"),
-     width = 10, 
-     height = 8, 
-     res = 300, 
-     units = 'in'
-  )
-    print(tSNE)
-  dev.off()
-  
-  UMAP <- DimPlot(
-    object = seurat_10X,
-    label.size = 70,
-    pt.size = 2,
-    reduction = paste0("UMAP", all_cell_PC),
-    order = T
-  )
-  
-  png(
-    paste0(plot_dir, all_cell_res, "_umap.png"),
-     width = 10, 
-     height = 8, 
-     res = 300, 
-     units = 'in'
-  )
-    print(UMAP)
-  dev.off()
-  
-  broad_feature <- FeaturePlot(
-    object = seurat_10X,
-    features = broad_markers,
-    pt.size = 1.5,
-    reduction = paste0("TSNE", all_cell_PC),
-    order = T
-  )
-  dev.off()
-  png(
-    paste0(plot_dir, "broad_feature.png"),
-     width = 10, 
-     height = 8, 
-     res = 300, 
-     units = 'in'
-  )
-    print(broad_feature)
-  dev.off()
-  
-  epithelial_feature <- FeaturePlot(
-    object = seurat_10X,
-    features = epithelial_markers,
-    pt.size = 1.5,
-    reduction = paste0("TSNE", all_cell_PC),
-    order = T
-  )
-  dev.off()
-  png(
-    paste0(plot_dir, "epithelial_feature.png"),
-     width = 10, 
-     height = 8, 
-     res = 300, 
-     units = 'in'
-  )
-    print(epithelial_feature)
-  dev.off()
-
-}
-
-
-#################################################################################
-### 1. Load malignant epithelial seurat object and create tSNEs/UMAPs to choose 
-# best PC/resolution ###
-#################################################################################
-
-if (file.exists(paste0(seurat_dir, "05_seurat_object_malignant.Rdata"))) {
-
-  seurat_malignant <- readRDS(paste0(seurat_dir, "05_seurat_object_malignant.Rdata"))
-  Idents(seurat_malignant) <- paste0(
-    seurat_malignant@meta.data$garnett_call_ext_major,
-    " ",
-    eval(parse(text = paste0("seurat_malignant@meta.data$", malignant_res)))
-  )
-  levels(Idents(seurat_malignant)) <- naturalsort(levels(Idents(seurat_malignant)))
-  
-  # define cluster annotation colours:
-  cluster_number <- length(unique(Idents(seurat_malignant)))
-  cluster_cols <- col_palette[1:cluster_number]
-  names(cluster_cols) <- unique(Idents(seurat_malignant))
-
-  saveRDS(cluster_cols, paste0(Robject_dir, "cluster_colours.Rdata"))
-  
-  if (!file.exists(paste0(plot_dir, malignant_res, "_epithelial_tsne.png"))) {
-  
-    # isolate and plot epithelial cells:
-    epi_tSNE <- DimPlot(
-      object = seurat_malignant,
-      label.size = 40,
-      pt.size = 2,
-      reduction = paste0("TSNE", malignant_PC),
-      cols = cluster_cols
-    )
-    
-    png(
-      paste0(plot_dir, malignant_res, "_epithelial_tsne.png"),
-       width = 10, 
-       height = 8, 
-       res = 300, 
-       units = 'in'
-    )
-      print(epi_tSNE)
-    dev.off()
-    
-    epi_UMAP <- DimPlot(
-      object = seurat_malignant,
-      label.size = 40,
-      pt.size = 2,
-      reduction = paste0("UMAP", malignant_PC),
-      cols = cluster_cols
-    )
-    
-    png(
-      paste0(plot_dir, malignant_res, "_epithelial_umap.png"),
-       width = 10, 
-       height = 8, 
-       res = 300, 
-       units = 'in'
-    )
-      print(epi_UMAP)
-    dev.off()
-  
-  }
-  
-  if (!file.exists(paste0(plot_dir, "expression_cluster_DGE_heatmap.png"))) {
-  
-    epi_DE <- FindAllMarkers(
-      only.pos = T,
-      object = seurat_malignant,
-      min.pct = 0.5, 
-      logfc.threshold = 0.7, 
-      test.use = 'MAST'
-    )
-    
-    epi_DE_sorted <- arrange(epi_DE, cluster, desc(avg_logFC))
-    
-    write.table(epi_DE_sorted, paste0(table_dir, "expression_cluster_DGE.txt"))
-    
-    heatmap_genes <- epi_DE_sorted %>% 
-      group_by(cluster) %>% 
-      top_n(10, avg_logFC)
-    
-    png(
-      paste0(plot_dir, "expression_cluster_DGE_heatmap.png"),
-      width = 12,
-      height = 9,
-      res = 300,
-      units = "in"
-    )
-      print(DoHeatmap(
-        seurat_malignant,
-        features = heatmap_genes$gene,
-        group.by = "ident",
-        group.colors = cluster_cols,
-        size = 3
-      ))
-    dev.off()
-    
-  }
-
-}
-
-
 ################################################################################
-### 2. Load InferCNV output and create heatmap and metadata dfs ###
+### 1. Load InferCNV output and create heatmap and metadata dfs ###
 ################################################################################
 
 if (!file.exists(paste0(Robject_dir, "/1b.initial_epithelial_metadata.Rdata"))) {
@@ -333,424 +150,388 @@ if (!file.exists(paste0(Robject_dir, "/1b.initial_epithelial_metadata.Rdata"))) 
   epithelial_heatmap <- as.data.frame(t(read.table(paste0(in_dir, 
   	"infercnv.12_denoised.observations.txt"))))
 
-  # create cluster metadata df:
-  epithelial_metadata <- data.frame(
-  	cell_ids = names(Idents(seurat_malignant)),
-  	cell_type = Idents(seurat_malignant),
-  	nUMI = seurat_malignant@meta.data$nCount_RNA,
-  	nGene = seurat_malignant@meta.data$nFeature_RNA
-  )
+  ######
+  # subset:
+  # epithelial_heatmap <- epithelial_heatmap[1:200,1:500]
+  ######
 
-  # remove non-malignant cells from heatmap:
-  epithelial_heatmap <- epithelial_heatmap[
-    rownames(epithelial_heatmap) %in% rownames(epithelial_metadata),
+  # load and isolate epithelial metadata:
+  initial_metadata <- readRDS(paste0(Robject_dir, "initial_metadata.Rdata"))
+  epithelial_metadata <- initial_metadata[
+    grep("Epithelial", initial_metadata$cell_type),
   ]
-  # make metadata same order as heatmap:
-  epithelial_metadata <- epithelial_metadata[
-  	rownames(epithelial_heatmap),
-  ]
+  # replace dashes with full stops for cell ids:
+  epithelial_metadata$cell_ids <- gsub("-", ".", epithelial_metadata$cell_ids)
 
+  # remove cells not present in heatmap:
   print(paste0(
-    "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
-    identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
+    "No cells in metadata before filtering for those in heatmap only = ", 
+    nrow(epithelial_metadata)
   ))
-  
-  saveRDS(epithelial_heatmap, paste0(Robject_dir, 
-    "/1a.initial_epithelial_heatmap.Rdata"))
-  saveRDS(epithelial_metadata, paste0(Robject_dir, 
-    "/1b.initial_epithelial_metadata.Rdata"))
-
-} else {
-
-  print("Loading heatmap and metadata dfs...")
-  epithelial_heatmap <- readRDS(paste0(Robject_dir, 
-    "/1a.initial_epithelial_heatmap.Rdata"))
-  epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "/1b.initial_epithelial_metadata.Rdata"))
+  epithelial_metadata <- epithelial_metadata %>%
+    filter(cell_ids %in% rownames(epithelial_heatmap))
   print(paste0(
-    "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
-    identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
-  ))
-
-}
-
-
-################################################################################
-### 3. Add tumour subclusters ###
-################################################################################
-
-if (
-  !file.exists(
-  	paste0(
-  	  Robject_dir, "/2b.epithelial_metadata_with_CNV_subclusters.Rdata"
-  	)
-  )
-) {
-
-  # load final output object and fetch subcluster data:
-  final_infercnv_obj <- readRDS(paste0(in_dir, "run.final.infercnv_obj"))
-  subcluster_labels <- final_infercnv_obj@tumor_subclusters$subclusters$all_observations
-  
-  # rename each cluster:
-  names(subcluster_labels) <- paste0("CNV ", 1:length(subcluster_labels))
-  
-  # match cell ids with subcluster labels and bind in df:
-  for (s in 1:length(subcluster_labels)) {
-    if (s==1) {
-      subcluster_df <- data.frame(
-        row.names = names(subcluster_labels[[s]]),
-        subcluster_id = rep(
-          names(subcluster_labels)[s], 
-          length(subcluster_labels[[s]])
-        ) 
-      )
-    } else {
-      subcluster_df <- rbind(
-        subcluster_df,
-        data.frame(
-          row.names = names(subcluster_labels[[s]]),
-          subcluster_id = rep(
-            names(subcluster_labels)[s], 
-            length(subcluster_labels[[s]])
-          ) 
-        )
-      )  
-    }
-  }
-  
-  # add to epithelial_metadata:
-  epithelial_metadata <- merge(epithelial_metadata, subcluster_df, by="row.names")
-  rownames(epithelial_metadata) <- epithelial_metadata$Row.names
-  epithelial_metadata <- subset(epithelial_metadata, select = -Row.names)
-
-  # order cells by subcluster:
-  epithelial_metadata <- epithelial_metadata[
-    order(epithelial_metadata$subcluster_id),
-  ]
-  epithelial_heatmap <- epithelial_heatmap[rownames(epithelial_metadata),]
-
-  print(paste0(
-    "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
-    identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
-  ))
-  
-  saveRDS(epithelial_heatmap, paste0(Robject_dir, 
-    "/2a.epithelial_heatmap_with_CNV_subclusters.Rdata"))
-  saveRDS(epithelial_metadata, paste0(Robject_dir, 
-    "/2b.epithelial_metadata_with_CNV_subclusters.Rdata"))
-
-} else {
-
-  print("Loading heatmap and metadata dfs...")
-  epithelial_heatmap <- readRDS(paste0(Robject_dir, 
-    "/2a.epithelial_heatmap_with_CNV_subclusters.Rdata"))
-  epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "/2b.epithelial_metadata_with_CNV_subclusters.Rdata"))
-  print(paste0(
-    "Are epithelial_metadata rownames in the same order as epithelial_heatmap?? ",
-    identical(rownames(epithelial_heatmap), rownames(epithelial_metadata))
-  ))
-
-}
-
-
-################################################################################
-### 4. Add annotations ###
-################################################################################
-
-# create group annotation:
-group_annotation_df <- subset(epithelial_metadata, select = cell_type)
-group_annotation <- Heatmap(
-  as.matrix(group_annotation_df), 
-  col = cluster_cols, 
-  name = "Expression\nclusters", 
-  width = unit(4, "mm"), 
-  show_row_names = F, show_column_names = F,
-  show_heatmap_legend = T
-)
-# create QC annotations:
-nUMI_annotation <- rowAnnotation(
-  nUMI = anno_barplot(
-    epithelial_metadata$nUMI,
-    gp = gpar(
-      col = "#D8B72E", 
-      width = unit(4, "cm")
-    ), 
-    border = FALSE, 
-    which = "row", 
-    axis = F
-  ), show_annotation_name = FALSE
-)
-nUMI_annotation@name <- "nUMI"
-nGene_annotation <- rowAnnotation(
-  nGene = anno_barplot(
-    epithelial_metadata$nGene, name = "nGene",
-    gp = gpar(
-      col = "#9ECAE1", 
-      width = unit(4, "cm")
-    ), 
-    border = FALSE, 
-    which = "row", 
-    axis = F
-  ), show_annotation_name = FALSE
-)
-nGene_annotation@name <- "nGene"
-
-
-# create subcluster annotation:
-subcluster_annot_df <- subset(epithelial_metadata, select = subcluster_id)
-subcluster_cols <- rev(col_palette)[
-  1:length(unique(subcluster_annot_df$subcluster_id))
-]
-names(subcluster_cols) <- unique(subcluster_annot_df$subcluster_id)
-subcluster_annotation <- Heatmap(as.matrix(subcluster_annot_df), 
-  col = subcluster_cols, 
-  name = "subcluster_annotation", width = unit(6, "mm"), 
-  show_row_names = F, show_column_names = F, 
-  show_heatmap_legend = F
-)
-
-
-################################################################################
-### 5. Generate heatmap ###
-################################################################################
-
-# fetch chromosome boundary co-ordinates:
-if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
-  chr_data <- fetch_chromosome_boundaries(epithelial_heatmap, ref_dir)
-  saveRDS(chr_data, paste0(Robject_dir, "chromosome_data.Rdata"))
-} else {
-  chr_data <- readRDS(paste0(Robject_dir, "chromosome_data.Rdata"))
-}
-# prepare df for plotting:
-plot_object <- epithelial_heatmap
-colnames(plot_object) <- rep("la", ncol(plot_object))
-# define heatmap colours:
-na_less_vector <- unlist(plot_object)
-na_less_vector <- na_less_vector[!is.na(na_less_vector)]
-heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
-      c("#00106B", "white", "#680700"), space = "sRGB")
-
-print("Generating final heatmap...")
-# create main CNV heatmap:
-final_heatmap <- Heatmap(
-  as.matrix(plot_object), name = paste0("hm"), 
-  col = heatmap_cols,
-  cluster_columns = F, cluster_rows = F,
-  show_row_names = F, show_column_names = T,
-  column_names_gp = gpar(col = "white"),
-  show_row_dend = F,
-  show_heatmap_legend = F,
-  heatmap_legend_param = list(labels_gp = gpar(col = "red", fontsize = 12)),
-  use_raster = T, raster_device = c("png")
-)
-
-ht_list <- subcluster_annotation + group_annotation + final_heatmap + 
-  nUMI_annotation + nGene_annotation
-
-annotated_heatmap <- grid.grabExpr(
-  draw(ht_list, gap = unit(6, "mm"), heatmap_legend_side = "left")
-)
-dev.off()
-
-# determine where starting co-ordinates for heatmap are based upon longest cluster name
-# (0.00604 units per character):
-longest_cluster_name <- max(nchar(unique(as.character(epithelial_metadata$cell_type))))
-x_coord <- longest_cluster_name*0.0037
-
-# generate heatmap legend:
-signal_ranges <- round(range(unlist(plot_object)), 2)
-lgd <- Legend(
-  at = c(signal_ranges[1], 1, signal_ranges[2]),
-  col_fun = heatmap_cols, 
-  title = "CNV signal", 
-  direction = "horizontal",
-  grid_height = unit(2.5, "cm"),
-  grid_width = unit(0.1, "cm"),
-  labels_gp = gpar(fontsize = 16),
-  title_gp = gpar(fontsize = 22, fontface = "plain")
-)
-#png(paste0(plot_dir, "legend_test.png"), 
-#  height = 13, width = 20, res = 300, units = "in") 
-#  grid.newpage()
-#    pushViewport(viewport(x = unit(2, "cm"), y = unit(15, "cm"), width = unit(0.5, "cm"), height = unit(1, "cm"), 
-#      just = c("right", "bottom")))
-#      draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
-#    popViewport()
-#dev.off()
-
-
-################################################################################
-### 6. Plot heatmap ###
-################################################################################
-
-# plot final annotated heatmap:
-png(paste0(plot_dir, "infercnv_plot.png"), 
-  height = 13, width = 20, res = 300, units = "in") 
-
-  grid.newpage()
-    pushViewport(viewport(x = 0.155, y = 0.065, width = 0.752, height = 0.78, 
-      just = c("left", "bottom")))
-      grid.draw(annotated_heatmap)
-      decorate_heatmap_body("hm", {
-        for ( e in 1:length(chr_data$end_pos) ) {
-        grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
-          gp = gpar(lwd = 1, col = "#383838"))
-        }
-      })
-    popViewport()
-    # plot legend:
-    pushViewport(viewport(x = unit(2, "cm"), y = unit(15, "cm"), width = unit(0.1, "cm"), 
-      height = unit(0.4, "cm"), just = c("right", "bottom")))
-      draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
-    popViewport()
-    # label annotations:
-    pushViewport(viewport(x=x_coord + 0.807, y=0.0001, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("nUMI", rot=65)
-    popViewport()
-    pushViewport(viewport(x=x_coord + 0.825, y=0.0001, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("nGene", rot=65)
-    popViewport()
-    
-dev.off()
-
-print(paste0("Heatmap created, output in ", plot_dir))
-
-
-################################################################################
-### 7. Remove cells below nUMI/nGene threshold ###
-################################################################################
-
-if (!file.exists(paste0(Robject_dir, "/3a.epithelial_heatmap_good_coverage_only.Rdata"))) {
-
-  print(paste0(
-    "Number of cells before filtering for good UMI/gene coverage = ", 
+    "No cells in metadata after filtering for those in heatmap only = ", 
     nrow(epithelial_metadata)
   ))
 
-  filtered_metadata <- epithelial_metadata[
-    epithelial_metadata$nUMI > nUMI_threshold & epithelial_metadata$nUMI > nGene_threshold,
-  ]
-
-  # throw subclusters with number of cells < (min_proportion_cells_for_subcluster*total cell number):
-  split_metadata <- split(
-    filtered_metadata, filtered_metadata$subcluster_id
-  )
-  subcluster_cell_no <- lapply(split_metadata, nrow)
-  to_remove <- split_metadata[
-    subcluster_cell_no < (min_proportion_cells_for_subcluster*sum(unlist(subcluster_cell_no)))
-  ]
-  cells_to_remove <- as.character(do.call("rbind", to_remove)$cell_ids)
-  filtered_metadata <- filtered_metadata[!(filtered_metadata$cell_ids %in% cells_to_remove),]
-
-  filtered_heatmap <- epithelial_heatmap[
-    rownames(epithelial_heatmap) %in% filtered_metadata$cell_ids,
-  ]
-
-  print(paste0(
-    "Number of cells after filtering for good UMI/gene coverage = ", 
-    nrow(filtered_metadata)
-  ))
-
-  print(paste0(
-    "Are filtered_metadata rownames in the same order as filtered_heatmap?? ",
-    identical(rownames(filtered_heatmap), rownames(filtered_metadata))
-  ))
-  
-  saveRDS(filtered_heatmap, paste0(Robject_dir, 
-    "/3a.filtered_heatmap_good_coverage_only.Rdata"))
-  saveRDS(filtered_metadata, paste0(Robject_dir, 
-    "/3b.filtered_metadata_good_coverage_only.Rdata"))
+  saveRDS(epithelial_heatmap, paste0(Robject_dir, 
+    "/1a.initial_epithelial_heatmap.Rdata"))
+  saveRDS(epithelial_metadata, paste0(Robject_dir, 
+    "/1b.initial_epithelial_metadata.Rdata"))
 
 } else {
 
   print("Loading heatmap and metadata dfs...")
-  filtered_heatmap <- readRDS(paste0(Robject_dir, 
-    "/3a.filtered_heatmap_good_coverage_only.Rdata"))
-  filtered_metadata <- readRDS(paste0(Robject_dir, 
-    "/3b.filtered_metadata_good_coverage_only.Rdata"))
-
-  print(paste0(
-    "Are filtered_metadata rownames in the same order as filtered_heatmap? ",
-    identical(rownames(filtered_heatmap), rownames(filtered_metadata))
-  ))
-
+  epithelial_heatmap <- readRDS(paste0(Robject_dir, 
+    "/1a.initial_epithelial_heatmap.Rdata"))
+  epithelial_metadata <- readRDS(paste0(Robject_dir, 
+    "/1b.initial_epithelial_metadata.Rdata"))
+ 
 }
 
 
 ################################################################################
-### 8. Add annotations and prepare heatmap ###
+### 2. Add subcluster and normal annotations ###
 ################################################################################
 
-# create group annotation:
-group_annotation_df <- subset(filtered_metadata, select = cell_type)
-group_annotation <- Heatmap(
-  as.matrix(group_annotation_df), 
-  col = cluster_cols, 
-  name = "Expression\nclusters", 
-  width = unit(4, "mm"), 
-  show_row_names = F, show_column_names = F,
-  show_heatmap_legend = T
-)
+# remove cells below coverage thresholds:
+if (coverage_filter) {
+  epithelial_metadata <- epithelial_metadata[
+    epithelial_metadata$nUMI >= nUMI_threshold & 
+      epithelial_metadata$nGene >= nGene_threshold 
+  ]
+  epithelial_heatmap <- epithelial_heatmap[epithelial_metadata$cell_ids,]
+}
+
+# load final output object and fetch subcluster data:  
+if (subcluster_annot) {
+  final_infercnv_obj <- readRDS(paste0(in_dir, "run.final.infercnv_obj"))
+  epithelial_metadata <- get_subpops(final_infercnv_obj, epithelial_metadata)
+}
+
+if (normal_annot | remove_normals) {
+  if (!file.exists(
+    paste0(Robject_dir, "/2.epithelial_metadata_with_normal_annot.Rdata")
+  )) {
+
+    epithelial_metadata <- define_normals(
+      epithelial_heatmap, 
+      epithelial_metadata,
+      plot_dir,
+      Robject_dir
+    )
+
+    saveRDS(
+      epithelial_metadata,
+      paste0(Robject_dir, "/2.epithelial_metadata_with_normal_annot.Rdata")
+    )
+
+  } else {
+
+    epithelial_metadata <- readRDS(
+      paste0(Robject_dir, "/2.epithelial_metadata_with_normal_annot.Rdata")
+    )
+
+  }
+}
+
+if (remove_normals) {
+  epithelial_metadata <- epithelial_metadata[
+    epithelial_metadata$normal_cell_call != "normal|unassigned"
+  ]
+  epithelial_heatmap <- epithelial_heatmap[
+    rownames(epithelial_heatmap %in% epithelial_metadata$cell_ids)
+  ]
+
+  saveRDS(
+      epithelial_metadata,
+      paste0(Robject_dir, "/3.epithelial_metadata_without_normals.Rdata")
+    )
+}
+
+ 
+################################################################################
+### 3. Order metadata ###
+################################################################################
+
+if (order_by == "CNV") {
+
+  # if normals annotated, change the order of clusters to plot most normal first:
+  if (normal_annot) {
+
+    # split metadata by cluster for ordering:
+    metadata_split <- split(
+      epithelial_metadata, epithelial_metadata$subcluster_id
+    )
+
+    # determine which clusters have most normals:
+    normal_nos <- lapply(metadata_split, function(x) {
+      res <- data.frame(
+        cluster = x$subcluster_id[1],
+        normal_no = length(which(x$normal_cell_call == "normal"))
+      )
+      return(res)
+    })
+    normal_no_df <- do.call("rbind", normal_nos)
+
+    # order according to normal number:
+    normal_no_df <- normal_no_df[
+      naturalorder(normal_no_df$normal_no, decreasing = TRUE),
+    ]
+    metadata_split <- metadata_split[normal_no_df$cluster]
+
+    # rbind metadata together in that order:
+    epithelial_metadata <- do.call("rbind", metadata_split)
+
+  } else {
+
+    epithelial_metadata <- epithelial_metadata[
+      naturalorder(epithelial_metadata$subcluster_id),
+    ]
+
+  }
+
+} else if (order_by == "expression") {
+
+  # if normals annotated, change the order of clusters to plot most normal first:
+  if (normal_annot) {
+
+    # split metadata by cluster for ordering:
+    metadata_split <- split(
+      epithelial_metadata, epithelial_metadata$cell_type
+    )
+
+    # determine which clusters have most normals:
+    normal_nos <- lapply(metadata_split, function(x) {
+      res <- data.frame(
+        cluster = x$cell_type[1],
+        normal_no = length(which(x$normal_cell_call == "normal"))
+      )
+      return(res)
+    })
+    normal_no_df <- do.call("rbind", normal_nos)
+
+    # order according to normal number:
+    normal_no_df <- normal_no_df[
+      naturalorder(normal_no_df$normal_no, decreasing = TRUE),
+    ]
+    metadata_split <- metadata_split[normal_no_df$cluster]
+
+    # rbind metadata together in that order:
+    epithelial_metadata <- do.call("rbind", metadata_split)
+
+  } else {
+
+    epithelial_metadata <- epithelial_metadata[
+      naturalorder(epithelial_metadata$cell_type),
+    ]
+
+  }
+
+} else if (order_by == "normals_then_CNVs") {
+
+  epithelial_metadata <- epithelial_metadata[
+    naturalorder(epithelial_metadata$subcluster_id),
+  ]
+
+  # split metadata by normal status for ordering:
+  metadata_split <- split(
+    epithelial_metadata, epithelial_metadata$normal_cell_call
+  )
+
+  epithelial_metadata <- do.call(
+    "rbind",
+    list(
+      metadata_split$normal,
+      metadata_split$unassigned,
+      metadata_split$cancer
+    )
+  )
+
+} else if (order_by == "normals_then_expression") {
+
+   epithelial_metadata <- epithelial_metadata[
+    naturalorder(epithelial_metadata$cell_type),
+  ]
+
+  # split metadata by normal status for ordering:
+  metadata_split <- split(
+    epithelial_metadata, epithelial_metadata$normal_cell_call
+  )
+
+  epithelial_metadata <- do.call(
+    "rbind",
+    list(
+      metadata_split$normal,
+      metadata_split$unassigned,
+      metadata_split$cancer
+    )
+  )
+
+}
+
+# adjust order of heatmap:
+epithelial_heatmap <- epithelial_heatmap[epithelial_metadata$cell_ids,]
+
+print(paste0(
+  "Is heatmap order the same as metadata? ", 
+  identical(rownames(epithelial_heatmap), epithelial_metadata$cell_ids)
+))
+
+
+################################################################################
+### 4. Create heatmap and annotations ###
+################################################################################
+
+# create expression cluster annotation:
+if (expression_annot) {
+  # define cluster annotation colours:
+  expr_number <- length(unique(epithelial_metadata$cell_type))
+  expr_cols <- col_palette[1:expr_number]
+  names(expr_cols) <- unique(epithelial_metadata$cell_type)
+
+  expr_annot_df <- subset(epithelial_metadata, select = cell_type)
+  expr_annot <- Heatmap(
+    as.matrix(expr_annot_df), 
+    col = expr_cols,
+    name = "Expression\nclusters", 
+    width = unit(4, "mm"), 
+    show_row_names = F, show_column_names = F,
+    show_heatmap_legend = FALSE
+  )
+}
+
+# create CNV subcluster annotation:
+if (subcluster_annot) {
+  # create CNV subcluster annotation:
+  subcluster_annot_df <- subset(epithelial_metadata, select = subcluster_id)
+  subcluster_cols <- rev(col_palette)[
+    1:length(unique(subcluster_annot_df$subcluster_id))
+  ]
+  names(subcluster_cols) <- unique(subcluster_annot_df$subcluster_id)
+  CNV_subcluster_annot <- Heatmap(as.matrix(subcluster_annot_df), 
+    col = subcluster_cols, 
+    name = "subcluster_annotation", width = unit(6, "mm"), 
+    show_row_names = F, show_column_names = F, 
+    show_heatmap_legend = T,
+    heatmap_legend_param = list(
+      title = "",
+      labels_gp = gpar(fontsize = 16)
+    )
+  )
+}
+
+# create expression cluster annotation:
+if (normal_annot) {
+  # define cluster annotation colours:
+  normal_number <- length(unique(epithelial_metadata$cell_type))
+  normal_cols <- c(
+    "normal" = "#1B7837", 
+    "unassigned" = "#E7E4D3", 
+    "cancer" = "#E7298A"
+  )
+ 
+  normal_annot_df <- subset(epithelial_metadata, select = cell_type)
+  normal_call_annot <- Heatmap(
+    as.matrix(normal_annot_df), 
+    col = normal_cols,
+    name = "Expression\nclusters", 
+    width = unit(4, "mm"), 
+    show_row_names = F, show_column_names = F,
+    show_heatmap_legend = normal_legend
+  )
+}
+
 # create QC annotations:
-nUMI_annotation <- rowAnnotation(
-  nUMI = anno_barplot(
-    filtered_metadata$nUMI,
-    gp = gpar(
-      col = "#D8B72E", 
-      width = unit(4, "cm")
-    ), 
-    border = FALSE, 
-    which = "row", 
-    axis = F
-  ), show_annotation_name = FALSE
-)
-nUMI_annotation@name <- "nUMI"
-nGene_annotation <- rowAnnotation(
-  nGene = anno_barplot(
-    filtered_metadata$nGene, name = "nGene",
-    gp = gpar(
-      col = "#9ECAE1", 
-      width = unit(4, "cm")
-    ), 
-    border = FALSE, 
-    which = "row", 
-    axis = F
-  ), show_annotation_name = FALSE
-)
-nGene_annotation@name <- "nGene"
+if (QC_annot) {
+  nUMI_annot <- rowAnnotation(
+    nUMI = anno_barplot(
+      epithelial_metadata$nUMI,
+      gp = gpar(
+        col = "#D8B72E", 
+        width = unit(4, "cm")
+      ), 
+      border = FALSE, 
+      which = "row", 
+      axis = F
+    ), show_annotation_name = FALSE
+  )
+  nUMI_annot@name <- "nUMI"
+  nGene_annot <- rowAnnotation(
+    nGene = anno_barplot(
+      epithelial_metadata$nGene, name = "nGene",
+      gp = gpar(
+        col = "#9ECAE1", 
+        width = unit(4, "cm")
+      ), 
+      border = FALSE, 
+      which = "row", 
+      axis = F
+    ), show_annotation_name = FALSE
+  )
+  nGene_annot@name <- "nGene"
+}
 
-# create subcluster annotation:
-subcluster_annot_df <- subset(filtered_metadata, select = subcluster_id)
-subcluster_cols <- rev(col_palette)[
-  1:length(unique(subcluster_annot_df$subcluster_id))
-]
-names(subcluster_cols) <- unique(subcluster_annot_df$subcluster_id)
-subcluster_annotation <- Heatmap(as.matrix(subcluster_annot_df), 
-  col = subcluster_cols, 
-  name = "subcluster_annotation", width = unit(6, "mm"), 
-  show_row_names = F, show_column_names = F, 
-  show_heatmap_legend = T
-)
 
-# fetch chromosome boundary co-ordinates:
-if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
-  chr_data <- fetch_chromosome_boundaries(epithelial_heatmap, ref_dir)
-  saveRDS(chr_data, paste0(Robject_dir, "chromosome_data.Rdata"))
+################################################################################
+### 5. Create epithelial and reference heatmap ###
+################################################################################
+
+# determine heatmap colours
+if (plot_references) {
+
+  # load InferCNV output:
+  print("Loading InferCNV reference output files...")
+  ref_heatmap <- as.data.frame(t(read.table(paste0(in_dir, 
+  	"infercnv.12_denoised.references.txt"))))
+
+  both_heatmap <- rbind(epithelial_heatmap, ref_heatmap)
+
+  # prepare df for plotting:
+  col_heatmap <- both_heatmap
+  # define heatmap colours:
+  na_less_vector <- unlist(col_heatmap)
+  na_less_vector <- na_less_vector[!is.na(na_less_vector)]
+  heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
+        c("#00106B", "white", "#680700"), space = "sRGB")
+
+  # prepare df for plotting:
+  ref_object <- ref_heatmap
+  colnames(ref_object) <- rep("la", ncol(ref_object))
+  
+  print("Generating reference heatmap...")
+  # create main CNV heatmap:
+  final_ref_heatmap <- Heatmap(
+    as.matrix(ref_object), name = paste0("ref_hm"), 
+    col = heatmap_cols,
+    cluster_columns = F, cluster_rows = F,
+    show_row_names = F, show_column_names = T,
+    column_names_gp = gpar(col = "white"),
+    show_row_dend = F,
+    show_heatmap_legend = F,
+    use_raster = T, raster_device = c("png")
+  )
+
+  # converrt to grid object:
+  grid_ref_heatmap <- grid.grabExpr(
+    draw(final_ref_heatmap, gap = unit(6, "mm"))
+  )
+  dev.off()
+
 } else {
-  chr_data <- readRDS(paste0(Robject_dir, "chromosome_data.Rdata"))
+ 
+  # define heatmap colours:
+  na_less_vector <- unlist(col_heatmap)
+  na_less_vector <- na_less_vector[!is.na(na_less_vector)]
+  heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
+        c("#00106B", "white", "#680700"), space = "sRGB")
+
 }
 
 # prepare df for plotting:
-plot_object <- filtered_heatmap
+plot_object <- epithelial_heatmap
 colnames(plot_object) <- rep("la", ncol(plot_object))
-# define heatmap colours:
-na_less_vector <- unlist(plot_object)
-na_less_vector <- na_less_vector[!is.na(na_less_vector)]
-heatmap_cols <- colorRamp2(c(min(na_less_vector), 1, max(na_less_vector)), 
-      c("#00106B", "white", "#680700"), space = "sRGB")
 
 print("Generating final heatmap...")
 # create main CNV heatmap:
@@ -762,23 +543,11 @@ final_heatmap <- Heatmap(
   column_names_gp = gpar(col = "white"),
   show_row_dend = F,
   show_heatmap_legend = F,
-  heatmap_legend_param = list(labels_gp = gpar(col = "red", fontsize = 12)),
   use_raster = T, raster_device = c("png")
 )
 
-ht_list <- subcluster_annotation + group_annotation + final_heatmap + 
-  nUMI_annotation + nGene_annotation
-
-annotated_heatmap <- grid.grabExpr(
-  draw(ht_list, gap = unit(6, "mm"), heatmap_legend_side = "left")
-)
-dev.off()
-
-# determine where starting co-ordinates for heatmap are based upon longest cluster name
-# (0.00604 units per character):
-longest_cluster_name <- max(nchar(unique(as.character(filtered_metadata$cell_type))))
-x_coord <- longest_cluster_name*0.0037
-
+chr_data <- fetch_chromosome_boundaries(epithelial_heatmap, ref_dir)
+ 
 # generate heatmap legend:
 signal_ranges <- round(range(unlist(plot_object)), 2)
 lgd <- Legend(
@@ -792,53 +561,355 @@ lgd <- Legend(
   title_gp = gpar(fontsize = 22, fontface = "plain")
 )
 
+# determine filename:
+filename <- paste0(plot_dir, "infercnv_plot")
+if (any(c(expression_annot, subcluster_annot, QC_annot, normal_annot))) {
+  if (expression_annot) {
+    filename <- paste0(filename, "_exp_clusters")
+  }
+  if (subcluster_annot) {
+    filename <- paste0(filename, "_CNV_subclusters")
+  }
+  if (normal_annot) {
+    filename <- paste0(filename, "_normals")
+  }
+  if (QC_annot) {
+    filename <- paste0(filename, "_QC")
+  }
+   filename <- paste0(filename, "_annotated")
+}
+if (plot_references) {
+  filename <- paste0(filename, "_references_plotted")
+}
+
+# organise chromosome labels:
+chr_labels <- chr_data$lab_pos
+names(chr_labels) <- gsub("chr", "", names(chr_labels))
+names(chr_labels) <- gsub("^1$", "chr1", names(chr_labels))
+names(chr_labels) <- gsub("21", "\n21", names(chr_labels))
+
 
 ################################################################################
-### 8. Plot heatmap ###
+### 4. Create and plot annotated heatmap ###
 ################################################################################
 
-# plot final annotated heatmap:
-png(paste0(plot_dir, "infercnv_plot_good_coverage_only.png"), 
-  height = 13, width = 20, res = 300, units = "in") 
+if (subcluster_annot) {
 
-  grid.newpage()
-    pushViewport(viewport(x = 0.155, y = 0.065, width = 0.752, height = 0.78, 
-      just = c("left", "bottom")))
-      grid.draw(annotated_heatmap)
-      decorate_heatmap_body("hm", {
-        for ( e in 1:length(chr_data$end_pos) ) {
-          grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
-            gp = gpar(lwd = 3, col = "#383838"))
-          if (e==1) {
-            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=20))
-          } else if (e==21) {
-            grid.text(paste0("\n", gsub("chr", "", names(chr_data$lab_pos)[e])), chr_data$lab_pos[e], 
-            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=20))
-          } else {
-            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-            unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=20))        
-          }
-        }
-      })
-    popViewport()
-    # plot legend:
-    pushViewport(viewport(x = unit(2, "cm"), y = unit(15, "cm"), width = unit(0.1, "cm"), 
-      height = unit(0.4, "cm"), just = c("right", "bottom")))
-      draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
-    popViewport()
-    # label annotations:
-    pushViewport(viewport(x=x_coord + 0.807, y=0.0001, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("nUMI", rot=65)
-    popViewport()
-    pushViewport(viewport(x=x_coord + 0.825, y=0.0001, width = 0.1, height = 0.1, 
-      just = "bottom"))
-      grid.text("nGene", rot=65)
-    popViewport()
-    
+  ht_list <- CNV_subcluster_annot
+  if (expression_annot) {
+  	ht_list <- ht_list + expr_annot + final_heatmap
+  } else {
+  	ht_list <- ht_list + final_heatmap
+  }
+  if (normal_annot) {
+    	ht_list <- ht_list + normal_call_annot
+    }
+  if (QC_annot) {
+  	ht_list <- ht_list + nUMI_annot + nGene_annot
+  }
+
+} else {
+
+  if (expression_annot) {
+
+    ht_list <- expr_annot + final_heatmap
+    if (normal_annot) {
+    	ht_list <- ht_list + normal_call_annot
+    }
+    if (QC_annot) {
+    	ht_list <- ht_list + nUMI_annot + nGene_annot
+    }
+
+  } else {
+  
+    ht_list <- final_heatmap
+    if (normal_annot) {
+    	ht_list <- ht_list + normal_call_annot
+    }
+    if (QC_annot) {
+    	ht_list <- ht_list + nUMI_annot + nGene_annot
+    }
+  
+  }
+
+}
+
+annotated_heatmap <- grid.grabExpr(
+  draw(ht_list, gap = unit(6, "mm"), heatmap_legend_side = "left")
+)
 dev.off()
 
+
+#save.image(paste0(Robject_dir, "temp.Rdata"))
+#load(paste0(Robject_dir, "temp.Rdata"))
+
+
+if (plot_references) {
+
+  # plot final annotated heatmap:
+  png(paste0(filename, "_test.png"), 
+    height = 13, width = 20, res = 300, units = "in") 
+  
+    grid.newpage()
+
+      # create reference heatmap viewport:
+      pushViewport(viewport(x = 0.555, y = 0.68, width = 0.76, height = 0.3,
+      	just = "bottom"))
+      	grid.rect()
+        # plot heatmap:
+#        grid.draw(grid_ref_heatmap)
+#        decorate_heatmap_body("ref_hm", {
+#          for ( e in 1:length(chr_data$end_pos) ) {
+#          grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
+#            gp = gpar(lwd = 3, col = "#383838"))
+#        })
+      popViewport()
+
+      # create reference heatmap label:
+      pushViewport(viewport(x = 0.075, y = 0.95, 
+      	width = unit(2, "cm"), height = unit(0.5, "cm")))
+        #grid.rect()
+        grid.text("Reference cells:", gp=gpar(fontsize=20))
+      popViewport()
+
+      # create epithelial heatmap viewport:
+      pushViewport(viewport(x = 0.5, y = 0, width = 1, height = 0.75,
+      	just = "bottom"))
+
+         # plot heatmap:
+        pushViewport(viewport(x = 0.155, y = 0.065, width = 0.85, height = 0.85, 
+          just = c("left", "bottom")))
+          #grid.rect()
+          grid.draw(annotated_heatmap)
+          decorate_heatmap_body("hm", {
+            for ( e in 1:length(chr_data$end_pos) ) {
+            grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
+              gp = gpar(lwd = 1, col = "#383838"))
+            grid.text(names(chr_labels)[e], chr_labels[e], 
+                unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
+            }
+          })
+        popViewport()
+   
+        # plot heatmap legend:
+        pushViewport(viewport(x = unit(2, "cm"), y = unit(19, "cm"), width = unit(0.1, "cm"), 
+          height = unit(0.4, "cm"), just = c("right", "bottom")))
+          draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
+        popViewport()
+    
+        # plot expression legend:
+        if (expression_legend) {
+    
+          l_labels <- gsub("_", " ", unique(epithelial_metadata$cell_type))
+    
+          pushViewport(viewport(x = unit(4, "cm"), y = unit(10, "cm"), width = unit(6, "cm"), 
+            height = unit(10, "cm")))
+            #grid.rect()
+    
+            # add title:
+            pushViewport(viewport(x = 0.06, y = 1, width = unit(2, "cm"), height = unit(0.5, "cm")))
+              grid.text("Expression\nclusters", gp=gpar(fontsize=20), just = "left")
+              #grid.rect()
+            popViewport()
+    
+            for (l in 1:length(l_labels)) {
+              # add labels:
+              pushViewport(viewport(
+              	x = 0.25, 
+              	y = 0.95-(0.12*l), 
+              	width = unit(2, "cm"), 
+              	height = unit(0.5, "cm")
+              ))
+                #grid.rect()
+                grid.text(l_labels[l], gp=gpar(fontsize=18), just = "left")
+              popViewport()
+              # add boxes:
+              pushViewport(viewport(
+              	x = 0.14, 
+              	y = 0.95-(0.12*l), 
+              	width = unit(0.7, "cm"), 
+              	height = unit(0.7, "cm")
+              ))
+                grid.rect(gp=gpar(col = expr_cols[l], fill = expr_cols[l]))
+              popViewport()
+            }
+          popViewport()
+        }
+     
+        # label annotations:
+        pushViewport(viewport(x=0.95, y=0.1, width = 0.1, height = 0.1, 
+          just = "top"))
+          grid.text("nUMI", rot=65, gp=gpar(fontsize=18))
+        popViewport()
+        pushViewport(viewport(x=0.98, y=0.1, width = 0.1, height = 0.1, 
+          just = "top"))
+          grid.text("nGene", rot=65, gp=gpar(fontsize=18))
+        popViewport()
+
+      popViewport()
+        
+  dev.off()
+
+} else {
+
+  # plot final annotated heatmap:
+  png(paste0(filename, ".png"), 
+    height = 13, width = 20, res = 300, units = "in") 
+  
+    grid.newpage()
+  
+      # plot heatmap:
+      pushViewport(viewport(x = 0.155, y = 0.065, width = 0.8, height = 0.85, 
+        just = c("left", "bottom")))
+        #grid.rect()
+        grid.draw(annotated_heatmap)
+        decorate_heatmap_body("hm", {
+          for ( e in 1:length(chr_data$end_pos) ) {
+          grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
+            gp = gpar(lwd = 1, col = "#383838"))
+          grid.text(names(chr_labels)[e], chr_labels[e], 
+              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
+          }
+        })
+      popViewport()
+  
+      # plot heatmap legend:
+      pushViewport(viewport(x = unit(2, "cm"), y = unit(26, "cm"), width = unit(0.1, "cm"), 
+        height = unit(0.4, "cm"), just = c("right", "bottom")))
+        draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
+      popViewport()
+  
+      # plot expression legend:
+      if (expression_legend) {
+  
+        l_labels <- unique(epithelial_metadata$cell_type)
+  
+        pushViewport(viewport(x = unit(4, "cm"), y = unit(18.5, "cm"), width = unit(6, "cm"), 
+          height = unit(10, "cm")))
+          #grid.rect()
+  
+          # add title:
+          pushViewport(viewport(x = 0.06, y = 1, width = unit(2, "cm"), height = unit(0.5, "cm")))
+            grid.text("Expression\nclusters", gp=gpar(fontsize=20), just = "left")
+            #grid.rect()
+          popViewport()
+  
+          for (l in 1:length(l_labels)) {
+            # add labels:
+            pushViewport(viewport(
+            	x = 0.25, 
+            	y = 0.95-(0.12*l), 
+            	width = unit(2, "cm"), 
+            	height = unit(0.5, "cm")
+            ))
+              #grid.rect()
+              grid.text(l_labels[l], gp=gpar(fontsize=18), just = "left")
+            popViewport()
+            # add boxes:
+            pushViewport(viewport(
+            	x = 0.14, 
+            	y = 0.95-(0.12*l), 
+            	width = unit(0.7, "cm"), 
+            	height = unit(0.7, "cm")
+            ))
+              grid.rect(gp=gpar(col = expr_cols[l], fill = expr_cols[l]))
+            popViewport()
+          }
+        popViewport()
+      }
+   
+      # label annotations:
+      pushViewport(viewport(x=0.9, y=0.1, width = 0.1, height = 0.1, 
+        just = "top"))
+        grid.text("nUMI", rot=65, gp=gpar(fontsize=18))
+      popViewport()
+      pushViewport(viewport(x=0.93, y=0.1, width = 0.1, height = 0.1, 
+        just = "top"))
+        grid.text("nGene", rot=65, gp=gpar(fontsize=18))
+      popViewport()
+      
+  dev.off()
+  
+  pdf(paste0(filename, ".pdf"), 
+    height = 13, width = 20) 
+  
+    grid.newpage()
+  
+      # plot heatmap:
+      pushViewport(viewport(x = 0.155, y = 0.065, width = 0.8, height = 0.85, 
+        just = c("left", "bottom")))
+        #grid.rect()
+        grid.draw(annotated_heatmap)
+        decorate_heatmap_body("hm", {
+          for ( e in 1:length(chr_data$end_pos) ) {
+          grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
+            gp = gpar(lwd = 1, col = "#383838"))
+          grid.text(names(chr_labels)[e], chr_labels[e], 
+              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=18))
+          }
+        })
+      popViewport()
+  
+      # plot heatmap legend:
+      pushViewport(viewport(x = unit(2, "cm"), y = unit(26, "cm"), width = unit(0.1, "cm"), 
+        height = unit(0.4, "cm"), just = c("right", "bottom")))
+        draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
+      popViewport()
+  
+      # plot expression legend:
+      if (expression_legend) {
+  
+        l_labels <- unique(epithelial_metadata$cell_type)
+  
+        pushViewport(viewport(x = unit(4, "cm"), y = unit(18.5, "cm"), width = unit(6, "cm"), 
+          height = unit(10, "cm")))
+          #grid.rect()
+  
+          # add title:
+          pushViewport(viewport(x = 0.06, y = 1, width = unit(2, "cm"), height = unit(0.5, "cm")))
+            grid.text("Expression\nclusters", gp=gpar(fontsize=20), just = "left")
+            #grid.rect()
+          popViewport()
+  
+          for (l in 1:length(l_labels)) {
+            # add labels:
+            pushViewport(viewport(
+              x = 0.25, 
+              y = 0.95-(0.12*l), 
+              width = unit(2, "cm"), 
+              height = unit(0.5, "cm")
+            ))
+              #grid.rect()
+              grid.text(l_labels[l], gp=gpar(fontsize=18), just = "left")
+            popViewport()
+            # add boxes:
+            pushViewport(viewport(
+              x = 0.14, 
+              y = 0.95-(0.12*l), 
+              width = unit(0.7, "cm"), 
+              height = unit(0.7, "cm")
+            ))
+              grid.rect(gp=gpar(col = expr_cols[l], fill = expr_cols[l]))
+            popViewport()
+          }
+        popViewport()
+      }
+   
+      # label annotations:
+      pushViewport(viewport(x=0.9, y=0.1, width = 0.1, height = 0.1, 
+        just = "top"))
+        grid.text("nUMI", rot=65, gp=gpar(fontsize=18))
+      popViewport()
+      pushViewport(viewport(x=0.93, y=0.1, width = 0.1, height = 0.1, 
+        just = "top"))
+        grid.text("nGene", rot=65, gp=gpar(fontsize=18))
+      popViewport()
+      
+  dev.off()
+
+}
+
 print(paste0("Heatmap created, output in ", plot_dir))
-
-
+  
+  
+  

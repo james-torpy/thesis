@@ -1056,7 +1056,94 @@ if (sim_name != "filtered_normal") {
     input_gene_chr <- input_gene_chr[order(input_gene_chr$end),]
     input_gene_chr <- input_gene_chr[order(input_gene_chr$seqnames),]
     input_gene_chr$symbol <- as.character(input_gene_chr$symbol)
-  
+
+    ######
+
+     # find genes at end of each chromosome to mark on count plots:
+    input_gene_chr_split <- split(input_gene_chr, input_gene_chr$seqnames)
+    input_chr_ends <- cumsum(unlist(lapply(input_gene_chr_split, function(x) return(nrow(x)))))
+    input_chr_ends <- input_chr_ends[naturalorder(names(input_chr_ends))]
+
+
+    input_chr_mids <- lapply(input_gene_chr_split, function(x) return(x$symbol[floor(nrow(x)/2)]))
+    input_mid_genes <- unlist(input_chr_mids)
+    input_mid_genes <- input_mid_genes[naturalsort(names(input_mid_genes))]
+    input_mid_ind <- match(input_mid_genes, rownames(outfiltered_counts))
+
+    # generate average original counts vector with each value representing a gene:
+    average_noise_counts <- apply(noise_input, 1, mean)
+    # add 0.1 to zero values:
+    average_noise_counts <- average_noise_counts + 3e-4
+    # determine median:
+    median_average_noise_counts <- median(average_noise_counts)
+    
+    # divide by median to get fold change from median and add to df for plotting:
+    noise_fold_change <- average_noise_counts/median_average_noise_counts
+    noise_fold_change_df <- data.frame(
+      number = seq(1, length(noise_fold_change)),
+      count = noise_fold_change
+    )
+    
+    # take mean of noise fold change:
+    median_noise_fold_change <- median(noise_fold_change)
+    
+    # take the log10:
+    log_noise_fold_change <- log10(noise_fold_change)
+    # tabulate for plotting:
+    log_noise_fold_change_df <- data.frame(
+      number = seq(1, length(log_noise_fold_change)),
+      count = log_noise_fold_change
+    )
+    
+    # calculate the median of the counts vector:
+    log_median_noise_fold_change <- log10(median_noise_fold_change)
+    
+    # plot counts:
+    if (!file.exists(paste0(noise_dir, "log_noise_fold_change_from_median.pdf"))) {
+      p <- ggplot(log_noise_fold_change_df, aes(x=number, y=count))
+      p <- p + geom_point(colour = "#E8D172")
+      p <- p + xlab("Genomic location")
+      p <- p + scale_x_continuous(
+        breaks = unlist(chromosome_midpoints),
+        labels = c("chr1", 2:length(chromosome_midpoints)),
+        expand = c(0, 0)
+      )
+      p <- p + ylab("Log10 fold change from median")
+      p <- p + scale_y_continuous(
+        breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+        labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
+        limits = c(-4, 4)
+      )
+      for (end in chromosome_ends) {
+        p <- p + geom_vline(xintercept=end)
+      }
+      p <- p + geom_segment(
+        x=0, 
+        xend=max(unlist(chromosome_ends)), 
+        y=log_median_noise_fold_change, 
+        yend=log_median_noise_fold_change, 
+        size=1, color="red"
+      )
+      p <- p + theme(
+        text=element_text(size = 24),
+        axis.text.x=element_text(size = 20),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_text(size = 20),
+        axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        axis.title.y = element_text(margin = margin(t = 0, r = 30, b = 0, l = 0))
+      )
+    
+      # create png:
+      png(paste0(noise_dir, "log10_noise_fold_change_from_median.png"), 
+        width = 20,
+        height = 7,
+        res = 300,
+        units = "in")
+        print(p)
+      dev.off()
+    }
+    ######
+
     # find genes at end of each chromosome to mark on count plots:
     input_gene_chr_split <- split(input_gene_chr, input_gene_chr$seqnames)
     input_chr_ends <- lapply(input_gene_chr_split, function(x) return(x$symbol[nrow(x)]))
@@ -1067,6 +1154,8 @@ if (sim_name != "filtered_normal") {
     input_mid_genes <- unlist(input_chr_mids)
     input_mid_genes <- input_mid_genes[naturalsort(names(input_mid_genes))]
     input_mid_ind <- match(input_mid_genes, rownames(outfiltered_counts))
+
+
   
     input_means <- apply(noise_input, 1, mean)
     input_means <- input_means[input_means < 0.9]
@@ -1109,7 +1198,7 @@ if (sim_name != "filtered_normal") {
       labels = 1:length(input_mid_ind)
     )
   
-    pdf(paste0(noise_dir, "log10_noise_input_scatterplot.pdf"))
+    png(paste0(noise_dir, "log10_noise_input_scatterplot.png"))
       p1
     dev.off()
   

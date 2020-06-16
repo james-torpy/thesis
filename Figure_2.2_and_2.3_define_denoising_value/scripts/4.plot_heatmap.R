@@ -15,8 +15,8 @@ print("Minimum CNV length = ")
 print(min_CNV_length)
 
 #sample_name <- "CID4520N"
-#sim_name <- "filtered_normal"
-#denoise_value <- "no"
+#sim_name <- "sim29"
+#denoise_value <- "1.3"
 #analysis_mode <- "samples"
 #min_CNV_proportion <- as.numeric("0.5")
 #min_CNV_length <- 20
@@ -463,6 +463,11 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
  
   if (!file.exists(paste0(Robject_dir, "grid_sim_plot.Rdata"))) {
 
+    CNV_indices$length_lab <- CNV_indices$length
+    CNV_indices$length_lab[CNV_indices$ticks == "include"][c(FALSE, TRUE)] <- paste0(
+      "\n", CNV_indices$length_lab[CNV_indices$ticks == "include"][c(FALSE, TRUE)]
+    )
+
     # create CNV annotation based on fold change CNV:
     p <- ggplot(log_modified_fold_change_df, 
       aes(x=number, y=count))
@@ -472,15 +477,15 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
       ), 
       expand = c(0, 0),
       breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
-      labels = CNV_indices$length[CNV_indices$ticks == "include"]
+      labels = CNV_indices$length_lab[CNV_indices$ticks == "include"]
     )
     p <- p + scale_y_continuous(
-      breaks = c(0, 0.5, 1, 2, 3),
+      breaks = c(0, 1, 2, 3),
       limits = c(
         min(CNV_indices$multiplier), 
         max(CNV_indices$multiplier)
       ),
-      labels = c("0", "0.5", "1", "2", "3")
+      labels = c("0", "1", "2", "3")
     )
     for (c_end in chr_data$ends) {
       p <- p + geom_vline(xintercept=c_end)
@@ -515,14 +520,22 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
       y=1,
       yend=1
     )
-    # create y-axis title:
-    p <- p + ylab("Simulated copy number fold change")
+    # create axis titles:
+    p <- p + ylab("Copy number\nfold change")
+    p <- p + xlab("CNV lengths (no. genes)")
     # remove axis labels:
     p <- p + theme(
-      axis.title.x=element_blank(),
+      axis.title.x = element_text(
+        size=24, 
+        margin=margin(t = 20, r = 0, b = 0, l = 0)
+      ),
       axis.text.x = element_text(size=24),
       text = element_text(size=24),
-      axis.text.y = element_text(size=20)
+      axis.text.y = element_text(size=24),
+      axis.title.y = element_text(
+        size=24, 
+        margin=margin(t = 0, r = 30, b = 0, l = 0)
+      )
     )
     grid_sim_plot <- ggplotGrob(p)
     dev.off()
@@ -871,10 +884,6 @@ for (r in 1:10) {
     break()
   }
 }
-# determine where starting co-ordinates for heatmap are based upon longest cluster name
-# (0.00604 units per character):
-longest_cluster_name <- max(nchar(unique(as.character(epithelial_metadata$cell_type))))
-x_coord <- longest_cluster_name*0.0037
   
 
 ################################################################################
@@ -916,7 +925,7 @@ if (!file.exists(paste0(plot_dir, "annotated_infercnv_plot.png"))) {
         show_row_names = F, 
         show_column_names = F,
         show_row_dend = F,
-        bottom_annotation = accuracy_annotation,
+        #bottom_annotation = accuracy_annotation,
         heatmap_legend_param = list(
           title = "CNV\nscore", 
           at = legend_lims,
@@ -1078,7 +1087,7 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
     lgd <- Legend(
       at = c(0.9 , 1, 1.1),
       col_fun = heatmap_cols, 
-      title = "CNV\nscore", 
+      title = "CNV\nsignal", 
       direction = "horizontal",
       grid_height = unit(2.5, "cm"),
       grid_width = unit(0.1, "cm"),
@@ -1094,7 +1103,7 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
         round(signal_ranges[2], 1)
       ),
       col_fun = heatmap_cols, 
-      title = "CNV\nscore", 
+      title = "CNV\nsignal", 
       direction = "horizontal",
       grid_height = unit(2.5, "cm"),
       grid_width = unit(0.1, "cm"),
@@ -1106,8 +1115,8 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
   # plot final basic heatmap:
   png(
     paste0(plot_dir, "infercnv_plot.png"), 
-    height = 12, 
-    width = 23, 
+    height = 14, 
+    width = 25, 
     res = 300, 
     units = "in"
   )
@@ -1115,7 +1124,7 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
     if (sim_name == "normal" | sim_name == "filtered_normal" | sim_name == "real_cancer") {
   
       grid.newpage()
-      pushViewport(viewport(x = 0.15, y = 0.15, width = 0.8, height = 0.8, 
+      pushViewport(viewport(x = 0.15, y = 0.15, width = 0.8, height = 0.85, 
         just = c("left", "bottom")))
         grid.draw(basic_heatmap)
         decorate_heatmap_body("hm", {
@@ -1143,8 +1152,9 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
   
     } else {
   
+      # plot CNV heatmap:
       grid.newpage()
-      pushViewport(viewport(x = 0.035, y = 0.22, width = 0.95, height = 0.7, 
+      pushViewport(viewport(x = 0.132, y = 0.32, width = 0.84, height = 0.67, 
         just = c("left", "bottom")))
         grid.draw(basic_heatmap)
         decorate_heatmap_body("hm", {
@@ -1153,23 +1163,19 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
               gp = gpar(lwd = 1, col = "#383838"))
             grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
               unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
-            if (e==1) {
-              grid.text(names(chr_data$lab_pos)[e], chr_data$lab_pos[e], 
-              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
-            } else if (e==21) {
-              grid.text(paste0("\n", gsub("chr", "", names(chr_data$lab_pos)[e])), chr_data$lab_pos[e], 
-              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
-            } else {
-              grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))        
-            }
           }
         })
       popViewport()
     
-      pushViewport(viewport(x = x_coord + 0.945, y = 0.001, 
-        width = 0.973, height = 0.2, just = c("right", "bottom")))
+      # plot ground truth CNVs:
+      pushViewport(viewport(x = 0.528, y = 0.15, width = 0.9, height = 0.27))
         grid.draw(grid_sim_plot)
+      popViewport()
+
+      # plot legend:
+      pushViewport(viewport(x = unit(2, "cm"), y = unit(14.5, "cm"), width = unit(0.1, "cm"), 
+        height = unit(0.4, "cm"), just = c("right", "bottom")))
+        draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
       popViewport()
   
     }
@@ -1600,6 +1606,10 @@ if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_ca
 
     # define colours:
     cols <- c("#F7B7B5", "#76C1C1", "black")
+
+    CNV_indices$type[CNV_indices$multiplier > 1] <- "gain"
+    CNV_indices$type[CNV_indices$multiplier == 1] <- "neutral"
+    CNV_indices$type[CNV_indices$multiplier < 1] <- "loss"
     
     scaled_CNV_indices <- data.frame(
       start = CNV_indices$start,
@@ -1734,9 +1744,44 @@ if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_ca
     # determine accuracy calls present:
     all_accuracy <- unique(CNV_accuracy_df$accuracy_call)
     all_accuracy <- paste0(all_accuracy[order(all_accuracy)], collapse = "_")
+
+
+    #################################################################################
+    #### 15. Plot average signal only ###
+    #################################################################################
+
+    png(
+      paste0(plot_dir, "signal_vs_simulated_CNV_plot_no_accuracy_annotation.png"), 
+      height = 8, 
+      width = 22,
+      res = 300,
+      units = "in"
+    )   
+      grid.newpage()
+  
+        # draw signal plot:
+        pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
+          just = c("left", "bottom")))
+          grid.draw(signal_plot)
+        popViewport()
+
+        # label chromosomes:
+        for ( e in 1:length(chr_data$lab_pos) ) {
+          pushViewport(viewport(x = 0.105 + chr_data$lab_pos[e]/1.27, y = 0.86, width = 0.05, height = 0.05, 
+            just = c("left", "bottom")))
+            if (e==1) {
+              grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=13, fontface = "bold"))
+            } else {
+              grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=13, fontface = "bold"))
+            }
+          popViewport()
+        }
+      
+    dev.off()
+
   
     #################################################################################
-    #### 15. Plot average signal vs accuracy annotation ###
+    #### 16. Plot average signal vs accuracy annotation ###
     #################################################################################
 
     png(
@@ -1875,7 +1920,7 @@ if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_ca
 
 
   #################################################################################
-  #### 13. Save data for distinguishing between different gain/loss copy 
+  #### 17. Save data for distinguishing between different gain/loss copy 
   # number values ###
   #################################################################################
   

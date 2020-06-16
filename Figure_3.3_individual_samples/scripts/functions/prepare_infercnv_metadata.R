@@ -1,22 +1,51 @@
-prepare_infercnv_metadata <- function(seurat_object, count_df, for_infercnv=TRUE, garnett) {
+prepare_infercnv_metadata <- function(
+  seurat_object, 
+  count_df, 
+  for_infercnv, 
+  garnett, 
+  manual_epithelial,
+  exclude_clusters) {
+
+  numbers_only <- function(x) !grepl("\\D", x)
+
   # annotate cell identities using garnett_call_ext_major metadata column:
   if (
-    length(
-      grep(
-        eval(parse(text=paste0("seurat_object@meta.data$", garnett, "[1]"))), 
-        Idents(seurat_object)[1]
-      )
-    ) == 0
+    numbers_only(Idents(seurat_object)[1])
   ) {
 
-    annotated_idents <- gsub(
-      " ", 
-      "_", 
-      paste0(
-        eval(parse(text=paste0("seurat_object@meta.data$", garnett))), " ", 
-        Idents(seurat_object)
+    annotated_idents <- as.character(Idents(seurat_10X))
+
+    if (exclude_clusters[1] != "none") {
+      annotated_idents[annotated_idents %in% exclude_clusters] <- paste0(
+        "Exclude_", annotated_idents[annotated_idents %in% exclude_clusters]
+      )  
+    }
+
+    if (manual_epithelial[1] != "none") {
+    
+      
+      ident_ids <- names(Idents(seurat_10X))
+      annotated_idents[annotated_idents %in% manual_epithelial] <- paste0(
+        "Epithelial_", annotated_idents[annotated_idents %in% manual_epithelial]
       )
-    )
+      annotated_idents[grep("Epithelial", annotated_idents, invert=T)] <- paste0(
+        "Stromal_", annotated_idents[grep("Epithelial", annotated_idents, invert=T)]
+      )
+    
+    } else {
+    
+      annotated_idents <- gsub(
+        " ", 
+        "_", 
+        paste0(
+          eval(parse(text=paste0("seurat_object@meta.data$", garnett))), " ", 
+          Idents(seurat_object)
+        )
+      )
+    
+    }
+    
+  
     # remove sample id if present:
     annotated_idents <- gsub("CID.*_", "", annotated_idents)
     Idents(seurat_object) <- factor(annotated_idents)

@@ -1,5 +1,5 @@
 # Run command:
-# snakemake --reason --cores 40 --cluster "qsub -pe smp 2 -N fig3.3.smk -b y -j y -V -P TumourProgression" -j 20
+# snakemake --reason --cores 90 --cluster "qsub -pe smp 30 -N fig3.3.smk -b y -j y -V -P TumourProgression" -j 3
 
 # DAG command:
 # snakemake --dag | dot -Tsvg > dag.svg
@@ -9,16 +9,21 @@
 # define directories:
 R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
 
-SAMPLES = list(["CID3586", "CID3963", "CID4465", 
-    "CID4523", "CID3921", "CID4066", 
-    "CID44041", "CID4513", "CID4530N",
-    "CID4290A", "CID44991", "CID3941", 
-    "CID4067", "CID4461", "CID4495", 
-    "CID4515", "CID4535", "CID3948",  
-    "CID4463", "CID45171"
-])
+#SAMPLES = list(["CID3586", "CID3963", "CID4465", 
+#    "CID4523", "CID3921", "CID4066", 
+#    "CID44041", "CID4513", "CID4530N",
+#    "CID4290A", "CID44991", "CID3941", 
+#    "CID4067", "CID4461", "CID4495", 
+#    "CID4515", "CID4535", "CID3948",  
+#    "CID4463", "CID45171"
+#])
 
-SAMPLES = list(["CID4530N", "CID4463"])
+SAMPLES = list(["prca_filt"])
+
+# no subclustering = qrsh on screen 16155
+# 0.05 random tree = qsub job 2565330 - failed
+# 0.1 random tree = zeta screen 19293
+# 0.1 random tree troubleshooting screen 20391
 
 ## samples which worked with 20 cores at p<0.05:
 #"CID3586", "CID3963", "CID4465", 
@@ -45,8 +50,20 @@ SAMPLES = list(["CID4530N", "CID4463"])
 #"CID4513"
 
 # infercnv parameters:
-subcluster_method = "random_trees"
-res = "PC_A_res.1"
+file_name="Final_FILT.Rds"
+SUBCLUSTER_METHOD = list(["none", "random_trees"])
+SUBCLUSTER_P = list(["none", "0.05", "0.1"])
+#SUBCLUSTER_METHOD = list(["random_trees"])
+#SUBCLUSTER_P = list(["0.05", "0.1"])
+#res = "PC_A_res.1"
+res = "none"
+coverage_filter = "FALSE"
+nUMI_threshold = "8000"
+nGene_threshold = "1300"
+garnett_slot = "none"
+manual_epithelial = "4_6_7_8_10_11"
+exclude_clusters = "3_5_14_15_17_20"
+normal_epithelial = "none"
 
 # plot parameters:
 all_cell_PC = "C"
@@ -55,8 +72,6 @@ malignant_PC = "D"
 malignant_res = "SUBSET_D_res.0.8"
 broad_markers = "ACTB_PTPRC_CD19_CD3D_CD68_PDGFRB_PECAM1_EPCAM"
 epithelial_markers = "ACTB_EPCAM_KRT18_KRT5_MKI67"
-nUMI_threshold = "8000"
-nGene_threshold = "1300"
 min_proportion_cells_for_subcluster = "0.005"
 
 # Subcluster plot parameters:
@@ -65,23 +80,25 @@ min_CNV_proportion = "0.5"
 loose_min_proportion = "0.4"
 malignant_res = "SUBSET_D_res.0.8"
 
-######
-#rule all:
-#    input:
-#        expand(
-#            "results/infercnv/{sample}/p_0.05/infercnv.12_denoised.png",
-#            sample=SAMPLES
-#        )
-######
-
-######
+#####
 rule all:
     input:
         expand(
-            "results/infercnv/{sample}/p_0.05/clustered_by_random_trees/plots/infercnv_plot_with_expression_clusters.png",
-            sample=SAMPLES
+            "results/infercnv/{sample}/{subcluster_method}/p_{subcluster_p}/" + 
+            "infercnv.12_denoised.png",
+            sample=SAMPLES, subcluster_method=SUBCLUSTER_METHOD, 
+            subcluster_p=SUBCLUSTER_P
         )
-        ,
+#####
+
+#######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/{sample}/p_0.05/clustered_by_random_trees/plots/infercnv_plot_with_expression_clusters.png",
+#            sample=SAMPLES
+#        )
+#        ,
 #        expand(
 #            "results/infercnv/{sample}/p_0.05/clustered_by_random_trees/Rdata/3b.filtered_metadata_good_coverage_only.Rdata",
 #            sample=SAMPLES
@@ -103,46 +120,56 @@ rule all:
 
 rule infercnv:
     input:
-        "raw_files/seurat_objects/{sample}/03_seurat_object_processed.Rdata",
+        "raw_files/seurat_objects/{sample}/" + file_name,
     output:
-        "results/infercnv/{sample}/p_0.05/infercnv.12_denoised.png"
-    threads: 20
+        "results/infercnv/{sample}/{subcluster_method}/p_" + "{subcluster_p}/" + 
+            "infercnv.12_denoised.png"
+    threads: 30
     shell:
         "module load briglo/R/3.6.0; " + 
-        "mkdir -p logs/infercnv/{wildcards.sample}/; " +
-        "cd logs/infercnv/{wildcards.sample}/; " + 
+        "mkdir -p logs/infercnv/{wildcards.sample}/{wildcards.subcluster_method}/p_{wildcards.subcluster_p}/; " +
+        "cd logs/infercnv/{wildcards.sample}/{wildcards.subcluster_method}/p_{wildcards.subcluster_p}/; " + 
         "{R_dir}/R CMD BATCH  --no-save '--args" + 
         " {wildcards.sample}" + 
+        " {file_name}" +
         " {threads}" + 
-        " {subcluster_method} " + 
+        " {wildcards.subcluster_method} " + 
+        " {wildcards.subcluster_p} " + 
         " {res} " + 
-        "' ../../../scripts/1.infercnv.R"
+        " {coverage_filter} " + 
+        " {nUMI_threshold} " + 
+        " {nGene_threshold} " + 
+        " {garnett_slot} " + 
+        " {manual_epithelial} " + 
+        " {exclude_clusters} " + 
+        " {normal_epithelial} " + 
+        "' ../../../../../scripts/1.infercnv.R"
 
-rule plot:
-    input:
-        "results/infercnv/{sample}/p_0.05/infercnv.12_denoised.png"
-    output:
-        infercnv = "results/infercnv/{sample}/p_0.05/clustered_by_random_trees/plots/infercnv_plot_with_expression_clusters.png"
-        #,metadata = "results/infercnv/{sample}/p_0.05/clustered_by_random_trees/Rdata/3b.filtered_metadata_good_coverage_only.Rdata"
-    threads: 2
-    shell:
-        "module load briglo/R/3.6.0; "
-        "mkdir -p logs/plot/{wildcards.sample}/; " +
-        "cd logs/plot/{wildcards.sample}; " + 
-        "{R_dir}/R CMD BATCH  --no-save '--args" + 
-        " {wildcards.sample}" +  
-        " {all_cell_PC}" + 
-        " {all_cell_res}" + 
-        " {malignant_PC}" +
-        " {malignant_res}" +
-        " {broad_markers}" +
-        " {epithelial_markers}" +
-        " {nUMI_threshold}" +
-        " {nGene_threshold}" +
-        " {min_proportion_cells_for_subcluster}" +
-        " 0.05" +
-        " random_trees" +
-        "' ../../../scripts/2.plot_individual_heatmap.R"
+#rule plot:
+#    input:
+#        "results/infercnv/{sample}/p_0.05/infercnv.12_denoised.png"
+#    output:
+#        infercnv = "results/infercnv/{sample}/p_0.05/clustered_by_random_trees/plots/infercnv_plot_with_expression_clusters.png"
+#        #,metadata = "results/infercnv/{sample}/p_0.05/clustered_by_random_trees/Rdata/3b.filtered_metadata_good_coverage_only.Rdata"
+#    threads: 2
+#    shell:
+#        "module load briglo/R/3.6.0; "
+#        "mkdir -p logs/plot/{wildcards.sample}/; " +
+#        "cd logs/plot/{wildcards.sample}; " + 
+#        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+#        " {wildcards.sample}" +  
+#        " {all_cell_PC}" + 
+#        " {all_cell_res}" + 
+#        " {malignant_PC}" +
+#        " {malignant_res}" +
+#        " {broad_markers}" +
+#        " {epithelial_markers}" +
+#        " {nUMI_threshold}" +
+#        " {nGene_threshold}" +
+#        " {min_proportion_cells_for_subcluster}" +
+#        " 0.05" +
+#        " random_trees" +
+#        "' ../../../scripts/2.plot_individual_heatmap.R"
 
 #rule plot_subclusters:
 #    input:

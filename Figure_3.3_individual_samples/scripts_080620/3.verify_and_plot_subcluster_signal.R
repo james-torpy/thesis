@@ -24,14 +24,14 @@ random_tree_p <- as.numeric(args[6])
 subcluster_by <- args[7]
 merge_similar_subclusters <- as.logical(args[8])
 
-#sample_name <- "CID4515"
-#min_CNV_length <- 20
-#min_CNV_proportion <- as.numeric("0.5")
-#loose_min_proportion <- as.numeric("0.4")
-#malignant_res <- "SUBSET_D_res.0.8"
-#random_tree_p <- 0.05
-#subcluster_by <- "random_trees"
-#merge_similar_subclusters <- FALSE
+sample_name <- "CID4515"
+min_CNV_length <- 20
+min_CNV_proportion <- as.numeric("0.5")
+loose_min_proportion <- as.numeric("0.4")
+malignant_res <- "SUBSET_D_res.0.8"
+random_tree_p <- 0.05
+subcluster_by <- "random_trees"
+merge_similar_subclusters <- FALSE
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -355,26 +355,19 @@ if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
 }
 
 # determine CNV co-ordinates and start and end genomic positions for each subpop:
-if (!file.exists(paste0(Robject_dir, "CNV_indices_and_lengths.Rdata")) | 
-  !file.exists(paste0(Robject_dir, "loose_CNV_indices_and_lengths.Rdata"))) {
+if (!file.exists(paste0(Robject_dir, "CNV_indices_and_lengths.Rdata"))) {
   
-  subpop_CNV_data <- lapply(subpop_matrices, detect_CNV, min_CNV_proportion, neutral_value)
-  loose_subpop_data <- lapply(subpop_matrices, detect_CNV, loose_min_proportion, neutral_value)
-
+  subpop_CNV_data <- lapply(subpop_matrices, detect_CNV, min_CNV_proportion, 
+    neutral_value)
+  
   # create CNV only list:
   subpop_CNV_only <- lapply(subpop_CNV_data, function(df) {
     CNV_only <- df[df$call != "neutral",]
     # remove CNVs less than min_CNV_length:
-    return(CNV_only[CNV_only$length >= 20,])
-  })
-  loose_CNV_only <- lapply(loose_subpop_data, function(df) {
-    CNV_only <- df[df$call != "neutral",]
-    # remove CNVs less than min_CNV_length:
-    return(CNV_only[CNV_only$length >= 20,])
+    return(CNV_only[CNV_only$length >= min_CNV_length,])
   })
 
   saveRDS(subpop_CNV_only, paste0(Robject_dir, "CNV_indices_and_lengths.Rdata"))
-  saveRDS(loose_CNV_only, paste0(Robject_dir, "loose_CNV_indices_and_lengths.Rdata"))
   
   # save mean, min and max CNV lengths:
   all_CNV_only <- do.call("rbind", subpop_CNV_only)
@@ -404,9 +397,6 @@ if (!file.exists(paste0(Robject_dir, "CNV_indices_and_lengths.Rdata")) |
 } else {
   subpop_CNV_only <- readRDS(
     paste0(Robject_dir, "CNV_indices_and_lengths.Rdata")
-  )
-  loose_CNV_only <- readRDS(
-    paste0(Robject_dir, "loose_CNV_indices_and_lengths.Rdata")
   )
 }
 

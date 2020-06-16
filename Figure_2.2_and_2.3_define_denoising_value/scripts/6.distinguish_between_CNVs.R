@@ -7,12 +7,12 @@ sample_name <- args[1]
 analysis_mode <- args[2]
 sim_names <- args[3]
 
-project_name <- "thesis"
-subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
-args = commandArgs(trailingOnly=TRUE)
-sample_name <- "CID4520N"
-analysis_mode <- "samples"
-sim_names <- paste0("sim", 1:30, collapse = ".")
+#project_name <- "thesis"
+#subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
+#args = commandArgs(trailingOnly=TRUE)
+#sample_name <- "CID4520N"
+#analysis_mode <- "samples"
+#sim_names <- paste0("sim", 1:30, collapse = ".")
 
 # split multi-element variable vectors:
 sim_names <- unlist(

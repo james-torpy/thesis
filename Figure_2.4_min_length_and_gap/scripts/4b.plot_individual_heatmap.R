@@ -907,11 +907,8 @@ if (gap_or_CNV == "CNV") {
   call_annotation_vector <- factor(create_extended_vector(call_annot_indices, "call"))
   levels(call_annotation_vector) <- c("gap called", "gap not called", "non-gap")
 
-<<<<<<< HEAD:Figure_2.3_min_length_and_gap/scripts/4b.plot_individual_heatmap.R
-  cols <- c("#430F82", "#7CBA61", "#E7E4D3")
-=======
   cols <- c("#7CBA61", "#430F82", "#E7E4D3")
->>>>>>> starting_fig_2.7:Figure_2.4_min_length_and_gap/scripts/4b.plot_individual_heatmap.R
+
   names(cols) <- levels(call_annotation_vector)
   
   call_annotation <- HeatmapAnnotation(
