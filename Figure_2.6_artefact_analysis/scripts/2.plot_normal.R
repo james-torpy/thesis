@@ -679,6 +679,41 @@ plot_data <- list(
 )
 saveRDS(plot_data, paste0(Robject_dir, "signal_plot_data.Rdata"))
 
+
+#################################################################################
+#### 4. Record first and last 10 genes of each artefact ###
+#################################################################################
+
+for (i in 1:nrow(artefact_only)) {
+
+  df <- data.frame(
+    first_ten = names(
+      artefact_genes[
+        (artefact_only$start[i]):(artefact_only$start[i]+9)
+      ]
+    ),
+    last_ten = names(
+      artefact_genes[
+        (artefact_only$end[i]):(artefact_only$end[i]-9)
+      ]
+    )
+  )
+
+  if (i==1) {
+    artefact_gene_record <- list(df)
+  } else {
+    artefact_gene_record[[i]] <- df
+  }
+  names(artefact_gene_record)[i] <- artefact_only$start_chr[i]
+
+}
+
+saveRDS(
+  artefact_gene_record,
+  paste0(Robject_dir, "artefact_gene_record.Rdata")
+)
+
+
 #######
 #
 ## mock plot:

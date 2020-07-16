@@ -1,6 +1,8 @@
 define_normals <- function(
   temp_heatmap, 
   temp_metadata, 
+  x_thresh_multiplier,
+  y_thresh_multiplier,
   plot_dir, 
   Robject_dir
 ) {
@@ -13,10 +15,10 @@ define_normals <- function(
     return(mean(y^2))
   })
   CNA_value_df <- data.frame(
-    row.names = names(CNA_values),
+    cell_ids = names(CNA_values),
     CNA_value = CNA_values
   )
-  temp_metadata <- cbind(temp_metadata, CNA_value_df)
+  temp_metadata <- merge(temp_metadata, CNA_value_df, by="cell_ids")
 
   # determine correlation with top 5% cancer values and add to temp_metadata:
   print(paste0(
@@ -47,12 +49,13 @@ define_normals <- function(
   correlation_df <- do.call("rbind", cancer_correlations)
 
   # add to temp_metadata:
-  temp_metadata <- cbind(temp_metadata, correlation_df)
+  correlation_df$cell_ids <- rownames(correlation_df)
+  temp_metadata <- merge(temp_metadata, correlation_df, by = "cell_ids")
   temp_metadata <- temp_metadata[temp_metadata$cor.estimate != "no_CNVs_recorded",]
   
   # prepare df for quad plots:
   quad_df <- data.frame(
-    row.names = rownames(temp_metadata),
+    row.names = temp_metadata$cell_ids,
     CNA_value = as.numeric(temp_metadata$CNA_value), 
     cor.estimate = as.numeric(temp_metadata$cor.estimate)
   )
@@ -76,15 +79,22 @@ define_normals <- function(
     pamk_result <- pamk(scaled_quad_df, krange=1:6)
     pamk_result$nc
     silhouette_result <- pam(scaled_quad_df, pamk_result$nc)
-  
+
+    saveRDS(
+      pamk_result, 
+      paste0(Robject_dir, "quad_pamk_result.Rdata")
+    )
     saveRDS(
       silhouette_result, 
-      paste0(Robject_dir, "quad clustering_result.Rdata")
+      paste0(Robject_dir, "quad_clustering_result.Rdata")
     )
   
   } else {
+    pamk_result <- readRDS(
+      paste0(Robject_dir, "quad_pamk_result.Rdata")
+    )
     silhouette_result <- readRDS(
-      paste0(Robject_dir, "quad clustering_result.Rdata")
+      paste0(Robject_dir, "quad_clustering_result.Rdata")
     )
   }
   
@@ -93,40 +103,61 @@ define_normals <- function(
   if (pamk_result$nc > 1) {
   
     sil_values <- as.data.frame(silhouette_result$silinfo$widths)
-    sil_result <- data.frame(row.names=names(silhouette_result$clustering),
+    sil_result <- data.frame(
+      cell_ids=names(silhouette_result$clustering),
       cluster=silhouette_result$clustering,
-      sil_width=sil_values$sil_width)
+      sil_width=sil_values$sil_width
+    )
     # add sil_result to temp_metadata:
-    temp_metadata <- cbind(temp_metadata, sil_result)
+    temp_metadata <- merge(temp_metadata, sil_result, by = "cell_ids")
+    rownames(temp_metadata) <- temp_metadata$cell_ids
     
     # determine normal and cancer clusters by determining the max CNA values and
     # correlation with top 5% cancer:
     cluster_split <- split(temp_metadata, temp_metadata$cluster)
     names(cluster_split) <- paste0("cluster_", names(cluster_split))
-    # determine order of clusters by adding mean CNA and correlation values:
-    cluster_means <- sort(
-      unlist(
-        lapply(cluster_split, function(x) {
-          return(mean(x$CNA_value) + mean(x$cor.estimate))
-        })
-      )
+
+    # identify the medoid cells:
+    cluster_medoids <- rownames(silhouette_result$medoids)
+    
+    # determine order of clusters by identifying the medoid:
+    cluster_medoids <- subset(
+      temp_metadata[cluster_medoids,], select = c(CNA_value, cor.estimate, cluster)
     )
-    # determine second cluster from axes as cancer cluster closest to axes:
-    first_cancer_cluster <- names(cluster_means[2])
-    first_cancer_df <- eval(parse(text=paste0("cluster_split$", first_cancer_cluster)))
-    # define x-axis as n std devs left of mean:
-    CNA_mean <- mean(first_cancer_df$CNA_value)
+
+    # label clusters with medoid CNV value < 0.15 and correlation value < 0.25
+    # as normal:
+    cluster_medoids$type <- "cancer"
+    cluster_medoids$type[
+      cluster_medoids$CNA_value < 0.15 & cluster_medoids$cor.estimate < 0.25
+    ] <- "normal"
+
+    # label first cancer cluster:
+    cancer_medoids <- cluster_medoids[
+      cluster_medoids$type == "cancer"
+    ]
+    first_cancer_cluster <- rownames(cancer_medoids)[
+      which.min(cluster_medoids$CNA_value + cluster_medoids$cor.estimate)
+    ]
+    cluster_medoids[first_cancer_cluster,]$type <- "first_cancer"
+    first_cancer_df <- temp_metadata[
+      temp_metadata$cluster == cluster_medoids$cluster[cluster_medoids$type == "first_cancer"],
+    ]
+
+    # define x-axis threshold as n std devs left of first cancer medoid:
     CNA_std_dev <- sd(first_cancer_df$CNA_value)
-    x_int <- round(CNA_mean - (cancer_x_threshold_sd_multiplier*CNA_std_dev), 3)
-  
-    # determine first cluster from axes as normal cluster:
-    normal_cluster <- names(cluster_means[1])
-    normal_df <- eval(parse(text=paste0("cluster_split$", normal_cluster)))
-    # define y-axis as n std devs above mean:
-    cor_mean <- mean(normal_df$cor.estimate)
-    cor_std_dev <- sd(normal_df$cor.estimate)
-    y_int <- round(cor_mean + (normal_y_threshold_sd_multiplier*cor_std_dev), 3)
-  
+    x_int <- round(
+      cluster_medoids$CNA_value[cluster_medoids$type == "first_cancer"] - 
+      (CNA_std_dev*x_thresh_multiplier), 3
+    )
+
+    # define y-axis threshold as n std devs below of first cancer medoid:
+    cor_std_dev <- sd(first_cancer_df$cor.est)
+    y_int <- round(
+      cluster_medoids$cor.est[cluster_medoids$type == "first_cancer"] - 
+      (cor_std_dev*y_thresh_multiplier), 3
+    )
+
     # define normal and cancer cells:
     temp_metadata$normal_cell_call <- "cancer"
     temp_metadata$normal_cell_call[
