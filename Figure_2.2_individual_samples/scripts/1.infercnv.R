@@ -3,7 +3,7 @@
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "Figure_3.3_individual_samples"
+subproject_name <- "Figure_2.2_individual_samples"
 sample_name <- args[1]
 file_name <- args[2]
 numcores <- as.numeric(args[3])
@@ -30,34 +30,34 @@ exclude_clusters <- unlist(
   )
 )
 
-project_name <- "thesis"
-subproject_name <- "Figure_3.3_individual_samples"
-sample_name <- "CID4463"
-file_name <- "03_seurat_object_processed.Rdata"
-numcores <- 22
-subcluster_method <- "random_trees"
-subcluster_p <- "0.1"
-if (subcluster_p != "none") {
-  subcluster_p <- as.numeric(subcluster_p)
-}
-res <- "PC_A_res.1"
-coverage_filter <- "filtered"
-nUMI_threshold <- as.numeric("3200")
-nGene_threshold <- as.numeric("700")
-garnett_slot <- "garnett_call_ext_major"
-#garnett_slot <- "none"
-manual_epithelial <- unlist(
-  strsplit(
-    "none",
-    "_"
-  )
-)
-exclude_clusters <- unlist(
-  strsplit(
-    "none",
-    "_"
-  )
-)
+#project_name <- "thesis"
+#subproject_name <- "Figure_2.2_individual_samples"
+#sample_name <- "CID4463"
+#file_name <- "03_seurat_object_processed.Rdata"
+#numcores <- 60
+#subcluster_method <- "random_trees"
+#subcluster_p <- "0.05"
+#if (subcluster_p != "none") {
+#  subcluster_p <- as.numeric(subcluster_p)
+#}
+#res <- "PC_A_res.1"
+#coverage_filter <- "unfiltered"
+#nUMI_threshold <- as.numeric("3200")
+#nGene_threshold <- as.numeric("700")
+#garnett_slot <- "garnett_call_ext_major"
+##garnett_slot <- "none"
+#manual_epithelial <- unlist(
+#  strsplit(
+#    "none",
+#    "_"
+#  )
+#)
+#exclude_clusters <- unlist(
+#  strsplit(
+#    "none",
+#    "_"
+#  )
+#)
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -114,7 +114,7 @@ if (subcluster_method == "none" & subcluster_p != "none") {
   system(paste0("touch ", out_dir, "infercnv.12_denoised.png"))
 } else {
 
-  print(paste0("Running InferCNV identify normals pipeline on ", sample_name))
+  print(paste0("Running InferCNV subcluster pipeline on ", sample_name))
   
   
   ################################################################################

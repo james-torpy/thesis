@@ -41,15 +41,21 @@ fetch_chromosome_boundaries <- function(df, ref_dir) {
   # find centre of each chromosome:
   for ( i in 1:length(chr_lengths) ) {
     if (i==1) {
-      lab_pos <- c(chr_lengths[i]/2)
+      chr_midpoints <- c(floor(chr_lengths[i]/2))
     } else {
-      lab_pos[i] <- chr_ends[i-1] + (chr_lengths[i]/2)
+      chr_midpoints[i] <- floor(chr_ends[i-1] + (chr_lengths[i]/2))
     }
   }
-  lab_pos <- lab_pos/chr_ends[length(chr_ends)]
+  names(chr_midpoints) <- names(chr_lengths)
+  lab_pos <- chr_midpoints/chr_ends[length(chr_ends)]
   names(lab_pos) <- names(chr_lengths)
-  result_list <- list(lengths = chr_lengths, ends = chr_ends, end_pos = end_pos, 
-    lab_pos = lab_pos)
+  result_list <- list(
+    lengths = chr_lengths, 
+    ends = chr_ends, 
+    midpoints = chr_midpoints,
+    end_pos = end_pos, 
+    lab_pos = lab_pos
+  )
 
   return(result_list)
 }

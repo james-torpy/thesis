@@ -1,5 +1,5 @@
 # Run command:
-# snakemake --reason --cores 240 -k --cluster "qsub -pe smp 10 -N fig2.2.smk -b y -j y -V -P TumourProgression" -j 24
+# snakemake --reason --cores 66 -k --cluster "qsub -pe smp 3 -N fig2.2.smk -b y -j y -V -P TumourProgression" -j 22
 # snakemake --reason -k
 
 # DAG command:
@@ -40,26 +40,34 @@ min_CNV_proportion="0.5"
 #rule all:
 #    input:
 #        "results/infercnv/CID4520N/normal/no_denoising/samples_mode/" + 
-#            "plots/infercnv_plot.pdf",
+#            "plots/infercnv_plot.png",
 #    	expand(
 #            "results/infercnv/CID4520N/normal/{denoise_val}_denoising/samples_mode/" + 
-#            "plots/infercnv_plot.pdf",
+#            "plots/infercnv_plot.png",
 #            denoise_val=DENOISING_VALS
 #        ),
 #        expand(
 #            "results/infercnv/CID4520N/{sample}/no_denoising/samples_mode/" + 
-#            "plots/infercnv_plot.pdf",
+#            "plots/infercnv_plot.png",
 #            sample=SAMPLES
 #        ),
 #        expand(
 #        	"results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
-#            "plots/infercnv_plot.pdf",
+#            "plots/infercnv_plot.png",
 #            sample=SAMPLES, denoise_val=DENOISING_VALS
 #        )
 
 rule all:
     input:
-    	"results/infercnv/CID4520N/denoising_results/all_denoising_results.pdf"
+        expand(
+        	"results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "plots/signal_vs_simulated_CNV_plot_with_copy_no_estimates.png",
+            sample=SAMPLES, denoise_val=DENOISING_VALS
+        )
+
+#rule all:
+#    input:
+#    	"results/infercnv/CID4520N/denoising_results/all_denoising_results.pdf"
 
 
 ####################################################################################
@@ -177,11 +185,13 @@ rule plot:
     output:
         CNV_heatmap = "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
             "plots/infercnv_plot.png",
+        signal_plot = "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
+            "plots/signal_vs_simulated_CNV_plot_with_copy_no_estimates.png",
         CNV_data = "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
             "Rdata/CNV_data.Rdata",
         estimated_vs_known = "results/infercnv/CID4520N/{sample}/{denoise_val}_denoising/samples_mode/" + 
             "Rdata/estimated_vs_known_counts.Rdata"
-    threads: 10
+    threads: 3
     shell:
         "module load briglo/R/3.6.0; " + 
         "mkdir -p logs/plot/{wildcards.sample}/{wildcards.denoise_val}_denoising/samples_mode/; " +

@@ -134,10 +134,10 @@ define_normals <- function(
 
     # label first cancer cluster:
     cancer_medoids <- cluster_medoids[
-      cluster_medoids$type == "cancer"
+      cluster_medoids$type == "cancer",
     ]
     first_cancer_cluster <- rownames(cancer_medoids)[
-      which.min(cluster_medoids$CNA_value + cluster_medoids$cor.estimate)
+      which.min(cancer_medoids$CNA_value + cancer_medoids$cor.estimate)
     ]
     cluster_medoids[first_cancer_cluster,]$type <- "first_cancer"
     first_cancer_df <- temp_metadata[
@@ -223,8 +223,8 @@ define_normals <- function(
     CNA_std_dev <- sd(epithelial_metadata$CNA_value)
     cor_mean <- mean(epithelial_metadata$cor.estimate)
     cor_std_dev <- sd(epithelial_metadata$cor.estimate)
-    x_int1 <- CNA_mean - (cancer_x_threshold_sd_multiplier*CNA_std_dev)
-    y_int1 <- cor_mean - (cancer_y_threshold_sd_multiplier*cor_std_dev)
+    x_int1 <- CNA_mean - (x_thresh_multiplier*CNA_std_dev)
+    y_int1 <- cor_mean - (y_thresh_multiplier*cor_std_dev)
     normal_outliers <- rownames(epithelial_metadata)[
       epithelial_metadata$cor.estimate < y_int1
     ]

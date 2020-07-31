@@ -1,7 +1,7 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
+subproject_name <- "Figure_1.2_and_1.3_simulate_cancer_and_define_denoising_value"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
 sim_name <- args[2]
@@ -14,18 +14,18 @@ min_CNV_length <- as.numeric(args[5])
 print("Minimum CNV length = ")
 print(min_CNV_length)
 
-#sample_name <- "CID4520N"
-#sim_name <- "sim29"
-#denoise_value <- "1.3"
-#analysis_mode <- "samples"
-#min_CNV_proportion <- as.numeric("0.5")
-#min_CNV_length <- 20
-#copy_no_signal <- "0_-0.0755_0.5_-0.0617_1.5_0.0368_2_0.0566_3_0.0673"
-#temp_signal <- unlist(
-#  strsplit(copy_no_signal, "_")
-#)
-#copy_no_signal <- as.numeric(temp_signal[c(FALSE, TRUE)])
-#names(copy_no_signal) <- temp_signal[c(TRUE, FALSE)]
+sample_name <- "CID4520N"
+sim_name <- "sim4"
+denoise_value <- "1.3"
+analysis_mode <- "samples"
+min_CNV_proportion <- as.numeric("0.5")
+min_CNV_length <- 20
+copy_no_signal <- "0_-0.0755_0.5_-0.0617_1.5_0.0368_2_0.0566_3_0.0673"
+temp_signal <- unlist(
+  strsplit(copy_no_signal, "_")
+)
+copy_no_signal <- as.numeric(temp_signal[c(FALSE, TRUE)])
+names(copy_no_signal) <- temp_signal[c(TRUE, FALSE)]
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -97,94 +97,14 @@ create_extended_vector <- dget(paste0(func_dir,
 fetch_chromosome_boundaries <- dget(paste0(func_dir, 
   "fetch_chromosome_boundaries.R"))
 
- # write legend functions:
-true_pos_neg_false_pos_neg_legend <- function() {
-  # plot legend text:
-  pushViewport(viewport(x = 0.48, y = 0.87, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-      grid.text("true positive", gp=gpar(fontsize=18))
-  popViewport()
-  pushViewport(viewport(x = 0.5, y = 0.655, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.text("true negative", gp=gpar(fontsize=18))
-  popViewport()
-  pushViewport(viewport(x = 0.5, y = 0.435, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.text("false positive", gp=gpar(fontsize=18))
-  popViewport()
-  pushViewport(viewport(x = 0.52, y = 0.215, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.text("false negative", gp=gpar(fontsize=18))
-  popViewport()
-  
-  # plot legend squares:
-  pushViewport(viewport(x = 0, y = 0.81, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-            just = c("left", "bottom"), gp=gpar(col = "#430F82", fill = "#430F82"))
-  popViewport()
-  pushViewport(viewport(x = 0, y = 0.595, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-              just = c("left", "bottom"), gp=gpar(col = "#B488B4", fill = "#B488B4"))
-  popViewport()
-  pushViewport(viewport(x = 0, y = 0.38, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-            just = c("left", "bottom"), gp=gpar(col = "#F6DC15", fill = "#F6DC15"))
-  popViewport()
-  pushViewport(viewport(x = 0, y = 0.165, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-            just = c("left", "bottom"), gp=gpar(col = "#7CBA61", fill = "#7CBA61"))
-  popViewport()
-}
-true_pos_false_pos_wrong_legend <- function() {
-  # plot legend text:
-  pushViewport(viewport(x = 0.48, y = 0.87, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-      grid.text("true positive", gp=gpar(fontsize=18))
-  popViewport()
-  pushViewport(viewport(x = 0.5, y = 0.655, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.text("false positive", gp=gpar(fontsize=18))
-  popViewport()
-  pushViewport(viewport(x = 0.43, y = 0.435, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.text("wrong call", gp=gpar(fontsize=18))
-  popViewport()
-  
-  # plot legend squares:
-  pushViewport(viewport(x = 0, y = 0.81, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-            just = c("left", "bottom"), gp=gpar(col = "#430F82", fill = "#430F82"))
-  popViewport()
-  pushViewport(viewport(x = 0, y = 0.595, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-              just = c("left", "bottom"), gp=gpar(col = "#F6DC15", fill = "#F6DC15"))
-  popViewport()
-  pushViewport(viewport(x = 0, y = 0.38, 
-                        width = unit(1, "cm"), height = unit(0.5, "cm"), 
-                        just = c("left")))
-    grid.rect(width = unit(5, "mm"), height = unit(5, "mm"),
-            just = c("left", "bottom"), gp=gpar(col = "#C02456", fill = "#C02456"))
-  popViewport()
-}
+prepare_for_granges <- dget(paste0(func_dir, 
+  "prepare_for_granges.R"))
+
+count_calls <- dget(paste0(func_dir, 
+  "count_calls.R"))
+
+create_signal_plot <- dget(paste0(func_dir, 
+  "create_signal_plot.R"))
 
 
 ################################################################################
@@ -246,7 +166,7 @@ if (!file.exists(paste0(Robject_dir, "chromosome_data.Rdata"))) {
 ################################################################################
 ### 2. Calculate mean fold difference from CNV-neutral value per cell  ###
 ################################################################################
- 
+
 if (sim_name == "normal" | sim_name == "filtered_normal" | sim_name == "real_cancer") {
  
   # determine neutral value (based on sd denoising):
@@ -455,9 +375,9 @@ if (sim_name == "normal" | sim_name == "filtered_normal" | sim_name == "real_can
 }
 
 
-  ################################################################################
-  ### 4. Create simulated CNV annotations  ###
-  ################################################################################
+################################################################################
+### 4. Create simulated CNV annotations  ###
+################################################################################
 
 if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_cancer") {  
  
@@ -480,12 +400,12 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
       labels = CNV_indices$length_lab[CNV_indices$ticks == "include"]
     )
     p <- p + scale_y_continuous(
-      breaks = c(0, 1, 2, 3),
+      breaks = c(0, 1, 3),
       limits = c(
         min(CNV_indices$multiplier), 
         max(CNV_indices$multiplier)
       ),
-      labels = c("0", "1", "2", "3")
+      labels = c("Total\nloss", "1", "3")
     )
     for (c_end in chr_data$ends) {
       p <- p + geom_vline(xintercept=c_end)
@@ -525,15 +445,13 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
     p <- p + xlab("CNV lengths (no. genes)")
     # remove axis labels:
     p <- p + theme(
-      axis.title.x = element_text(
-        size=24, 
-        margin=margin(t = 20, r = 0, b = 0, l = 0)
-      ),
-      axis.text.x = element_text(size=24),
-      text = element_text(size=24),
-      axis.text.y = element_text(size=24),
+      axis.title.x = element_blank(),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      text = element_text(size=30),
+      axis.text.y = element_text(size=35),
       axis.title.y = element_text(
-        size=24, 
+        size=35, 
         margin=margin(t = 0, r = 30, b = 0, l = 0)
       )
     )
@@ -558,10 +476,9 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
 ################################################################################
 ### 5. Determine neutral regions  ###
 ################################################################################
-  
+
 if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_cancer") {  
  
-
   # record gain or loss in each genomic segment:
   CNV_indices$type <- "neutral"
   CNV_indices$type[CNV_indices$multiplier > 1] <- "gain"
@@ -593,11 +510,28 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
   # create histogram of average CNV values:
   if (!file.exists(paste0(plot_dir, "epithelial_CNV_histogram.png"))) {
     average_epithelial_histogram <- hist(average_epithelial)
+    dev.off()
     pdf(paste0(plot_dir, "epithelial_CNV_histogram.pdf"))
-      plot(average_epithelial_histogram, main=NA, xlab = "CNV signal")
+      plot(
+        average_epithelial_histogram, 
+        main=NA, 
+        xlab = "CNV signal",
+        ylab = "",
+        yaxt='n',
+        cex.axis=1.5,
+        cex.lab=2
+      )
     dev.off()
     png(paste0(plot_dir, "epithelial_CNV_histogram.png"))
-      plot(average_epithelial_histogram, main=NA, xlab = "CNV signal")
+      plot(
+        average_epithelial_histogram, 
+        main=NA, 
+        xlab = "CNV signal",
+        ylab = "",
+        yaxt='n',
+        cex.axis=1.5,
+        cex.lab=2
+      )
     dev.off()
   }
 
@@ -701,7 +635,7 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
 ################################################################################
 ### 7. Determine accuracy calls  ###
 ################################################################################
-  
+
 if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_cancer") {  
  
   if (!file.exists(paste0(table_dir, "accuracy_metrics.txt")) | 
@@ -826,13 +760,6 @@ if (sim_name != "normal" & sim_name != "filtered_normal" & sim_name != "real_can
     )
     dev.off()
   
-    #  pdf(paste0(plot_dir, "accuracy_heatmap.pdf"), height = 2, width = 20)
-    #  grid.newpage()
-    #    pushViewport(viewport(x = 0.07, y = 0.1, width = 0.92, height = 0.85, 
-    #      just = c("left", "bottom")))
-    #      grid.draw(accuracy_heatmap_obj)
-    #    popViewport()
-    #  dev.off()
 
     saveRDS(
       accuracy_annotation_vector, 
@@ -1058,7 +985,7 @@ if (!file.exists(paste0(plot_dir, "annotated_infercnv_plot.png"))) {
 ################################################################################
 ### 11. Create basic heatmap ###
 ################################################################################
-  
+
 if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
 
   final_heatmap <- Heatmap(
@@ -1097,18 +1024,17 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
   } else {
     signal_ranges <- round(range(unlist(plot_object)), 2)
     lgd <- Legend(
-      at = c(
-        round(signal_ranges[1], 1), 
-        1, 
-        round(signal_ranges[2], 1)
-      ),
+      at = c(signal_ranges[1], 1, signal_ranges[2]),
+      labels = c("loss", "", "gain"),
       col_fun = heatmap_cols, 
-      title = "CNV\nsignal", 
+      title = "CNV signal", 
       direction = "horizontal",
-      grid_height = unit(2.5, "cm"),
-      grid_width = unit(0.1, "cm"),
-      labels_gp = gpar(fontsize = 22),
-      title_gp = gpar(fontsize = 28, fontface = "plain")
+      grid_height = unit(3, "cm"),
+      grid_width = unit(4.5, "cm"),
+      legend_height = unit(3, "cm"),
+      legend_width = unit(4.5, "cm"),
+      labels_gp = gpar(fontsize = 30),
+      title_gp = gpar(fontsize = 32, fontface = "plain")
     )
   }
   
@@ -1124,7 +1050,7 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
     if (sim_name == "normal" | sim_name == "filtered_normal" | sim_name == "real_cancer") {
   
       grid.newpage()
-      pushViewport(viewport(x = 0.15, y = 0.15, width = 0.8, height = 0.85, 
+      pushViewport(viewport(x = 0.165, y = 0.15, width = 0.81, height = 0.85, 
         just = c("left", "bottom")))
         grid.draw(basic_heatmap)
         decorate_heatmap_body("hm", {
@@ -1144,37 +1070,47 @@ if (!file.exists(paste0(plot_dir, "infercnv_plot.png"))) {
           }
         })
       popViewport()
-      # plot legend:
-      pushViewport(viewport(x = unit(2, "cm"), y = unit(14.5, "cm"), width = unit(0.1, "cm"), 
-        height = unit(0.4, "cm"), just = c("right", "bottom")))
+
+      # plot heatmap legend:
+      pushViewport(viewport(x = unit(3.5, "cm"), y = unit(28, "cm"), width = unit(4.5, "cm"), 
+        height = unit(4, "cm")))
         draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
       popViewport()
+
   
     } else {
   
       # plot CNV heatmap:
       grid.newpage()
-      pushViewport(viewport(x = 0.132, y = 0.32, width = 0.84, height = 0.67, 
+      pushViewport(viewport(x = 0.132, y = 0.28, width = 0.85, height = 0.67, 
         just = c("left", "bottom")))
         grid.draw(basic_heatmap)
         decorate_heatmap_body("hm", {
           for ( e in 1:length(chr_data$end_pos) ) {
             grid.lines(c(chr_data$end_pos[e], chr_data$end_pos[e]), c(0, 1), 
               gp = gpar(lwd = 1, col = "#383838"))
-            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+            if (e==1) {
+              grid.text(names(chr_data$lab_pos)[e], chr_data$lab_pos[e], 
+              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=30))
+            } else if (e==21) {
+              grid.text(paste0("\n", gsub("chr", "", names(chr_data$lab_pos)[e])), chr_data$lab_pos[e], 
+              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=30))
+            } else {
+              grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
+              unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=30))        
+            }
           }
         })
       popViewport()
     
       # plot ground truth CNVs:
-      pushViewport(viewport(x = 0.528, y = 0.15, width = 0.9, height = 0.27))
+      pushViewport(viewport(x = 0.505, y = 0.13, width = 0.953, height = 0.2))
         grid.draw(grid_sim_plot)
       popViewport()
 
-      # plot legend:
-      pushViewport(viewport(x = unit(2, "cm"), y = unit(14.5, "cm"), width = unit(0.1, "cm"), 
-        height = unit(0.4, "cm"), just = c("right", "bottom")))
+      # plot heatmap legend:
+      pushViewport(viewport(x = unit(3.5, "cm"), y = unit(28, "cm"), width = unit(4.5, "cm"), 
+        height = unit(4, "cm")))
         draw(lgd, x = unit(0.1, "cm"), y = unit(0.1, "cm"), just = c("left", "bottom"))
       popViewport()
   
@@ -1338,7 +1274,7 @@ if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_ca
  
   # fetch signal values for each CNV and estimate copy number for all CNVs
   # by comparing this distribution to copy number signal across all simulations:
-  copy_dist<- readRDS(
+  copy_dist <- readRDS(
   	paste0(
       copy_dist_dir, 
       "all_true_positive_CNV_signal_per_multiplier.Rdata"
@@ -1387,28 +1323,10 @@ if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_ca
       in_label = rep(FALSE, 3)
     )
     x$estimate_lab <- x$copy_no
-    for (i in 2:nrow(x)) {
-      if ( (x$midpoint[i] - x$midpoint[i-1]) < 140 ) {
-        if ( length(grep("\n", x$estimate_lab[i-1])) != 0 ) {
+    x$estimate_lab[c(FALSE, TRUE)] <- paste0(
+      "\n", x$estimate_lab[c(FALSE, TRUE)]
+    )
     
-          if ( length(strsplit(x$estimate_lab[i-1], "\n")[[1]]) == 3 ) {
-    
-            x$estimate_lab[i] <- paste0("\n\n\n", x$estimate_lab[i])
-            newline_record["3",1] <- TRUE
-    
-          } else if ( length(strsplit(x$estimate_lab[i-1], "\n")[[1]]) == 2 ) {
-     
-            x$estimate_lab[i] <- paste0("\n\n", x$estimate_lab[i])
-            newline_record["2",1] <- TRUE
-     
-          } 
-    
-        } else {
-          x$estimate_lab[i] <- paste0("\n", x$estimate_lab[i])
-        newline_record["1",1] <- TRUE
-        }
-      }
-    }
     return(x)
 
   })
@@ -1457,34 +1375,6 @@ if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_ca
   )
 
   # split CNVs over 2 chromosomes as they cannot be added to GRanges objects:
-  prepare_for_granges <- function(indices_df) {
-    for (r in 1:nrow(indices_df)) {
-      if (indices_df$start_chr[r] != indices_df$end_chr[r]) {
-  
-        # add additional range for second chromosome:
-        new_range <- indices_df[r,]
-        new_range$start <- chr_data$ends[
-          names(chr_data$ends) == new_range$start_chr
-        ] + 1
-        new_range$start_chr <- new_range$end_chr
-        indices_df <- rbind(indices_df, new_range)
-  
-        # adjust current range:
-        indices_df$end[r] <- new_range$start-1
-        indices_df$end_chr[r] <- indices_df$start_chr[r]
-  
-      }
-    }
-    indices_df <- indices_df[order(indices_df$start),]
-    indices_df <- indices_df[naturalorder(indices_df$start_chr),]
-  
-    indices_df$chr_start <- chr_positions$index[indices_df$start]
-    indices_df$chr_end <- chr_positions$index[indices_df$end]
-
-    return(indices_df)
-
-  }
-
   CNV_only_indices <- prepare_for_granges(CNV_only_indices)
   peak_estimates$gain <- prepare_for_granges(peak_estimates$gain)
   peak_estimates$loss <- prepare_for_granges(peak_estimates$loss)
@@ -1501,87 +1391,6 @@ if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_ca
     copy_no = CNV_only_indices$copy_no
   )
 
-  count_calls <- function(estimated_df, known_gr) {
-
-    # add estimated CNVs to granges objects and check for overlaps:
-    estimate_gr <- GRanges(
-      seqnames = Rle(estimated_df$start_chr),
-      ranges = IRanges(
-        start = estimated_df$chr_start, 
-        end = estimated_df$chr_end
-      ),
-      strand = Rle("*"),
-      end_chr = estimated_df$end_chr,
-      copy_no = estimated_df$copy_no
-    )
-  
-    olaps <- findOverlaps(estimate_gr, known_gr)
-  
-    # annotate estimated CNVs with actual copy number:
-    estimate_gr$actual_copy_number <- NA
-    estimate_gr$actual_copy_number[queryHits(olaps)] <- 
-      known_gr$copy_no[subjectHits(olaps)]
-  
-    # add chromosomal end indices to chr_data:
-    chr_data$chr_ends <- chr_data$ends
-    for (c in rev(2:length(chr_data$chr_ends))) {
-      chr_data$chr_ends[c] <- chr_data$chr_ends[c] - chr_data$chr_ends[c-1]
-    }
-  
-    # convert estimate_gr to df:
-    estimate_df <- annoGR2DF(estimate_gr)
-    estimate_df <- subset(estimate_df, select = -width)
-    colnames(estimate_df) <- c(
-      "start_chr", "start", "end", "end_chr", "copy_no", "actual_copy_number"
-    )
-  
-    # resolve split CNVs:
-    # if start of range == 1 and end of previous range == chromosomal end, 
-    # merge:
-    estimate_df$keep <- T
-    for (r in 2:nrow(estimate_df)) {
-      if (
-        estimate_df$start[r] == 1 & 
-        estimate_df$end[r-1] == chr_data$chr_ends[
-          estimate_df$end_chr[r-1]
-        ]
-      ) {
-  
-        new_range <- estimate_df[r,]
-        new_range$start_chr <- estimate_df$start_chr[r-1]
-        new_range$start <- estimate_df$start[r-1]
-        estimate_df <- rbind(
-          estimate_df,
-          new_range
-        )
-  
-        estimate_df$keep[r] <- F
-        estimate_df$keep[r-1] <- F
-  
-      }
-    }
-    estimate_df <- estimate_df[estimate_df$keep,]
-    estimate_df <- estimate_df[order(estimate_df$start),]
-    estimate_df <- estimate_df[order(estimate_df$start_chr),]
-    estimate_df <- subset(estimate_df, select = -keep)
-
-    # remove NA values, which mark artefacts:
-    estimate_df <- estimate_df[!(is.na(estimate_df$actual_copy_number)),]
-  
-    # count correct estimates:
-    estimate_df$correct <- 
-      estimate_df$copy_no == estimate_df$actual_copy_number
-    
-    return(
-      list(
-        correct = length(which(estimate_df$correct)),
-        total = nrow(estimate_df),
-        estimated_vs_known = estimate_df
-      )
-    )
-
-  }
-
   estimated_vs_known_gains <- count_calls(peak_estimates$gain, known_gr)
   estimated_vs_known_losses <- count_calls(peak_estimates$loss, known_gr)
 
@@ -1595,327 +1404,105 @@ if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_ca
 
 }
 
-  
+#save.image(paste0(Robject_dir, "pre_signal_plots.Rdata"))
+
+#project_name <- "thesis"
+#subproject_name <- "Figure_1.2_and_1.3_simulate_cancer_and_define_denoising_value"
+#sample_name <- "CID4520N"
+#sim_name <- "sim2"
+#denoise_value <- "1.3"
+#analysis_mode <- "samples"
+#
+#lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
+#library(Repitools, lib.loc = lib_loc)
+#library(Seurat)
+#library(reshape2)
+#library(dplyr)
+#library(cowplot)
+#library(GenomicRanges)
+#library(ggplot2)
+#library(data.table)
+#library(Polychrome, lib.loc=lib_loc)
+#library(ComplexHeatmap, lib.loc=lib_loc)
+#library(circlize, lib.loc = lib_loc)
+#library(fpc, lib.loc = lib_loc)
+#library(naturalsort, lib.loc = lib_loc)
+#
+#home_dir <- "/share/ScratchGeneral/jamtor/"
+#project_dir <- paste0(home_dir, "projects/", 
+#  project_name, "/", subproject_name, "/")
+#results_dir <- paste0(project_dir, "results/")
+#in_path <- paste0(results_dir, "infercnv/", sample_name, "/", sim_name, "/")
+#in_dir <- paste0(in_path, denoise_value, "_denoising/", analysis_mode, 
+#  "_mode/")
+#
+#Robject_dir <- paste0(in_dir, "Rdata/")
+#load(paste0(Robject_dir, "pre_signal_plots.Rdata"))
+#
+#create_extended_vector <- dget(paste0(func_dir, 
+#  "create_extended_vector.R"))
+#
+#fetch_chromosome_boundaries <- dget(paste0(func_dir, 
+#  "fetch_chromosome_boundaries.R"))
+#
+#prepare_for_granges <- dget(paste0(func_dir, 
+#  "prepare_for_granges.R"))
+#
+#count_calls <- dget(paste0(func_dir, 
+#  "count_calls.R"))
+#
+#create_signal_plot <- dget(paste0(func_dir, 
+#  "create_signal_plot.R"))
+#
+
 #################################################################################
-#### 14. Create average signal vs accuracy annotation plot ###
+#### 14. Create average signal plots ###
 #################################################################################
 
 if (sim_name != "normal" & sim_name != "filtered_normal"  | sim_name == "real_cancer" & !file.exists(paste0(Robject_dir, "/CNV_data.Rdata"))) {
- 
-  if (!file.exists(paste0(plot_dir, "signal_vs_simulated_CNV_plot.png"))) {
+  if (!file.exists(paste0(plot_dir, "signal_vs_simulated_CNV_plot_with_copy_no_estimates.png"))) {
 
-    # define colours:
-    cols <- c("#F7B7B5", "#76C1C1", "black")
-
-    CNV_indices$type[CNV_indices$multiplier > 1] <- "gain"
-    CNV_indices$type[CNV_indices$multiplier == 1] <- "neutral"
-    CNV_indices$type[CNV_indices$multiplier < 1] <- "loss"
-    
-    scaled_CNV_indices <- data.frame(
-      start = CNV_indices$start,
-      end = CNV_indices$end,
-      type = CNV_indices$type,
-      multiplier = CNV_indices$multiplier
+    # generate signal plots with and without accuracy annotations:
+    create_signal_plot(
+      CNV_indices,
+      area_df,
+      log_modified_fold_change_df,
+      peak_estimates,
+      chr_data,
+      CNV_accuracy_df,
+      accuracy_annotation = TRUE,
+      copy_no_estimates = FALSE,
+      func_dir,
+      plot_dir
     )
-  
-    # 0 = 0 alleles = -0.08
-    # 0.5 = 1 allele = -0.02
-    # 1 = 2 alleles = 0
-    # 1.5 = 3 alleles = 0.02
-    # 2 = 4 alleles = 0.04
-    # 3 = 6 alleles = 0.08
-    scaled_CNV_indices$multiplier[
-      scaled_CNV_indices$multiplier == 0
-    ] <- -0.08
-    scaled_CNV_indices$multiplier[
-      scaled_CNV_indices$multiplier == 0.5
-    ] <- -0.02
-    scaled_CNV_indices$multiplier[
-      scaled_CNV_indices$multiplier == 1
-    ] <- 0
-    scaled_CNV_indices$multiplier[
-      scaled_CNV_indices$multiplier == 1.5
-    ] <- 0.02
-    scaled_CNV_indices$multiplier[
-      scaled_CNV_indices$multiplier == 2
-    ] <- 0.04
-    scaled_CNV_indices$multiplier[
-      scaled_CNV_indices$multiplier == 3
-    ] <- 0.08
-  
-    # expand CNVs less than 15 genes long:
-    scaled_CNV_indices$length <- scaled_CNV_indices$end-scaled_CNV_indices$start
-    scaled_CNV_indices$midpoints = scaled_CNV_indices$start + floor(scaled_CNV_indices$length/2)
-    scaled_CNV_indices$keep = TRUE
-    
-    for (r in 1:nrow(scaled_CNV_indices)) {
-      if (scaled_CNV_indices$length[r] < 40 & scaled_CNV_indices$multiplier[r] != 0) {
-    
-        if (scaled_CNV_indices$start[r] > 20) {
-          scaled_CNV_indices$start[r] <- scaled_CNV_indices$midpoint[r]-20
-          scaled_CNV_indices$end[r-1] <- scaled_CNV_indices$start[r]+1
-        } else {
-          scaled_CNV_indices$start[r] <- 1
-          if (r != 1) {
-            scaled_CNV_indices$keep[1] <- FALSE
-          }
-        }
-    
-        scaled_CNV_indices$end[r] <- scaled_CNV_indices$midpoints[r]+20
-        scaled_CNV_indices$start[r+1] <- scaled_CNV_indices$end[r]+1
-    
-      }
-    }
-  
-    # stagger CNV labels for plotting:
-    stag_lab <- CNV_indices$length[CNV_indices$ticks == "include"]
-    stag_lab[c(FALSE, TRUE)] <- paste0("\n", stag_lab[c(FALSE, TRUE)])
-    # plot on barplot:
-    area_df$type <- factor(area_df$type, levels = c("gain", "loss", "neutral"))
-    p <- ggplot(area_df, aes(x=index, y=average_score, fill = type))
-    p <- p + geom_bar(stat="identity")
-    p <- p + scale_fill_manual(values = cols)
-    p <- p + scale_x_continuous(
-      limits = c(
-        0,length(log_modified_fold_change_df$count)
-      ), 
-      expand = c(0, 0),
-      breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
-      labels = stag_lab
+
+    create_signal_plot(
+      CNV_indices,
+      area_df,
+      log_modified_fold_change_df,
+      peak_estimates,
+      chr_data,
+      CNV_accuracy_df,
+      accuracy_annotation = FALSE,
+      copy_no_estimates = FALSE,
+      func_dir,
+      plot_dir
     )
-    p <- p + scale_y_continuous(
-      limits = c(-0.09, 0.09),
-      sec.axis = sec_axis(
-        ~., 
-        "Copy number\nfold change", 
-        breaks = c(-0.08, 0, 0.08),
-        labels = c("Total\nloss", "1", "3")
-      )
+
+    # generate signal plot with copy number estimates:
+    create_signal_plot(
+      CNV_indices,
+      area_df,
+      log_modified_fold_change_df,
+      peak_estimates,
+      chr_data,
+      CNV_accuracy_df,
+      accuracy_annotation = FALSE,
+      copy_no_estimates = TRUE,
+      func_dir,
+      plot_dir
     )
-    p <- p + theme_cowplot(12)
-    p <- p + theme(
-      axis.title.x = element_text(size=25, margin = margin(t = 20, r = 0, b = 0, l = 0)),
-      axis.text.x = element_text(size=18, margin = margin(t = 70, r = 0, b = 0, l = 0)),
-      axis.ticks.x = element_blank(),
-      axis.text.y = element_text(size=24),
-      axis.title.y = element_text(size=25, margin = margin(t = 0, r = 30, b = 0, l = 0)),
-      axis.title.y.right = element_text(size=25, margin = margin(t = 0, r = 0, b = 0, l = 0)),
-      legend.position = "none"
-    )
-    p <- p + ylab("Mean CNV signal")
-    p <- p + xlab("CNV length (genes)")
-    for (c_end in chr_data$ends) {
-      p <- p + geom_vline(xintercept=c_end)
-    }
-    # create 0 line:
-    p <- p + geom_segment(
-      x=scaled_CNV_indices$start[1],
-      xend=scaled_CNV_indices$end[
-        nrow(scaled_CNV_indices)
-      ],
-      y=0,
-      yend=0
-    )
-    for (r in 1:nrow(scaled_CNV_indices)) {
-      # create horizontal line:
-      p <- p + geom_segment(
-        x=scaled_CNV_indices$start[r], 
-        xend=scaled_CNV_indices$end[r], 
-        y=scaled_CNV_indices$multiplier[r], 
-        yend=scaled_CNV_indices$multiplier[r], 
-        size=0.75, color="#430F82"
-      )
-    
-      # create left vertical line:
-      if (r != 1) {
-        p <- p + geom_segment(
-          x=scaled_CNV_indices$start[r], 
-          xend=scaled_CNV_indices$start[r], 
-          y=scaled_CNV_indices$multiplier[r-1], 
-          yend=scaled_CNV_indices$multiplier[r], 
-          size=0.75, color="#430F82"
-        )
-      }
-    }
-    # convert barplot to grid object:
-    signal_plot <- ggplotGrob(p)
-    dev.off()
-  
-    # determine accuracy calls present:
-    all_accuracy <- unique(CNV_accuracy_df$accuracy_call)
-    all_accuracy <- paste0(all_accuracy[order(all_accuracy)], collapse = "_")
 
-
-    #################################################################################
-    #### 15. Plot average signal only ###
-    #################################################################################
-
-    png(
-      paste0(plot_dir, "signal_vs_simulated_CNV_plot_no_accuracy_annotation.png"), 
-      height = 8, 
-      width = 22,
-      res = 300,
-      units = "in"
-    )   
-      grid.newpage()
-  
-        # draw signal plot:
-        pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
-          just = c("left", "bottom")))
-          grid.draw(signal_plot)
-        popViewport()
-
-        # label chromosomes:
-        for ( e in 1:length(chr_data$lab_pos) ) {
-          pushViewport(viewport(x = 0.105 + chr_data$lab_pos[e]/1.27, y = 0.86, width = 0.05, height = 0.05, 
-            just = c("left", "bottom")))
-            if (e==1) {
-              grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=13, fontface = "bold"))
-            } else {
-              grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=13, fontface = "bold"))
-            }
-          popViewport()
-        }
-      
-    dev.off()
-
-  
-    #################################################################################
-    #### 16. Plot average signal vs accuracy annotation ###
-    #################################################################################
-
-    png(
-      paste0(plot_dir, "signal_vs_simulated_CNV_plot.png"), 
-      height = 8, 
-      width = 22,
-      res = 300,
-      units = "in"
-    )   
-      grid.newpage()
-  
-        # draw signal plot:
-        pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
-          just = c("left", "bottom")))
-          grid.draw(signal_plot)
-        popViewport()
-
-        # draw accuracy annotation:
-        pushViewport(viewport(x = 0.13, y = 0.15, width = 0.793, height = 0.13, 
-          just = c("left", "bottom")))
-          grid.draw(accuracy_heatmap_obj)
-        popViewport()
-
-        # draw accuracy legend:
-        pushViewport(viewport(x = unit(1, "cm"), y = unit(2, "cm"), 
-                          width = unit(5.5, "cm"), height = unit(4.5, "cm"), 
-                          just = c("left", "bottom")))
-    
-          #grid.rect()
-          if (all_accuracy == "false_positive_true_positive_wrong_call") {
-            true_pos_false_pos_wrong_legend()
-          } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive") {
-            true_pos_neg_false_pos_neg_legend()
-          }
-        
-        popViewport()
-
-        # label chromosomes:
-        for ( e in 1:length(chr_data$lab_pos) ) {
-          pushViewport(viewport(x = 0.105 + chr_data$lab_pos[e]/1.27, y = 0.86, width = 0.05, height = 0.05, 
-            just = c("left", "bottom")))
-            if (e==1) {
-              grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=13, fontface = "bold"))
-            } else {
-              grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=13, fontface = "bold"))
-            }
-          popViewport()
-        }
-      
-    dev.off()
-
-    # plot signal vs simulated CNVs with CNV peak calls:
-    png(
-      paste0(plot_dir, "signal_vs_simulated_CNV_plot_with_peak_calls.png"), 
-      height = 8, 
-      width = 22,
-      res = 300,
-      units = "in"
-    )   
-      grid.newpage()
-  
-        # draw signal plot:
-        pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
-          just = c("left", "bottom")))
-          grid.draw(signal_plot)
-        popViewport()
-
-        # draw accuracy annotation:
-        pushViewport(viewport(x = 0.13, y = 0.15, width = 0.793, height = 0.13, 
-          just = c("left", "bottom")))
-          grid.draw(accuracy_heatmap_obj)
-        popViewport()
-
-        # draw accuracy legend:
-        pushViewport(viewport(x = unit(1, "cm"), y = unit(1, "cm"), 
-                          width = unit(5.5, "cm"), height = unit(4.5, "cm"), 
-                          just = c("left", "bottom")))
-    
-          #grid.rect()
-          if (all_accuracy == "false_positive_true_positive_wrong_call") {
-            true_pos_false_pos_wrong_legend()
-          } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive") {
-            true_pos_neg_false_pos_neg_legend()
-          }
-        popViewport()
-
-        # label gain copy number estimates:
-        pushViewport(viewport(x = 0.082, y = 0.857, width = 0.05, height = 0.05))
-          #grid.rect()
-          grid.text("Gain copy estimate:", gp=gpar(fontsize=16, fontface="bold", col = "#BF3667"))
-        popViewport()
-    
-        pushViewport(viewport(x = 0.526, y = 0.857, width = 0.785, height = 0.05))
-          #grid.rect()
-          for (k in 1:nrow(peak_estimates$gain)) {
-            pushViewport(viewport(x = peak_estimates$gain$midpoint[k]/nrow(area_df), width = 0.01, height = 0.8))
-              #grid.rect()
-              grid.text(peak_estimates$gain$estimate_lab[k], gp=gpar(fontsize=16, fontface="bold", col = peak_estimates$gain$estimate_colour[k]))
-            popViewport()
-          }
-        popViewport()
-    
-        # label loss copy number estimates:
-        pushViewport(viewport(x = 0.082, y = 0.31, width = 0.05, height = 0.05))
-          #grid.rect()
-          grid.text("Loss copy estimate:", gp=gpar(fontsize=16, fontface="bold", col = "#58B9DB"))
-        popViewport()
-    
-        pushViewport(viewport(x = 0.526, y = 0.31, width = 0.785, height = 0.05))
-          #grid.rect()
-          for (k in 1:nrow(peak_estimates$loss)) {
-            pushViewport(viewport(x = peak_estimates$loss$midpoint[k]/nrow(area_df), width = 0.01, height = 0.8))
-              #grid.rect()
-              grid.text(
-                peak_estimates$loss$estimate_lab[k], 
-                gp=gpar(fontsize=16, fontface="bold", col = peak_estimates$loss$estimate_colour[k])
-              )
-            popViewport()
-          }
-        popViewport()
-
-        # label chromosomes:
-        for ( e in 1:length(chr_data$lab_pos) ) {
-          pushViewport(viewport(x = 0.105 + chr_data$lab_pos[e]/1.27, y = 0.86, width = 0.05, height = 0.05, 
-            just = c("left", "bottom")))
-            if (e==1) {
-              grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=13, fontface = "bold"))
-            } else {
-              grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=13, fontface = "bold"))
-            }
-          popViewport()
-        }
-      
-    dev.off()
   }
 
 
@@ -1943,125 +1530,141 @@ if (sim_name == "filtered_normal") {
 
 
 
-##################################################################################
-#
-#p <- ggplot(area_df, aes(x=index, y=average_score, fill = type))   
-#p <- p + scale_x_continuous(
-#  limits = c(
-#    0,length(log_modified_fold_change_df$count)
-#  ), 
-#  expand = c(0, 0),
-#  breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
-#  labels = stag_lab
-#)
-#p <- p + scale_y_continuous(
-#  limits = c(-0.09, 0.09),
-#  sec.axis = sec_axis(
-#    ~., 
-#    "Copy number\nfold change", 
-#    breaks = c(-0.08, 0, 0.08),
-#    labels = c("Total\nloss", "1", "3")
-#  )
-#)
-#p <- p + theme_cowplot(12)
-#p <- p + theme(
-#  axis.title.x = element_text(size=25, margin = margin(t = 20, r = 0, b = 0, l = 0)),
-#  axis.text.x = element_text(size=18, margin = margin(t = 70, r = 0, b = 0, l = 0)),
-#  axis.ticks.x = element_blank(),
-#  axis.text.y = element_text(size=24),
-#  axis.title.y = element_text(size=25, margin = margin(t = 0, r = 30, b = 0, l = 0)),
-#  axis.title.y.right = element_text(size=25, margin = margin(t = 0, r = 0, b = 0, l = 0)),
-#  legend.position = "none"
-#)
-#p <- p + ylab("Mean CNV signal")
-#p <- p + xlab("CNV length (genes)")
-#for (c_end in chr_data$ends) {
-#  p <- p + geom_vline(xintercept=c_end)
-#}
-## convert barplot to grid object:
-#mock_signal_plot <- ggplotGrob(p)
-#dev.off()
-
-#png(
-#  paste0(plot_dir, "mock_signal_vs_simulated_CNV_plot2.png"), 
-#  height = 8, 
-#  width = 22,
-#  res = 300,
-#  units = "in"
-#)   
-#
-#  grid.newpage()
-#
-#    # draw signal plot:
-#    pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
-#      just = c("left", "bottom")))
-#      grid.draw(mock_signal_plot)
-#    popViewport()
-#
-#    # draw accuracy annotation:
-#    pushViewport(viewport(x = 0.13, y = 0.15, width = 0.793, height = 0.13, 
-#      just = c("left", "bottom")))
-#      grid.draw(accuracy_heatmap_obj)
-#    popViewport()
-#
-#    # draw accuracy legend:
-#    pushViewport(viewport(x = unit(1, "cm"), y = unit(2, "cm"), 
-#                      width = unit(5.5, "cm"), height = unit(4.5, "cm"), 
-#                      just = c("left", "bottom")))
-#      #grid.rect()
-#      if (all_accuracy == "false_positive_true_positive_wrong_call") {
-#        true_pos_false_pos_wrong_legend()
-#      } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive_wrong_call") {
-#        true_pos_neg_false_pos_neg_legend()
-#      }
-#    popViewport()
-#
-#    # label gain copy number estimates:
-#    pushViewport(viewport(x = 0.082, y = 0.857, width = 0.05, height = 0.05))
-#      #grid.rect()
-#      grid.text("Gain copy estimate:", gp=gpar(fontsize=16, fontface="bold", col = "#BF3667"))
-#    popViewport()
-#
-#    pushViewport(viewport(x = 0.526, y = 0.857, width = 0.785, height = 0.05))
-#      #grid.rect()
-#      for (k in 1:nrow(peak_estimates$gain)) {
-#        pushViewport(viewport(x = peak_estimates$gain$midpoint[k]/nrow(area_df), width = 0.01, height = 0.8))
-#          #grid.rect()
-#          grid.text(peak_estimates$gain$estimate_lab[k], gp=gpar(fontsize=16, fontface="bold", col = peak_estimates$gain$estimate_colour[k]))
-#        popViewport()
-#      }
-#    popViewport()
-#
-#    # label loss copy number estimates:
-#    pushViewport(viewport(x = 0.082, y = 0.31, width = 0.05, height = 0.05))
-#      #grid.rect()
-#      grid.text("Loss copy estimate:", gp=gpar(fontsize=16, fontface="bold", col = "#58B9DB"))
-#    popViewport()
-#
-#    pushViewport(viewport(x = 0.526, y = 0.31, width = 0.785, height = 0.05))
-#      #grid.rect()
-#      for (k in 1:nrow(peak_estimates$loss)) {
-#        pushViewport(viewport(x = peak_estimates$loss$midpoint[k]/nrow(area_df), width = 0.01, height = 0.8))
-#          #grid.rect()
-#          grid.text(
-#            peak_estimates$loss$estimate_lab[k], 
-#            gp=gpar(fontsize=16, fontface="bold", col = peak_estimates$loss$estimate_colour[k])
-#          )
-#        popViewport()
-#      }
-#    popViewport()
-#
-#    # label chromosomes:
-#    for ( e in 1:length(chr_data$lab_pos) ) {
-#      pushViewport(viewport(x = 0.105 + chr_data$lab_pos[e]/1.27, y = 0.89, width = 0.05, height = 0.05, 
-#        just = c("left", "bottom")))
-#        if (e==1) {
-#          grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=13, fontface = "bold"))
-#        } else {
-#          grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=13, fontface = "bold"))
-#        }
-#      popViewport()
+###################################################################################
+## regenerate plot with gap for accuracy annotation:
+#    p <- ggplot(area_df, aes(x=index, y=average_score, fill = type))
+#    p <- p + geom_bar(stat="identity")
+#    p <- p + scale_fill_manual(values = cols)
+#    p <- p + scale_x_continuous(
+#      limits = c(
+#        0,length(log_modified_fold_change_df$count)
+#      ), 
+#      expand = c(0, 0),
+#      breaks = CNV_indices$midpoints[CNV_indices$ticks == "include"],
+#      labels = stag_lab
+#    )
+#    p <- p + scale_y_continuous(
+#      limits = c(-0.09, 0.09),
+#      sec.axis = sec_axis(
+#        ~., 
+#        "Copy number\nfold change", 
+#        breaks = c(-0.08, 0, 0.08),
+#        labels = c("Total\nloss", "1", "3")
+#      )
+#    )
+#    p <- p + theme_cowplot(12)
+#    p <- p + theme(
+#      axis.title.x = element_text(size=30, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+#      axis.text.x = element_text(size=23, margin = margin(t = 90, r = 0, b = 0, l = 0)),
+#      axis.ticks.x = element_blank(),
+#      axis.text.y = element_text(size=30),
+#      axis.title.y = element_text(size=30, margin = margin(t = 0, r = 30, b = 0, l = 0)),
+#      axis.title.y.right = element_text(size=30, margin = margin(t = 0, r = 0, b = 0, l = 0)),
+#      legend.position = "none"
+#    )
+#    p <- p + ylab("Mean CNV signal")
+#    p <- p + xlab("CNV length (genes)")
+#    for (c_end in chr_data$ends) {
+#      p <- p + geom_vline(xintercept=c_end)
 #    }
+#    # create 0 line:
+#    p <- p + geom_segment(
+#      x=scaled_CNV_indices$start[1],
+#      xend=scaled_CNV_indices$end[
+#        nrow(scaled_CNV_indices)
+#      ],
+#      y=0,
+#      yend=0
+#    )
+#    for (r in 1:nrow(scaled_CNV_indices)) {
+#      # create horizontal line:
+#      p <- p + geom_segment(
+#        x=scaled_CNV_indices$start[r], 
+#        xend=scaled_CNV_indices$end[r], 
+#        y=scaled_CNV_indices$multiplier[r], 
+#        yend=scaled_CNV_indices$multiplier[r], 
+#        size=0.75, color="#430F82"
+#      )
+#    
+#      # create left vertical line:
+#      if (r != 1) {
+#        p <- p + geom_segment(
+#          x=scaled_CNV_indices$start[r], 
+#          xend=scaled_CNV_indices$start[r], 
+#          y=scaled_CNV_indices$multiplier[r-1], 
+#          yend=scaled_CNV_indices$multiplier[r], 
+#          size=0.75, color="#430F82"
+#        )
+#      }
+#    }
+#    # convert barplot to grid object:
+#    signal_plot <- ggplotGrob(p)
+#    dev.off()
 #
-#dev.off()
+#    png(
+#      paste0(plot_dir, "signal_vs_simulated_CNV_plot.png"), 
+#      height = 8, 
+#      width = 22,
+#      res = 300,
+#      units = "in"
+#    )   
+#      grid.newpage()
+#  
+#        # draw signal plot:
+#        pushViewport(viewport(x = 0.06, y = 0.001, width = 0.93, height = 0.9, 
+#          just = c("left", "bottom")))
+#          grid.draw(signal_plot_no_annot)
+#        popViewport()
+#
+#        # draw accuracy annotation:
+#        pushViewport(viewport(x = 0.14, y = 0.082, width = 0.77, height = 0.13, 
+#          just = c("left", "bottom")))
+#          #grid.draw(accuracy_heatmap_obj)
+#          grid.rect()
+#        popViewport()
+#
+#        # draw accuracy legend:
+#        pushViewport(viewport(x = unit(1, "cm"), y = unit(2, "cm"), 
+#                          width = unit(5.5, "cm"), height = unit(4.5, "cm"), 
+#                          just = c("left", "bottom")))
+#    
+#          #grid.rect()
+#          if (all_accuracy == "false_positive_true_positive_wrong_call") {
+#            true_pos_false_pos_wrong_legend()
+#          } else if (all_accuracy == "false_negative_false_positive_true_negative_true_positive") {
+#            true_pos_neg_false_pos_neg_legend()
+#          }
+#        
+#        popViewport()
+#
+#        # label chromosomes:
+#        for ( e in 1:length(chr_data$lab_pos) ) {
+#          pushViewport(
+#            viewport(
+#              x = 0.12 + chr_data$lab_pos[e]/1.315, 
+#              y = 0.88, width = 0.05, height = 0.05, 
+#              just = c("left", "bottom")
+#            )
+#          )
+#            if (e==1) {
+#              grid.text(
+#                paste0(
+#                  "\n", names(chr_data$lab_pos)[e]
+#                ), gp=gpar(fontsize=22))
+#            } else if (e==21) {
+#              grid.text(
+#                gsub("chr", "", names(chr_data$lab_pos)[e]), 
+#                gp=gpar(fontsize=22)
+#              )
+#            } else {
+#              grid.text(
+#                paste0(
+#                  "\n", gsub("chr", "", names(chr_data$lab_pos)[e])
+#                ), gp=gpar(fontsize=22)
+#              )
+#            }
+#          popViewport()
+#        }
+#      
+#    dev.off()
 #

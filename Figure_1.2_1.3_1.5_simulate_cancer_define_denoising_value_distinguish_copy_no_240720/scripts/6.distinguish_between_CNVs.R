@@ -1,14 +1,14 @@
 #! /share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/RRscript
 
 project_name <- "thesis"
-subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
+subproject_name <- "Figure_1.2_and_1.3_simulate_cancer_and_define_denoising_value"
 args = commandArgs(trailingOnly=TRUE)
 sample_name <- args[1]
 analysis_mode <- args[2]
 sim_names <- args[3]
 
 #project_name <- "thesis"
-#subproject_name <- "Figure_2.2_and_2.3_define_denoising_value"
+#subproject_name <- "Figure_1.2_and_1.3_simulate_cancer_and_define_denoising_value"
 #args = commandArgs(trailingOnly=TRUE)
 #sample_name <- "CID4520N"
 #analysis_mode <- "samples"
@@ -86,7 +86,6 @@ if (!file.exists(paste0(Robject_dir, "/1.simulation_CNV_data.Rdata"))) {
 } else {
   CNV_data <- readRDS(paste0(Robject_dir, "/1.simulation_CNV_data.Rdata"))
 }
-
 
 
 #################################################################################
@@ -189,53 +188,6 @@ gain_df$copy_number <- factor(gain_df$copy_number, levels = c("1.5", "2", "3"))
 gain_wilcox <- pairwise.wilcox.test(gain_df$signal, gain_df$copy_number,
   alternative = "greater", p.adjust.method = "BH")
 
-# create gain boxplot:
-my_comparisons = list( c("1.5", "2"), c("2", "3") )
-
-p <- ggboxplot(
-  gain_df, 
-  x = "copy_number", 
-  y = "signal",
-  fill = "copy_number", 
-  palette = c("#BF889F", "#BD5D89", "#C03667"),
-  bxp.errorbar = TRUE
-)
-p <- p + xlab("Copy number fold change")
-p <- p + ylab("CNV signal")
-p <- p + theme(
-  legend.position = "none"
-)
-p <- p + stat_compare_means(
-  comparisons = my_comparisons,
-  method = "wilcox.test",
-  label = "p.signif",
-  label.y = c(
-    max(
-      c(
-        gain_df$signal[gain_df$copy_number == 1.5], 
-        gain_df$signal[gain_df$copy_number == 2])
-      ) + 0.01,
-    max(
-      c(
-        gain_df$signal[gain_df$copy_number == 2], 
-        gain_df$signal[gain_df$copy_number == 3])
-      ) + 0.014
-  )
-)
-p <- p + theme(
-  axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
-  axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
-)
-png(
-  paste0(plot_dir, "signal_vs_gain_copy_number_boxplot.png"),
-  height = 5,
-  width = 7,
-  res = 300,
-  units = "in"
-)   
-  p 
-dev.off()
-
 # write gain signifcance values as table:
 write.table(
   as.data.frame(gain_wilcox$p.value),
@@ -254,42 +206,6 @@ loss_wilcox <- wilcox.test(
   alternative = "greater"
 )
 loss_p_val <- loss_wilcox$p.value
-
-# create loss boxplot:
-my_comparisons = list( c("0.5", "0") )
-
-p <- ggboxplot(
-  loss_df, 
-  x = "copy_number", 
-  y = "signal",
-  fill = "copy_number", 
-  palette = c("#82BFCE", "#618AC7"),
-  bxp.errorbar = TRUE
-)
-p <- p + xlab("Copy number fold change")
-p <- p + ylab("CNV signal")
-p <- p + theme(
-  legend.position = "none"
-)
-p <- p + stat_compare_means(
-  comparisons = my_comparisons,
-  method = "wilcox.test",
-  label = "p.signif",
-  label.y = max(loss_df$signal)+0.01
-)
-p <- p + theme(
-  axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
-  axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
-)
-png(
-  paste0(plot_dir, "signal_vs_loss_copy_number_boxplot.png"),
-  height = 5,
-  width = 7,
-  res = 300,
-  units = "in"
-)   
-  p 
-dev.off()
 
 # write loss signifcance values as table:
 write.table(
@@ -314,6 +230,57 @@ write.table(
   col.names = F,
   row.names = T
 )
+
+# bind loss and gain dfs together:
+both_df <- rbind(loss_df, gain_df)
+
+# create copy number distribtuion boxplot:
+my_comparisons = list( c("0", "0.5"), c("1.5", "2"), c("2", "3") )
+
+p <- ggboxplot(
+  both_df, 
+  x = "copy_number", 
+  y = "signal",
+  fill = "copy_number", 
+  palette = c("#618AC7", "#82BFCE", "#BF889F", "#BD5D89", "#C03667"),
+  bxp.errorbar = TRUE
+)
+p <- p + xlab("Copy number fold change")
+p <- p + ylab("CNV signal")
+p <- p + theme(
+  legend.position = "none"
+)
+p <- p + stat_compare_means(
+  comparisons = my_comparisons,
+  method = "wilcox.test",
+  label = "p.signif",
+  label.y = c(
+  	max(loss_df$signal)+0.01,
+    max(
+      c(
+        gain_df$signal[gain_df$copy_number == 1.5], 
+        gain_df$signal[gain_df$copy_number == 2])
+      ) + 0.01,
+    max(
+      c(
+        gain_df$signal[gain_df$copy_number == 2], 
+        gain_df$signal[gain_df$copy_number == 3])
+      ) + 0.014
+  )
+)
+p <- p + theme(
+  axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
+  axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+)
+png(
+  paste0(plot_dir, "signal_vs_copy_number_boxplot.png"),
+  height = 5,
+  width = 7,
+  res = 300,
+  units = "in"
+)   
+  p 
+dev.off()
 
 
 #################################################################################

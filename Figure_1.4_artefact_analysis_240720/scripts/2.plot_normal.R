@@ -24,21 +24,21 @@ min_artefact_length <- as.numeric(args[5])
 print("Minimum artefact length = ")
 print(min_artefact_length)
 
-#project_name <- "thesis"
-#subproject_name <- "Figure_2.6_artefact_analysis"
-#sample_name <- "CID4520N"
-#print(paste0("sample name = ", sample_name))
-#analysis_mode <- "samples"
-#print(paste0("Analysis mode of normal InferCNV run = ", 
-#  analysis_mode, "_mode"))
-#remove_cell_types <- "No"
-#print("Cell types removed:")
-#min_artefact_proportion <- 0.5
-#print("Minimum artefact proportion = ")
-#print(min_artefact_proportion)
-#min_artefact_length <- 20
-#print("Minimum artefact length = ")
-#print(min_artefact_length)
+project_name <- "thesis"
+subproject_name <- "Figure_1.4_artefact_analysis"
+sample_name <- "CID4520N"
+print(paste0("sample name = ", sample_name))
+analysis_mode <- "samples"
+print(paste0("Analysis mode of normal InferCNV run = ", 
+  analysis_mode, "_mode"))
+remove_cell_types <- "No"
+print("Cell types removed:")
+min_artefact_proportion <- 0.5
+print("Minimum artefact proportion = ")
+print(min_artefact_proportion)
+min_artefact_length <- 20
+print("Minimum artefact length = ")
+print(min_artefact_length)
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -458,14 +458,19 @@ while (signal_ranges[1] == signal_ranges[2]) {
   signal_ranges <- round(range(unlist(plot_object)), rounding_no)
 }
 
-lgd <- Legend(at = c(signal_ranges[1], 1, signal_ranges[2]),
+lgd <- Legend(
+  at = c(signal_ranges[1], 1, signal_ranges[2]),
+  labels = c("loss", "", "gain"),
   col_fun = heatmap_cols, 
-  title = "CNV\nscore", 
+  title = "CNV signal", 
   direction = "horizontal",
-  grid_height = unit(2.5, "cm"),
-  grid_width = unit(0.1, "cm"),
-  labels_gp = gpar(fontsize = 22),
-  title_gp = gpar(fontsize = 28, fontface = "plain"))
+  grid_height = unit(3, "cm"),
+  grid_width = unit(4.5, "cm"),
+  legend_height = unit(3, "cm"),
+  legend_width = unit(4.5, "cm"),
+  labels_gp = gpar(fontsize = 30),
+  title_gp = gpar(fontsize = 32, fontface = "plain")
+)
 
 final_heatmap_basic <- Heatmap(
   plot_object, name = paste0("hm"), 
@@ -496,13 +501,13 @@ png(
           gp = gpar(lwd = 3, col = "#383838"))
         if (e==1) {
           grid.text(names(chr_data$lab_pos)[e], chr_data$lab_pos[e], 
-          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=26))
         } else if (e==21) {
           grid.text(paste0("\n", gsub("chr", "", names(chr_data$lab_pos)[e])), chr_data$lab_pos[e], 
-          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=26))
         } else {
           grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), chr_data$lab_pos[e], 
-          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=24))
+          unit(0, "npc") + unit(-3.5, "mm"), gp=gpar(fontsize=26))
         }
         
       }
@@ -571,7 +576,7 @@ p <- p + scale_y_continuous(
 p <- p + theme_cowplot(12)
 p <- p + theme(
   axis.title.x = element_text(size=30, margin = margin(t = 30, r = 0, b = 0, l = 0)),
-  axis.text.x = element_text(size=20, margin = margin(t = 70, r = 0, b = 0, l = 0)),
+  axis.text.x = element_text(size=23, margin = margin(t = 70, r = 0, b = 0, l = 0)),
   axis.ticks.x = element_blank(),
   axis.title.y = element_text(size=30, margin = margin(t = 0, r = 30, b = 0, l = 0)),
   axis.text.y = element_text(size=24),
@@ -620,15 +625,15 @@ png(
       for ( e in 1:length(chr_data$lab_pos) ) {
         if (e==1) {
           pushViewport(viewport(x = chr_data$lab_pos[e], y = 0.5, width = 0.01, height = 0.5))
-            grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=16, fontface = "bold"))
+            grid.text(names(chr_data$lab_pos)[e], gp=gpar(fontsize=22))
           popViewport()
         } else if (e==21) {
           pushViewport(viewport(x = chr_data$lab_pos[e], y = 0.9, width = 0.01, height = 0.5))
-            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=16, fontface = "bold"))
+            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=22))
           popViewport()
         } else {
           pushViewport(viewport(x = chr_data$lab_pos[e], y = 0.5, width = 0.01, height = 0.5))
-            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=16, fontface = "bold"))
+            grid.text(gsub("chr", "", names(chr_data$lab_pos)[e]), gp=gpar(fontsize=22))
           popViewport()
         }
       }

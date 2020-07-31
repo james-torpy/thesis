@@ -1,0 +1,247 @@
+# Run command:
+# snakemake --reason --cores 154 --cluster "qsub -pe smp 22 -N fig2.2.smk -b y -j y -V -P TumourProgression" -j 7
+
+# DAG command:
+# snakemake --dag | dot -Tsvg > dag.svg
+
+# run infercnv with no coverage-based filtering, inflection point and literature-based filtering
+
+# define directories:
+R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
+
+SAMPLES = list(["CID3586", "CID3963", "CID4465", 
+    "CID4523", "CID3921", "CID4066", 
+    "CID44041", "CID4513", "CID4530N",
+    "CID4290A", "CID44991", "CID3941", 
+    "CID4067", "CID4461", "CID4495", 
+    "CID4515", "CID4535", "CID3948",  
+    "CID4463", "CID45171"
+])
+
+#SAMPLES = list(["CID4463"])
+
+## random tree samples which work with random tree with 22 cores, p<0.1:
+#"CID4066", "CID4515", "CID3921", 
+#"CID4067", "CID45171", "CID3941", 
+#"CID4523", "CID3948", "CID4463", 
+#"CID4530N", "CID3963", "CID44041", 
+#"CID4465", "CID4535"])
+
+# samples which did not work with random tree with less than 80 cores, p<0.1:
+#"CID4290A", "CID4471", "CID3586", 
+#"CID44971", "CID44991", "CID4495",
+#"CID4513"
+
+## samples which worked with 20 cores at p<0.05:
+#"CID3586", "CID3963", "CID4465", 
+#"CID4523", "CID3921", "CID4066", 
+#"CID44041", "CID4513", "CID4530N",
+#"CID4290A", "CID44991", "CID3941", 
+#"CID4067", "CID4461", "CID4495", 
+#"CID4515", "CID4535", "CID3948",  
+#"CID4463", "CID45171"
+
+## samples which did not work with 20 cores at p<0.05:
+#"CID4471", "CID44971", "CID4398"
+
+# infercnv parameters:
+file_name="03_seurat_object_processed.Rdata"
+SUBCLUSTER_METHOD = list(["random_trees"])
+SUBCLUSTER_P = list(["0.1"])
+#SUBCLUSTER_METHOD = list(["random_trees"])
+#SUBCLUSTER_P = list(["0.05", "0.1"])
+res = "PC_A_res.1"
+#res = "none"
+coverage_filter = "filtered"
+nUMI_threshold = "3200"
+nGene_threshold = "700"
+garnett_slot = "garnett_call_ext_major"
+manual_epithelial = "none"
+exclude_clusters = "none"
+
+# plot parameters:
+remove_artefacts="artefacts_not_removed"
+x_thresh_multiplier="1.5"
+y_thresh_multiplier="1.5"
+subcluster_method="random_trees"
+subcluster_p="0.05"
+plot_references="FALSE"
+array_CNVs = "FALSE"
+
+# signal plot parameters:
+min_CNV_length = "20"
+min_CNV_proportion = "0.5"
+
+######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+#            "{subcluster_p}/infercnv.12_denoised.png",
+#            sample=SAMPLES, coverage_filter = coverage_filter,
+#            subcluster_method=SUBCLUSTER_METHOD, subcluster_p=SUBCLUSTER_P
+#        )
+######
+
+######
+rule all:
+    input:
+        expand(
+            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/plots/" + 
+            "CNV_signal_plots_with_lengths.pdf",
+            sample=SAMPLES, coverage_filter=coverage_filter, 
+            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
+            remove_artefacts=remove_artefacts, min_CNV_length=min_CNV_length,
+            min_CNV_proportion=min_CNV_proportion
+        )
+####
+
+#######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+#            "{subcluster_p}/{remove_artefacts}/plots/" + 
+#            "infercnv_plot_exp_clusters_CNV_subclusters_normals_QC_annotated.pdf",
+#            sample=SAMPLES, coverage_filter=coverage_filter, 
+#            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
+#            remove_artefacts=remove_artefacts
+#        ),
+#        expand(
+#            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+#            "{subcluster_p}/{remove_artefacts}/plots/" + 
+#            "infercnv_plot_CNV_subclusters_QC_annotated.pdf",
+#            sample=SAMPLES, coverage_filter=coverage_filter, 
+#            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
+#            remove_artefacts=remove_artefacts
+#        )
+####
+
+rule infercnv:
+    input:
+        "raw_files/seurat_objects/{sample}/" + file_name,
+    output:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/infercnv.12_denoised.png"
+    threads: 22
+    shell:
+        "module load briglo/R/3.6.0; " + 
+        "mkdir -p logs/infercnv/{wildcards.sample}/{wildcards.coverage_filter}/" + 
+            "{wildcards.subcluster_method}/p_{wildcards.subcluster_p}/; " +
+        "cd logs/infercnv/{wildcards.sample}/{wildcards.coverage_filter}/" + 
+            "{wildcards.subcluster_method}/p_{wildcards.subcluster_p}/; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" + 
+        " {file_name}" +
+        " {threads}" + 
+        " {wildcards.subcluster_method} " + 
+        " {wildcards.subcluster_p} " + 
+        " {res} " + 
+        " {coverage_filter} " + 
+        " {nUMI_threshold} " + 
+        " {nGene_threshold} " + 
+        " {garnett_slot} " + 
+        " {manual_epithelial} " + 
+        " {exclude_clusters} " + 
+        "' ../../../../../../scripts/1.infercnv.R"
+
+rule plot_all_annotations:
+    input:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/infercnv.12_denoised.png"
+    output:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/artefacts_not_removed/plots/" + 
+            "infercnv_plot_exp_clusters_CNV_subclusters_normals_QC_annotated.pdf"
+    threads: 2
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/plot/{wildcards.sample}/; " +
+        "cd logs/plot/{wildcards.sample}; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" + 
+        " {wildcards.subcluster_method}" +
+        " {wildcards.subcluster_p}" +
+        " {wildcards.coverage_filter}" +
+        " {remove_artefacts}" +
+        " {x_thresh_multiplier}" +
+        " {y_thresh_multiplier}" +
+        " FALSE" + # remove normals
+        " normal_then_CNV" + # order by
+        " TRUE" + # subcluster annot
+        " TRUE" + # subcluster legened
+        " TRUE" + # normal in subcluster annot
+        " TRUE" +  # expression_annot
+        " TRUE" + # expression_legend
+        " TRUE" + # QC_annot
+        " FALSE" + # normal annot
+        " FALSE" + # normal legend
+        " {plot_references}" +
+        " FALSE" + # array CNVs
+        "' ../../../scripts/2.plot_individual_heatmap.R"
+
+rule plot_subcluster_annotations:
+    input:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/infercnv.12_denoised.png"
+    output:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/plots/" + 
+            "infercnv_plot_CNV_subclusters_QC_annotated.pdf"
+    threads: 2
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/plot_subcluster_annot/{wildcards.sample}/; " +
+        "cd logs/plot_subcluster_annot/{wildcards.sample}; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" + 
+        " {wildcards.subcluster_method}" +
+        " {wildcards.subcluster_p}" +
+        " {wildcards.coverage_filter}" +
+        " {remove_artefacts}" +
+        " {x_thresh_multiplier}" +
+        " {y_thresh_multiplier}" +
+        " TRUE" + # remove normals
+        " CNV" + # order by
+        " TRUE" + # subcluster annot
+        " TRUE" + # subcluster legened
+        " FALSE" + # normal in subcluster annot
+        " FALSE" +  # expression_annot
+        " FALSE" + # expression_legend
+        " TRUE" + # QC_annot
+        " FALSE" + # normal annot
+        " FALSE" + # normal legend
+        " {plot_references}" +
+        " FALSE" + # array CNVs
+        "' ../../../scripts/2.plot_individual_heatmap.R"
+
+rule subcluster_signal:
+    input:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/plots/" + 
+            "infercnv_plot_CNV_subclusters_QC_annotated.pdf",
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/artefacts_not_removed/plots/" + 
+            "infercnv_plot_exp_clusters_CNV_subclusters_normals_QC_annotated.pdf"
+    output:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/plots/" + 
+            "CNV_signal_plots_with_lengths.pdf"
+    threads: 2
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/subcluster_signal/{wildcards.sample}/; " +
+        "cd logs/subcluster_signal/{wildcards.sample}; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" + 
+        " {wildcards.subcluster_method}" +
+        " {wildcards.subcluster_p}" +
+        " {wildcards.coverage_filter}" +
+        " {remove_artefacts}" +
+        " {min_CNV_length}" +
+        " {min_CNV_proportion}" +
+        " TRUE" + # remove normals
+        "' ../../../scripts/4.determine_cnv_profiles.R"
+
+
