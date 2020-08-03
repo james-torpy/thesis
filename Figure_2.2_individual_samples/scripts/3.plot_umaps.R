@@ -30,7 +30,7 @@ remove_artefacts <- "artefacts_not_removed"
 normals_removed <- TRUE
 epi_res <- "PC_C_res.1"
 epi_PC <-"C"
-remove_outliers <- FALSE
+remove_outliers <- TRUE
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -80,6 +80,16 @@ expr_cols <- read.table(
   comment.char = ""
 )[,1]
 
+normal_col_df <- read.table(
+  paste0(ref_dir, "normal_colour_palette.txt"),
+  header = F,
+  stringsAsFactors = F,
+  comment.char = ""
+)
+normal_cols <- normal_col_df[,2]
+names(normal_cols) <- normal_col_df[,1]
+normal_cols["unassigned"] <- "#3752D3"
+
 subcluster_cols <- read.table(
   paste0(ref_dir, "CNV_colour_palette.txt"),
   header = F,
@@ -87,25 +97,51 @@ subcluster_cols <- read.table(
   comment.char = ""
 )[,1]
 
+
 ################################################################################
 ### 1. Load and format data ###
 ################################################################################
 
 print("Loading metadata df...")
 
-if (normals_removed) {
-  epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "/4b.final_epithelial_metadata_without_normals.Rdata"))
-} else {
-  epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "/4b.final_epithelial_metadata_with_normals.Rdata"))
-}
+
+epithelial_metadata <- readRDS(paste0(Robject_dir, 
+  "/4b.final_epithelial_metadata_with_normals.Rdata"))
+
 subcluster_meta <- subset(
   epithelial_metadata, 
-  select = c(cell_ids, subcluster_id)
+  select = c(cell_ids, normal_cell_call, subcluster_id)
 )
 
-# load seurat object:
+print("Loading seurat objects...")
+
+# load all cell object:
+seurat_10X <- readRDS(paste0(in_dir, "03_seurat_object_processed.Rdata"))
+  
+# choose resolution if needed:
+if (res != "none") {
+  Idents(seurat_10X) <- eval(
+    parse(
+      text = paste0("seurat_10X@meta.data$", res)
+    )
+  )
+}
+
+# update idents will cell type from Garnett:
+annotated_idents <- gsub(
+  " ", 
+  "_", 
+  paste0(
+    eval(parse(text=paste0("seurat_10X@meta.data$", garnett_slot))), " ", 
+    Idents(seurat_10X)
+  )
+)
+Idents(seurat_10X) <- factor(
+  as.character(annotated_idents),
+  levels = naturalsort(unique(as.character(annotated_idents)))
+)
+
+# load reclustered epithelial object:
 seurat_epi <- readRDS(
   paste0(
     seurat_dir, "05_seurat_object_epithelial_reclustered.Rdata"
@@ -123,7 +159,38 @@ if (epi_res != "none") {
 
 
 ################################################################################
-### 2. Plot UMAP of reclustered epithelial cells ###
+### 2. Plot UMAP of all cells ###
+################################################################################
+
+# order idents so epithelial cells are printed on top:
+ident_order <- levels(Idents(seurat_10X))
+ident_order <- c(
+  ident_order[grep("Epithelial", ident_order)],
+  ident_order[grep("Epithelial", ident_order, invert = T)]
+)
+
+all_umap <- DimPlot(
+  seurat_10X,
+  cols = expr_cols,
+  pt.size = 1.5,
+  reduction = paste0("UMAP", PC),
+  label = F,
+  order = ident_order
+)
+
+png(
+  file = paste0(plot_dir, "all_cells_UMAP.png"), 
+  width = 15, 
+  height = 8, 
+  res = 300, 
+  units = 'in'
+)
+  print(all_umap)
+dev.off()
+
+
+################################################################################
+### 3. Plot UMAP of reclustered epithelial cells without normals ###
 ################################################################################
 
 # order idents so epithelial cells are printed on top:
@@ -180,9 +247,15 @@ include_cells <- rownames(seurat_epi@meta.data)[
   rownames(seurat_epi@meta.data) %in% subcluster_meta$cell_ids
 ]
 
+no_normals <- include_cells[
+  include_cells %in% subcluster_meta$cell_ids[
+    subcluster_meta$normal_cell_call == "cancer"
+  ]
+]
+
 epi_umap <- DimPlot(
   seurat_epi,
-  cells = include_cells,
+  cells = no_normals,
   pt.size = 1.5,
   reduction = paste0("UMAP", epi_PC),
   label = F
@@ -204,13 +277,60 @@ dev.off()
 
 
 ################################################################################
-### 2. Plot UMAP owith CNV subclusters labelled ###
+### 4. Plot UMAP with normals labelled ###
+################################################################################
+
+# update idents with subcluster ids:
+seurat_epi@meta.data$normal_cell_call <- NA
+seurat_epi@meta.data[subcluster_meta$cell_ids,]$normal_cell_call <- 
+  as.character(subcluster_meta$normal_cell_call)
+
+Idents(seurat_epi) <- factor(
+  as.character(seurat_epi@meta.data$normal_cell_call),
+  levels = naturalsort(
+    unique(as.character(seurat_epi@meta.data$normal_cell_call))
+  )
+)
+
+labs <- c("normal", "unassigned", "cancer")
+labs <- labs[
+  labs %in% gsub(
+    "_", " ", unique(
+      Idents(seurat_epi)[
+        !is.na(Idents(seurat_epi))
+      ]
+    )
+  )
+]
+
+epi_umap <- DimPlot(
+  seurat_epi,
+  cells = include_cells,
+  pt.size = 1.5,
+  reduction = paste0("UMAP", epi_PC),
+  label = F
+) + scale_color_manual(values = normal_cols[1:length(labs)])
+
+
+png(
+  file = paste0(plot_dir, "epithelial_cell_normal_call_UMAP.png"), 
+  width = 15, 
+  height = 8, 
+  res = 300, 
+  units = 'in'
+)
+  print(epi_umap)
+dev.off()
+
+
+################################################################################
+### 6. Plot UMAP with CNV subclusters labelled ###
 ################################################################################
 
 # update idents with subcluster ids:
 seurat_epi@meta.data$subcluster_ids <- NA
 seurat_epi@meta.data[subcluster_meta$cell_ids,]$subcluster_ids <- 
-  as.character(subcluster_meta$subcluster_id)
+  as.character(subcluster_meta$subcluster_ids)
 
 Idents(seurat_epi) <- factor(
   as.character(seurat_epi@meta.data$subcluster_ids),

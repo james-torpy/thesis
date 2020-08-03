@@ -50,13 +50,13 @@ print(paste0("Array CNVs? ", array_CNVs))
 
 #project_name <- "thesis"
 #subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID4463"
+#sample_name <- "CID4471"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {
 #  subcluster_p <- as.numeric(subcluster_p)
 #}
-#coverage_filter <- "filtered"
+#coverage_filter <- "unfiltered"
 #remove_artefacts <- "artefacts_not_removed"
 #x_thresh_multiplier <- 1.5
 #y_thresh_multiplier <- 1.5
@@ -415,50 +415,6 @@ if (order_by == "CNV") {
   }
 
 }
-# else if (order_by == "normal_then_CNV") {
-#
-#  # define desired order:
-#  new_order <- c(
-#    "normal",
-#    "unassigned",
-#    naturalsort(
-#      unique(
-#        epithelial_metadata$subcluster_id[
-#          grep("CNV", epithelial_metadata$subcluster_id)
-#        ]
-#      )
-#    )
-#  )
-#  # re-order:
-#  epithelial_metadata$subcluster_id <- factor(
-#    as.character(epithelial_metadata$subcluster_id), 
-#    levels = new_order
-#  )
-#  epithelial_metadata <- epithelial_metadata[
-#    order(epithelial_metadata$subcluster_id),
-#  ]
-#
-#} else if (order_by == "normals_then_expression") {
-#
-#   epithelial_metadata <- epithelial_metadata[
-#    naturalorder(epithelial_metadata$cell_type),
-#  ]
-#
-#  # split metadata by normal status for ordering:
-#  metadata_split <- split(
-#    epithelial_metadata, epithelial_metadata$normal_cell_call
-#  )
-#
-#  epithelial_metadata <- do.call(
-#    "rbind",
-#    list(
-#      metadata_split$normal,
-#      metadata_split$unassigned,
-#      metadata_split$cancer
-#    )
-#  )
-#
-#}
 
 # adjust order of heatmap:
 epithelial_heatmap <- epithelial_heatmap[epithelial_metadata$cell_ids,]
@@ -754,7 +710,7 @@ if (subcluster_annot) {
   
     ht_list <- final_heatmap
     if (normal_annot) {
-      ht_list <- ht_list + normal_call_annot
+      ht_list <- normal_call_annot + ht_list
     }
     if (QC_annot) {
       ht_list <- ht_list + nUMI_annot + nGene_annot

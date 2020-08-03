@@ -1,5 +1,25 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
+# submit to cluster:
+home_dir="/share/ScratchGeneral/jamtor"
+script_dir="$home_dir/projects/thesis/Figure_2.2_individual_samples/scripts/"
+
+#qsub -pe smp 80 -N fig2.2.smk -b y -j y -V -P TumourProgression \
+#"/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/R CMD BATCH  --no-save '--args" \
+#        " CID4471" \
+#        " 03_seurat_object_processed.Rdata" \
+#        " 80" \
+#        " random_trees" \
+#        " 0.05" \
+#        " PC_A_res.1" \
+#        " filtered" \
+#        " 3200" \
+#        " 700" \
+#        " garnett_call_ext_major" \
+#        " none" \
+#        " none" \
+#        "' $script_dir/1.infercnv.R"
+
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
@@ -32,7 +52,7 @@ exclude_clusters <- unlist(
 
 #project_name <- "thesis"
 #subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID4463"
+#sample_name <- "CID4471"
 #file_name <- "03_seurat_object_processed.Rdata"
 #numcores <- 60
 #subcluster_method <- "random_trees"
@@ -41,7 +61,7 @@ exclude_clusters <- unlist(
 #  subcluster_p <- as.numeric(subcluster_p)
 #}
 #res <- "PC_A_res.1"
-#coverage_filter <- "unfiltered"
+#coverage_filter <- "filtered"
 #nUMI_threshold <- as.numeric("3200")
 #nGene_threshold <- as.numeric("700")
 #garnett_slot <- "garnett_call_ext_major"

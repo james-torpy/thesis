@@ -1,5 +1,5 @@
 # Run command:
-# snakemake --reason --cores 154 --cluster "qsub -pe smp 22 -N fig2.2.smk -b y -j y -V -P TumourProgression" -j 7
+# snakemake --reason --cores 80 --cluster "qsub -pe smp 80 -N fig2.2.smk -b y -j y -V -P TumourProgression" -j 1
 
 # DAG command:
 # snakemake --dag | dot -Tsvg > dag.svg
@@ -13,12 +13,12 @@ SAMPLES = list(["CID3586", "CID3963", "CID4465",
     "CID4523", "CID3921", "CID4066", 
     "CID44041", "CID4513", "CID4530N",
     "CID4290A", "CID44991", "CID3941", 
-    "CID4067", "CID4461", "CID4495", 
-    "CID4515", "CID4535", "CID3948",  
-    "CID4463", "CID45171"
+    "CID4067", "CID4461", "CID4515", 
+    "CID4535", "CID3948", "CID4463", 
+    "CID45171", "CID44971", "CID4398"
 ])
 
-#SAMPLES = list(["CID4463"])
+#SAMPLES = list(["CID4471"])
 
 ## random tree samples which work with random tree with 22 cores, p<0.1:
 #"CID4066", "CID4515", "CID3921", 
@@ -37,12 +37,16 @@ SAMPLES = list(["CID3586", "CID3963", "CID4465",
 #"CID4523", "CID3921", "CID4066", 
 #"CID44041", "CID4513", "CID4530N",
 #"CID4290A", "CID44991", "CID3941", 
-#"CID4067", "CID4461", "CID4495", 
+#"CID4067", "CID4461", 
 #"CID4515", "CID4535", "CID3948",  
 #"CID4463", "CID45171"
 
 ## samples which did not work with 20 cores at p<0.05:
 #"CID4471", "CID44971", "CID4398"
+
+# samples which did not work with 20 cores at p<0.05:
+#"CID4495"
+
 
 # infercnv parameters:
 file_name="03_seurat_object_processed.Rdata"
@@ -72,30 +76,30 @@ array_CNVs = "FALSE"
 min_CNV_length = "20"
 min_CNV_proportion = "0.5"
 
-######
-#rule all:
-#    input:
-#        expand(
-#            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
-#            "{subcluster_p}/infercnv.12_denoised.png",
-#            sample=SAMPLES, coverage_filter = coverage_filter,
-#            subcluster_method=SUBCLUSTER_METHOD, subcluster_p=SUBCLUSTER_P
-#        )
-######
-
-######
+#####
 rule all:
     input:
         expand(
             "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
-            "{subcluster_p}/{remove_artefacts}/plots/" + 
-            "CNV_signal_plots_with_lengths.pdf",
-            sample=SAMPLES, coverage_filter=coverage_filter, 
-            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
-            remove_artefacts=remove_artefacts, min_CNV_length=min_CNV_length,
-            min_CNV_proportion=min_CNV_proportion
+            "{subcluster_p}/infercnv.12_denoised.png",
+            sample=SAMPLES, coverage_filter = coverage_filter,
+            subcluster_method=subcluster_method, subcluster_p=subcluster_p
         )
-####
+######
+
+#######
+#rule all:
+#    input:
+#        expand(
+#            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+#            "{subcluster_p}/{remove_artefacts}/plots/" + 
+#            "CNV_signal_plots_with_lengths.pdf",
+#            sample=SAMPLES, coverage_filter=coverage_filter, 
+#            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
+#            remove_artefacts=remove_artefacts, min_CNV_length=min_CNV_length,
+#            min_CNV_proportion=min_CNV_proportion
+#        )
+#####
 
 #######
 #rule all:
@@ -124,7 +128,7 @@ rule infercnv:
     output:
         "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/infercnv.12_denoised.png"
-    threads: 22
+    threads: 80
     shell:
         "module load briglo/R/3.6.0; " + 
         "mkdir -p logs/infercnv/{wildcards.sample}/{wildcards.coverage_filter}/" + 
@@ -135,15 +139,15 @@ rule infercnv:
         " {wildcards.sample}" + 
         " {file_name}" +
         " {threads}" + 
-        " {wildcards.subcluster_method} " + 
-        " {wildcards.subcluster_p} " + 
-        " {res} " + 
-        " {coverage_filter} " + 
-        " {nUMI_threshold} " + 
-        " {nGene_threshold} " + 
-        " {garnett_slot} " + 
-        " {manual_epithelial} " + 
-        " {exclude_clusters} " + 
+        " {wildcards.subcluster_method}" + 
+        " {wildcards.subcluster_p}" + 
+        " {res}" + 
+        " {coverage_filter}" + 
+        " {nUMI_threshold}" + 
+        " {nGene_threshold}" + 
+        " {garnett_slot}" + 
+        " {manual_epithelial}" + 
+        " {exclude_clusters}" + 
         "' ../../../../../../scripts/1.infercnv.R"
 
 rule plot_all_annotations:
