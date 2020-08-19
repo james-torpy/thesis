@@ -57,42 +57,42 @@ print(paste0("Simulation name = ", sim_name))
 noise_cell_no <- as.numeric(args[8])
 print(paste0("Noise input cell number = ", noise_cell_no))
 
-project_name <- "thesis"
-subproject_name <- 
-  "Figure_1.2_1.3_1.5_simulate_cancer_define_denoising_value_distinguish_copy_no"
-sample_name <- "CID4520N"
-nUMI_threshold <- 25000
-nGene_threshold <- 5000
-# range of number of CNVs per simulation, chosen randomly
-# defines number of CNV loop iterations with one CNV added per iteration:
-CNV_no_range <- as.numeric(
-  unlist(
-    strsplit(
-      "10_50",
-      split = "_"
-    )
-  )
-)
-# range of lengths of CNVs, chosen randomly:
-CNV_lengths <- as.numeric(
-  unlist(
-    strsplit(
-      "50_75_100_150_150_200_200_250_250_300_300_350_400_450_500_550_600_650_700_750_800",
-      split = "_"
-    )
-  )
-)
-# vector of possible gain/loss multipliers, chosen randomly:
-CNV_multipliers <- as.numeric(
-  unlist(
-    strsplit(
-      "3_2_1.5_0.5_0",
-      split = "_"
-    )
-  )
-)
-sim_name <- "sim3"
-noise_cell_no <- 5000
+#project_name <- "thesis"
+#subproject_name <- 
+#  "Figure_1.2_1.3_1.5_simulate_cancer_define_denoising_value_distinguish_copy_no"
+#sample_name <- "CID4520N"
+#nUMI_threshold <- 25000
+#nGene_threshold <- 5000
+## range of number of CNVs per simulation, chosen randomly
+## defines number of CNV loop iterations with one CNV added per iteration:
+#CNV_no_range <- as.numeric(
+#  unlist(
+#    strsplit(
+#      "10_50",
+#      split = "_"
+#    )
+#  )
+#)
+## range of lengths of CNVs, chosen randomly:
+#CNV_lengths <- as.numeric(
+#  unlist(
+#    strsplit(
+#      "50_75_100_150_150_200_200_250_250_300_300_350_400_450_500_550_600_650_700_750_800",
+#      split = "_"
+#    )
+#  )
+#)
+## vector of possible gain/loss multipliers, chosen randomly:
+#CNV_multipliers <- as.numeric(
+#  unlist(
+#    strsplit(
+#      "3_2_1.5_0.5_0",
+#      split = "_"
+#    )
+#  )
+#)
+#sim_name <- "sim3"
+#noise_cell_no <- 5000
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))
@@ -822,24 +822,10 @@ if (sim_name != "filtered_normal") {
   
   # plot median fold change from original median for modified data:
   if (!file.exists(paste0(plot_dir, "2a.pre_noise_log_modified_fold_change_from_median_line_only.pdf"))) {
-
-    # define and stagger chromosome labels
-#    chr_labs <- c(
-#      "chr1", 
-#      as.character(2:12),
-#      "\n13",
-#      as.character(14:20),
-#      "\n21",
-#      "22"
-#    )
-
     p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
     p <- p + scale_x_continuous(
       breaks = unlist(chromosome_midpoints),
-      labels = c(
-        "chr1", 
-        as.character(2:length(chromosome_midpoints))
-      ),
+      labels = c("chr1", 2:length(chromosome_midpoints)),
       limits = c(0,length(log_modified_fold_change_df$count)), 
       expand = c(0, 0)
     )
@@ -896,10 +882,7 @@ if (sim_name != "filtered_normal") {
     p <- p + xlab("Genomic location")
     p <- p + scale_x_continuous(
       breaks = unlist(chromosome_midpoints),
-      labels = c(
-        "chr1", 
-        as.character(2:length(chromosome_midpoints))
-      ),
+      labels = c("chr1", 2:length(chromosome_midpoints)),
       limits = c(0,nrow(log_modified_fold_change_df)), 
       expand = c(0, 0)
     )
@@ -1046,241 +1029,176 @@ if (sim_name != "filtered_normal") {
     # simulate the data:
     sim <- splatSimulate(splat_params, batchCells = ncol(new_counts))
     noise_counts <- counts(sim)
+    rownames(noise_counts) <- rownames(new_counts)
    
     print("Table of simulated noise counts:")
     table(unlist(noise_counts))
+
+    plot_noise <- function(
+      noise_df,
+      ref_dir,
+      plot_dir
+    ) {
+
+      # find chromosome ends to mark on plot:
+      # load infercnv gene annotation:
+      gene_annot <- read.table(
+        paste0(ref_dir, "infercnv_gene_order.txt"),
+        header = F
+      )
+      colnames(gene_annot) <- c("gene", "chr", "start", "end")
   
-    # find chromosome ends to mark on plot:
-    # load co-ordinates of genes/chromosomes:
-    library(TxDb.Hsapiens.UCSC.hg38.knownGene, lib.loc=lib_loc)
-    gene_coords <- genes(TxDb.Hsapiens.UCSC.hg38.knownGene)
-    gene_coords <- gene_coords[grep("chr[0-9]", seqnames(gene_coords))]
-    gene_coords <- gene_coords[grep("_.*$", seqnames(gene_coords), invert=T)]
+      # calculate mean of each input gene:
+      input_means <- apply(noise_df, 1, mean)
+      
+      # only keep input_means genes in gene_annot and vice versa:
+      gene_annot <- gene_annot[gene_annot$gene %in% names(input_means),]
+      input_means <- input_means[names(input_means) %in% gene_annot$gene]
   
-    # convert gene number ids to symbols:
-    egSYMBOL <- toTable(org.Hs.egSYMBOL)
-    m <- match(gene_coords$gene_id, egSYMBOL$gene_id)
-    gene_coords$symbol <- egSYMBOL$symbol[m]
+      # reorder input_means:
+      input_means <- input_means[as.character(gene_annot$gene)]
   
-    # isolate last end position/gene symbol of each chromosome: 
-    gene_chr <- data.frame(
-      as.character(seqnames(gene_coords)),
-      end(ranges(gene_coords)),
-      as.character(gene_coords$symbol)
-    )
-    colnames(gene_chr) <- c("seqnames", "ends", "symbol")
+      # remove chrX, Y:
+      to_remove <- gene_annot$gene[
+        gene_annot$chr == "chrX" | gene_annot$chr == "chrY" | 
+        gene_annot$chr == "chrM"
+      ]
+      gene_annot <- gene_annot[!(gene_annot$gene %in% to_remove), ]
+      input_means <- input_means[!(names(input_means) %in% to_remove)]
   
-    # keep only genes in noise_input:
-    input_gene_chr <- gene_chr[gene_chr$symbol %in% rownames(noise_input),]
-    input_gene_chr <- input_gene_chr[order(input_gene_chr$end),]
-    input_gene_chr <- input_gene_chr[order(input_gene_chr$seqnames),]
-    input_gene_chr$symbol <- as.character(input_gene_chr$symbol)
-
-    ######
-
-     # find genes at end of each chromosome to mark on count plots:
-    input_gene_chr_split <- split(input_gene_chr, input_gene_chr$seqnames)
-    input_chr_ends <- cumsum(unlist(lapply(input_gene_chr_split, function(x) return(nrow(x)))))
-    input_chr_ends <- input_chr_ends[naturalorder(names(input_chr_ends))]
-
-
-    input_chr_mids <- lapply(input_gene_chr_split, function(x) return(x$symbol[floor(nrow(x)/2)]))
-    input_mid_genes <- unlist(input_chr_mids)
-    input_mid_genes <- input_mid_genes[naturalsort(names(input_mid_genes))]
-    input_mid_ind <- match(input_mid_genes, rownames(outfiltered_counts))
-
-    # generate average original counts vector with each value representing a gene:
-    average_noise_counts <- apply(noise_input, 1, mean)
-    # add 0.1 to zero values:
-    average_noise_counts <- average_noise_counts + 3e-4
-    # determine median:
-    median_average_noise_counts <- median(average_noise_counts)
+      # split annotation and find end indices:
+      split_annot <- split(gene_annot, gene_annot$chr)
+      end_genes <- unlist(
+        lapply(split_annot, function(x) {
+          return(tail(as.character(x$gene), 1))
+        })
+      )
+      # determine chr end indices:
+      end_indices <- sort(match(end_genes, names(input_means)))
+  
+      # determine middle gene for each chromosome:
+      mid_genes <- unlist(
+         lapply(split_annot, function(x) {
+           return(as.character(x$gene)[floor(nrow(x)/2)])
+         })
+       )
+      # determine chr mid indices:
+      mid_indices <- sort(match(mid_genes, names(input_means)))
+  
+      input_df <- data.frame(
+        number = 1:length(input_means),
+        input = input_means
+      )
+  
+      # log 10:
+      input_df$log_input <- log10(input_df$input+1e-4)
+  
+      # split input_means into n gene bins:
+      bin_no <- 500
+      div_no <- floor(length(input_df$log_input)/bin_no)
+      split_vec <- c(
+        rep(1:div_no, each=bin_no),
+        rep(div_no+1, length(input_df$log_input) - (div_no*bin_no))
+      )
+      split_means <- split(input_df$log_input, split_vec)
+  
+      # calcuate mean of each bin and log10:
+      bin_means <-  unlist(lapply(split_means, mean))
+      bin_medians <-  unlist(lapply(split_means, median))
+      
+      p1 <- ggplot(input_df, aes(x=number, y=log_input))
+      p1 <- p1 + geom_point(colour="#E7E4D3")
+      p1 <- p1 + xlab("Genomic location")
+      p1 <- p1 + ylab("log10 mean count")
+  
+      for (ind in end_indices) {
+        
+        # create chromosome end vertical line:
+        p1 <- p1 + geom_segment(
+          x=ind,
+          xend=ind,
+          y=min(input_df$log_input), 
+          yend=max(input_df$log_input), 
+          size=0.5, color="black"
+        )
     
-    # divide by median to get fold change from median and add to df for plotting:
-    noise_fold_change <- average_noise_counts/median_average_noise_counts
-    noise_fold_change_df <- data.frame(
-      number = seq(1, length(noise_fold_change)),
-      count = noise_fold_change
-    )
+      }
+  
+      # mark bin means:
+      for (b in 1:length(bin_means)) {
+        if (b==length(bin_means)) {
+          p1 <- p1 + geom_segment(
+            x=((b-1)*bin_no)+1,
+            xend=length(input_df$log_input),
+            y=bin_means[b], 
+            yend=bin_means[b], 
+            size=0.5, color="red"
+          )
+        } else {
+          p1 <- p1 + geom_segment(
+            x=((b-1)*bin_no)+1,
+            xend=b*bin_no,
+            y=bin_means[b], 
+            yend=bin_means[b], 
+            size=0.5, color="red"
+          )
+        }
+      }
+  
+      # mark bin vertical lines:
+      for (b in 1:length(bin_means)) {
+        if (b!=length(bin_means)) {
+          p1 <- p1 + geom_segment(
+            x=b*bin_no,
+            xend=b*bin_no,
+            y=bin_means[b], 
+            yend=bin_means[b+1], 
+            size=0.5, color="red"
+          )
+        }
+      }
     
-    # take mean of noise fold change:
-    median_noise_fold_change <- median(noise_fold_change)
-    
-    # take the log10:
-    log_noise_fold_change <- log10(noise_fold_change)
-    # tabulate for plotting:
-    log_noise_fold_change_df <- data.frame(
-      number = seq(1, length(log_noise_fold_change)),
-      count = log_noise_fold_change
-    )
-    
-    # calculate the median of the counts vector:
-    log_median_noise_fold_change <- log10(median_noise_fold_change)
-    
-    # plot counts:
-    if (!file.exists(paste0(noise_dir, "log_noise_fold_change_from_median.pdf"))) {
-      p <- ggplot(log_noise_fold_change_df, aes(x=number, y=count))
-      p <- p + geom_point(colour = "#E8D172")
-      p <- p + xlab("Genomic location")
-      p <- p + scale_x_continuous(
-        breaks = unlist(chromosome_midpoints),
-        labels = c(
-          "chr1", 
-          as.character(2:length(chromosome_midpoints))
-        ),
+      # create chromosome labels:
+      p1 <- p1 + scale_x_continuous(
+        breaks = mid_indices,
+        labels = c("chr1", as.character(2:length(input_mid_ind))),
         expand = c(0, 0)
       )
-      p <- p + ylab("Log10 fold change from median")
-      p <- p + scale_y_continuous(
-        breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-        labels = c("-4", "-3", "-2", "-1", "0", "1", "2", "3", "4"),
-        limits = c(-4, 4)
-      )
-      for (end in chromosome_ends) {
-        p <- p + geom_vline(xintercept=end)
-      }
-      p <- p + geom_segment(
-        x=0, 
-        xend=max(unlist(chromosome_ends)), 
-        y=log_median_noise_fold_change, 
-        yend=log_median_noise_fold_change, 
-        size=1, color="red"
-      )
-      p <- p + theme(
-        text=element_text(size = 24),
-        axis.text.x=element_text(size = 20),
-        axis.ticks.x=element_blank(),
-        axis.text.y=element_text(size = 20),
-        axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0)),
-        axis.title.y = element_text(margin = margin(t = 0, r = 30, b = 0, l = 0))
-      )
-    
-      # create png:
-      png(paste0(noise_dir, "log10_noise_fold_change_from_median.png"), 
-        width = 20,
-        height = 7,
-        res = 300,
-        units = "in")
-        print(p)
-      dev.off()
+
     }
-    ######
 
-    # find genes at end of each chromosome to mark on count plots:
-    input_gene_chr_split <- split(input_gene_chr, input_gene_chr$seqnames)
-    input_chr_ends <- lapply(input_gene_chr_split, function(x) return(x$symbol[nrow(x)]))
-    input_end_genes <- unlist(input_chr_ends)
-    input_end_genes <- input_end_genes[naturalsort(names(input_end_genes))]
-  
-    input_chr_mids <- lapply(input_gene_chr_split, function(x) return(x$symbol[floor(nrow(x)/2)]))
-    input_mid_genes <- unlist(input_chr_mids)
-    input_mid_genes <- input_mid_genes[naturalsort(names(input_mid_genes))]
-    input_mid_ind <- match(input_mid_genes, rownames(outfiltered_counts))
-
-
-  
-    input_means <- apply(noise_input, 1, mean)
-    input_means <- input_means[input_means < 0.9]
-    input_df <- data.frame(
-      number = 1:length(input_means),
-      input = input_means
+    # plot mean noise input across the genome:  
+    noise_input_plot <- plot_noise(
+      noise_input,
+      ref_dir,
+      plot_dir
     )
   
-    # log10 the count values:
-    input_df$input <- log10(input_df$input+1e-4)
-  
-    # determine the median to mark on plot:
-    orig_median <- median(input_df$input)
-    
-    p1 <- ggplot(input_df, aes(x=number, y=input))
-    p1 <- p1 + geom_point()
-    p1 <- p1 + xlab("Genomic location")
-    p1 <- p1 + ylab("log10 mean count")
-    for (g in 1:length(input_end_genes)) {
-      print(input_end_genes[g])
-  
-      input_df_rownames <- gsub("-|_", "", rownames(input_df))
-      input_end_gene <- gsub("-|_", "", input_end_genes[g])
-      ind <- grep(paste0("\\b", input_end_gene, "\\b"), input_df_rownames)
-      
-      # create chromosome end vertical line:
-      p1 <- p1 + geom_segment(
-        x=ind,
-        xend=ind,
-        y=min(input_df$input), 
-        yend=max(input_df$input), 
-        size=0.3, color="#B066B2"
-      )
-  
-    }
-  
-    # create chromosome labels:
-    p1 <- p1 + scale_x_continuous(
-      breaks = input_mid_ind,
-      labels = 1:length(input_mid_ind)
+    png(
+      paste0(noise_dir, "log10_noise_input_scatterplot.png"),
+      width = 20,
+      height = 7,
+      res = 300,
+      unit = "in"
     )
-  
-    png(paste0(noise_dir, "log10_noise_input_scatterplot.png"))
-      p1
+      noise_input_plot
     dev.off()
   
-    # keep only genes in noise_counts:
-    rownames(noise_counts) <- rownames(new_counts)
-    sim_gene_chr <- gene_chr[gene_chr$symbol %in% rownames(noise_counts),]
-    sim_gene_chr <- sim_gene_chr[order(sim_gene_chr$end),]
-    sim_gene_chr <- sim_gene_chr[order(sim_gene_chr$seqnames),]
-    sim_gene_chr$symbol <- as.character(sim_gene_chr$symbol)
-  
-    # find genes at end of each chromosome to mark on count plots:
-    sim_gene_chr_split <- split(sim_gene_chr, sim_gene_chr$seqnames)
-    sim_chr_ends <- lapply(sim_gene_chr_split, function(x) return(x$symbol[nrow(x)]))
-    sim_end_genes <- unlist(sim_chr_ends)
-    sim_end_genes <- sim_end_genes[naturalsort(names(sim_end_genes))]
-  
-    sim_chr_mids <- lapply(sim_gene_chr_split, function(x) return(x$symbol[floor(nrow(x)/2)]))
-    sim_mid_genes <- unlist(sim_chr_mids)
-    sim_mid_genes <- sim_mid_genes[naturalsort(names(sim_mid_genes))]
-  
-    sim_means <- apply(noise_counts, 1, mean)
-    #sim_means <- sim_means[sim_means < 0.9]
-    sim_df <- data.frame(
-      number = 1:length(sim_means),
-      sim = sim_means
+    # plot mean simulated noise across the genome:  
+    sim_noise_plot <- plot_noise(
+      noise_counts,
+      ref_dir,
+      plot_dir
     )
   
-    sim_mid_ind <- match(sim_mid_genes, rownames(sim_df))
-  
-    # log10 the count values:
-    sim_df$sim <- log10(sim_df$sim+1e-4)
-  
-    p2 <- ggplot(sim_df, aes(x=number, y=sim))
-    p2 <- p2 + geom_point()
-    p2 <- p2 + xlab("Genomic location")
-    p2 <- p2 + ylab("log10 mean count")
-    for (g in 1:length(sim_end_genes)) {
-      print(sim_end_genes[g])
-  
-      sim_df_rownames <- gsub("-|_", "", rownames(sim_df))
-      sim_end_gene <- gsub("-|_", "", sim_end_genes[g])
-      ind <- grep(paste0("\\b", sim_end_gene, "\\b"), sim_df_rownames)
-      
-      # create chromosome end vertical line:
-      p2 <- p2 + geom_segment(
-        x=ind,
-        xend=ind,
-        y=min(sim_df$sim), 
-        yend=max(sim_df$sim), 
-        size=0.3, color="red"
-      )
-    }
-    # create chromosome labels:
-    p2 <- p2 + scale_x_continuous(
-      breaks = sim_mid_ind,
-      labels = 1:length(sim_mid_ind)
+    png(
+      paste0(noise_dir, "log10_simulated_noise_scatterplot.png"),
+      width = 20,
+      height = 7,
+      res = 300,
+      unit = "in"
     )
-  
-    pdf(paste0(noise_dir, "log10_noise_sim_scatterplot.pdf"))
-      p2
+      sim_noise_plot
     dev.off()
 
     saveRDS(noise_counts, paste0(noise_dir, "/noise_df.Rdata"))
@@ -1385,10 +1303,7 @@ if (sim_name != "filtered_normal") {
     p <- ggplot(log_modified_fold_change_df, aes(x=number, y=count))
     p <- p + scale_x_continuous(
       breaks = unlist(chromosome_midpoints),
-      labels = c(
-        "chr1", 
-        as.character(2:length(chromosome_midpoints))
-      ),
+      labels = c("chr1", 2:length(chromosome_midpoints)),
       limits = c(0,length(log_modified_fold_change_df$count)), 
       expand = c(0, 0)
     )
@@ -1445,10 +1360,7 @@ if (sim_name != "filtered_normal") {
     p <- p + xlab("Genomic location")
     p <- p + scale_x_continuous(
       breaks = unlist(chromosome_midpoints),
-      labels = c(
-        "chr1", 
-        as.character(2:length(chromosome_midpoints))
-      ),
+      labels = c("chr1", 2:length(chromosome_midpoints)),
       limits = c(0,nrow(log_modified_fold_change_df)), 
       expand = c(0, 0)
     )

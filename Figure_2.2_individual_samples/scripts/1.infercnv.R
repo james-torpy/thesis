@@ -94,6 +94,7 @@ print(paste0("Clusters to exclude = ", exclude_clusters))
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(Seurat)
 library(infercnv, lib.loc=lib_loc)
+#library(ulimit, lib.loc=lib_loc)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", project_name, "/", 
@@ -123,6 +124,9 @@ print(paste0("R function directory = ", func_dir))
 print(paste0("Output directory = ", out_dir))
 print(paste0("Plot directory = ", plot_dir))
 print(paste0("Table directory = ", table_dir))
+
+# set memory limit:
+#ulimit::memory_limit(260000)
 
 # if p values specified with no subclustering or no p values specified with 
 # subclustering, abort to prevent multiple instances of one job:
@@ -370,7 +374,7 @@ if (subcluster_method == "none" & subcluster_p != "none") {
         infercnv_output <- try(
           infercnv::run(
             initial_infercnv_object,
-            num_threads=numcores-2,
+            num_threads=numcores-1,
             out_dir=out_dir,
             cutoff=0.1,
             window_length=101,

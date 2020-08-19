@@ -12,20 +12,26 @@ if (subcluster_p != "none") {
 }
 coverage_filter <- args[4]
 remove_artefacts <- args[5]
-x_thresh_multiplier <- as.numeric(args[6])
-y_thresh_multiplier <- as.numeric(args[7])
-remove_normals <- as.logical(args[8])
-order_by <- args[9]
-subcluster_annot <- as.logical(args[10])
-subcluster_legend <- as.logical(args[11])
-normal_in_subcluster_annot <- as.logical(args[12])
-expression_annot <- as.logical(args[13])
-expression_legend <- as.logical(args[14])
-QC_annot <- as.logical(args[15])
-normal_annot <- as.logical(args[16])
-normal_legend <- as.logical(args[17])
-plot_references <- as.logical(args[18])
-array_CNVs <- as.logical(args[19])
+x_outlier_multiplier <- as.numeric(args[6])
+x_thresh_multiplier <- as.numeric(args[7])
+y_outlier_multiplier <- as.numeric(args[8])
+y_thresh_multiplier <- as.numeric(args[9])
+remove_normals <- as.logical(args[10])
+min_subcluster_cells <- as.numeric(args[11])
+subcluster_merge <- as.logical(args[12])
+merge_thresh <- as.numeric(args[13])
+merge_diff_prop <- as.numeric(args[14])
+order_by <- args[15]
+subcluster_annot <- as.logical(args[16])
+subcluster_legend <- as.logical(args[17])
+normal_in_subcluster_annot <- as.logical(args[18])
+expression_annot <- as.logical(args[19])
+expression_legend <- as.logical(args[20])
+QC_annot <- as.logical(args[21])
+normal_annot <- as.logical(args[22])
+normal_legend <- as.logical(args[23])
+plot_references <- as.logical(args[24])
+array_CNVs <- as.logical(args[25])
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -33,9 +39,15 @@ print(paste0("Subclustered by ", subcluster_method))
 print(paste0("Subclustered by pval ", subcluster_p))
 print(paste0("Filter by coverage? ", coverage_filter))
 print(paste0("Remove artefacts? ", remove_artefacts))
-print(paste0("X-axis normal threshold multiplier = ", x_thresh_multiplier))
-print(paste0("Y-axis normal threshold multiplier = ", y_thresh_multiplier))
+print(paste0("X-axis outlier multiplier = ", x_outlier_multiplier))
+print(paste0("X-axis threshold multiplier = ", x_thresh_multiplier))
+print(paste0("Y-axis outlier threshold multiplier = ", y_outlier_multiplier))
+print(paste0("Y-axis threshold multiplier = ", y_thresh_multiplier))
 print(paste0("Remove normal cells? ", remove_normals))
+print(paste0("Minimum cells required to call CNV subcluster = ", min_subcluster_cells))
+print(paste0("Merge identical subclusters? ", subcluster_merge))
+print(paste0("Minimum correlation required to merge subclusters ", merge_thresh))
+print(paste0("Proportion of less coverage subcluster to more coverage required to merge subclusters ", merge_diff_prop))
 print(paste0("Order cells by = ", order_by))
 print(paste0("Print subcluster annotation? ", subcluster_annot))
 print(paste0("Print subcluster legend? ", subcluster_legend))
@@ -50,26 +62,32 @@ print(paste0("Array CNVs? ", array_CNVs))
 
 #project_name <- "thesis"
 #subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID4471"
+#sample_name <- "CID45172"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {
 #  subcluster_p <- as.numeric(subcluster_p)
 #}
-#coverage_filter <- "unfiltered"
+#coverage_filter <- "filtered"
 #remove_artefacts <- "artefacts_not_removed"
-#x_thresh_multiplier <- 1.5
-#y_thresh_multiplier <- 1.5
-#remove_normals <- FALSE
+#x_outlier_multiplier <- 1.5
+#x_thresh_multiplier <- 3
+#y_outlier_multiplier <- 1.5
+#y_thresh_multiplier <- 3
+#remove_normals <- TRUE
+#min_subcluster_cells <- 5
+#subcluster_merge <- TRUE
+#merge_thresh <- 0.95
+#merge_diff_prop <- 0.75
 #order_by <- "CNV"
-#subcluster_annot <- FALSE
-#subcluster_legend <- FALSE
+#subcluster_annot <- TRUE
+#subcluster_legend <- TRUE
 #normal_in_subcluster_annot <- FALSE
-#expression_annot <- FALSE
-#expression_legend <- FALSE
+#expression_annot <- TRUE
+#expression_legend <- TRUE
 #QC_annot <- TRUE
-#normal_annot <- TRUE
-#normal_legend <- TRUE
+#normal_annot <- FALSE
+#normal_legend <- FALSE
 #plot_references <- FALSE
 #array_CNVs <- FALSE
 
@@ -85,6 +103,7 @@ library(circlize, lib.loc = lib_loc)
 library(reshape2)
 library(fpc, lib.loc = lib_loc)
 library(dplyr)
+library(tibble)
 library(naturalsort, lib.loc = lib_loc)
 library(cowplot)
 
@@ -147,6 +166,7 @@ fetch_chromosome_boundaries <- dget(paste0(func_dir,
   "fetch_chromosome_boundaries.R"))
 get_subpops <- dget(paste0(func_dir, "get_subpops.R"))
 define_normals <- dget(paste0(func_dir, "define_normals.R"))
+merge_subclusters <- dget(paste0(func_dir, "merge_subclusters.R"))
 create_array_CNV_annotation <- dget(paste0(func_dir, 
   "create_array_CNV_annotation.R"))
 create_legend <- dget(paste0(func_dir, "create_legend.R"))
@@ -288,7 +308,9 @@ if (!file.exists(
   epithelial_metadata <- define_normals(
     epithelial_heatmap, 
     epithelial_metadata,
+    x_outlier_multiplier,
     x_thresh_multiplier,
+    y_outlier_multiplier,
     y_thresh_multiplier,
     plot_dir,
     Robject_dir
@@ -309,13 +331,13 @@ if (!file.exists(
 
   saveRDS(
     epithelial_metadata,
-    paste0(Robject_dir, "/3b.epithelial_metadata_with_normals.Rdata")
+    paste0(Robject_dir, "/3.epithelial_metadata_with_normals.Rdata")
   )
 
 } else {
 
   epithelial_metadata <- readRDS(
-    paste0(Robject_dir, "/3b.epithelial_metadata_with_normals.Rdata")
+    paste0(Robject_dir, "/3.epithelial_metadata_with_normals.Rdata")
   )
 
 }
@@ -331,14 +353,110 @@ if (remove_normals) {
 
   saveRDS(
       epithelial_metadata,
-      paste0(Robject_dir, "/3b.epithelial_metadata_without_normals.Rdata")
+      paste0(Robject_dir, "/3.epithelial_metadata_without_normals.Rdata")
     )
 }
 
 
 ################################################################################
-### 3. Order metadata ###
+### 4. Filter and merge subclusters ###
 ################################################################################
+
+# remove subclusters with less than n cells:
+remove_subclusters <- names(
+  which(
+    lapply(
+      split(epithelial_metadata, epithelial_metadata$subcluster_id),
+      nrow
+    ) < min_subcluster_cells
+  )
+)
+epithelial_metadata <- epithelial_metadata[
+  !(epithelial_metadata$subcluster_id %in% remove_subclusters),
+]
+# update heatmap:
+temp_heatmap <- epithelial_heatmap %>%
+  rownames_to_column() %>%
+  filter(rownames(epithelial_heatmap) %in% epithelial_metadata$cell_ids) %>%
+  column_to_rownames()
+
+# merge subclusters with greater than r correlation:
+if (subcluster_merge) {
+
+  epithelial_metadata <- merge_subclusters(
+    epithelial_heatmap,
+    epithelial_metadata,
+    merge_thresh,
+    merge_diff_prop
+  )
+ 
+}
+
+if (subcluster_method == "random_trees" & normal_in_subcluster_annot) {
+ 
+  # update subcluster ids:
+  no_subclusters <- length(
+    unique(
+      epithelial_metadata$subcluster_id[
+        grep("CNV", epithelial_metadata$subcluster_id)
+      ]
+    )
+  )
+  epithelial_metadata$subcluster_id <- factor(
+    epithelial_metadata$subcluster_id
+  )
+  levels(epithelial_metadata$subcluster_id) <- c(
+    paste0("CNV_", 1:no_subclusters), "normal", "unassigned"
+  )
+
+} else {
+
+  # update subcluster ids:
+  no_subclusters <- length(
+    unique(
+      epithelial_metadata$subcluster_id[
+        grep("CNV", epithelial_metadata$subcluster_id)
+      ]
+    )
+  )
+  epithelial_metadata$subcluster_id <- factor(
+    epithelial_metadata$subcluster_id
+  )
+  levels(epithelial_metadata$subcluster_id) <- paste0(
+    "CNV_", 1:no_subclusters
+  )
+
+}
+
+
+################################################################################
+### 5. Order metadata ###
+################################################################################
+
+# reassign cluster names in numerical order:
+epithelial_metadata$cell_type <- as.factor(epithelial_metadata$cell_type)
+levels(epithelial_metadata$cell_type) <- paste0(
+  "Epithelial_",
+  1:length(levels(epithelial_metadata$cell_type))
+)
+
+epithelial_metadata$subcluster_id <- as.factor(epithelial_metadata$subcluster_id)
+if (normal_in_subcluster_annot) {
+  levels(epithelial_metadata$subcluster_id)[
+    grep("CNV", levels(epithelial_metadata$subcluster_id))
+  ] <- paste0(
+    "CNV_",
+    1:length(levels(epithelial_metadata$subcluster_id)[
+      grep("CNV", levels(epithelial_metadata$subcluster_id))
+    ])
+  )
+} else {
+  levels(epithelial_metadata$subcluster_id) <- paste0(
+    "CNV_",
+    1:length(levels(epithelial_metadata$subcluster_id))
+  )
+}
+
 
 if (order_by == "CNV") {
 
@@ -425,25 +543,22 @@ print(paste0(
 ))
 
 # save final objects:
-if (!file.exists(paste0(Robject_dir, "/4a.final_epithelial_heatmap.Rdata"))) {
-  saveRDS(
-    epithelial_heatmap,
-    paste0(Robject_dir, "/4a.final_epithelial_heatmap.Rdata")
-  )
-}
-
 if (remove_normals) {
   if (
     !file.exists(
       paste0(
-        Robject_dir, "/4b.final_epithelial_metadata_without_normals.Rdata"
+        Robject_dir, "/5b.final_epithelial_heatmap_without_normals.Rdata"
       )
     )
   ) {
     saveRDS(
+      epithelial_heatmap,
+      paste0(Robject_dir, "/5a.final_epithelial_heatmap_without_normals.Rdata")
+    )
+    saveRDS(
       epithelial_metadata,
       paste0(
-        Robject_dir, "/4b.final_epithelial_metadata_without_normals.Rdata"
+        Robject_dir, "/5b.final_epithelial_metadata_without_normals.Rdata"
       )
     )
   }
@@ -451,10 +566,14 @@ if (remove_normals) {
   if (
     !file.exists(
       paste0(
-        Robject_dir, "/4b.final_epithelial_metadata_with_normals.Rdata"
+        Robject_dir, "/4a.final_epithelial_heatmap_with_normals.Rdata"
         )
       )
     ) {
+    saveRDS(
+      epithelial_heatmap,
+      paste0(Robject_dir, "/4a.final_epithelial_heatmap_with_normals.Rdata")
+    )
     saveRDS(
       epithelial_metadata,
       paste0(Robject_dir, "/4b.final_epithelial_metadata_with_normals.Rdata")
@@ -464,7 +583,7 @@ if (remove_normals) {
 
 
 ################################################################################
-### 4. Create heatmap and annotations ###
+### 6. Create heatmap and annotations ###
 ################################################################################
 
 # create expression cluster annotation:
@@ -581,7 +700,7 @@ if (array_CNVs) {
 
 
 ################################################################################
-### 5. Create epithelial and reference heatmap ###
+### 7. Create epithelial and reference heatmap ###
 ################################################################################
 
 # determine heatmap colours
@@ -676,7 +795,7 @@ names(chr_labels) <- gsub("21", "\n21", names(chr_labels))
 
 
 ################################################################################
-### 6. Create and plot annotated heatmap ###
+### 8. Create and plot annotated heatmap ###
 ################################################################################
 
 if (subcluster_annot) {
@@ -843,7 +962,7 @@ if (plot_references) {
   
       # print expression legend:
       if (expression_legend) {
-        pushViewport(viewport(x = 0.075, y = 0.09, width = unit(6, "cm"), 
+        pushViewport(viewport(x = 0.075, y = 0.15, width = unit(6, "cm"), 
           height = unit(10, "cm"), just="bottom"))
         #grid.rect()
           create_legend(
@@ -858,7 +977,7 @@ if (plot_references) {
 
       # print normal annot legend:
       if (normal_legend) {
-        pushViewport(viewport(x = 0.075, y = 0.15, width = unit(6, "cm"), 
+        pushViewport(viewport(x = 0.075, y = 0.11, width = unit(6, "cm"), 
           height = unit(10, "cm"), just="bottom"))
           create_legend(
             "Normal vs cancer", 

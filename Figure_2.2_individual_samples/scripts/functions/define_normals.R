@@ -1,7 +1,9 @@
 define_normals <- function(
   temp_heatmap, 
   temp_metadata, 
+  x_outlier_multiplier,
   x_thresh_multiplier,
+  y_outlier_multiplier,
   y_thresh_multiplier,
   plot_dir, 
   Robject_dir
@@ -144,19 +146,65 @@ define_normals <- function(
       temp_metadata$cluster == cluster_medoids$cluster[cluster_medoids$type == "first_cancer"],
     ]
 
-    # define x-axis threshold as n std devs left of first cancer medoid:
-    CNA_std_dev <- sd(first_cancer_df$CNA_value)
-    x_int <- round(
+    # define x outlier thresholds as n std devs left of first cancer medoid:
+    CNA_std_dev1 <- sd(first_cancer_df$CNA_value)
+    x_outlier_left <- round(
       cluster_medoids$CNA_value[cluster_medoids$type == "first_cancer"] - 
-      (CNA_std_dev*x_thresh_multiplier), 3
+      (CNA_std_dev1*x_outlier_multiplier), 3
+    )
+    x_outlier_right <- round(
+      cluster_medoids$CNA_value[cluster_medoids$type == "first_cancer"] + 
+      (CNA_std_dev1*x_outlier_multiplier), 3
     )
 
-    # define y-axis threshold as n std devs below of first cancer medoid:
-    cor_std_dev <- sd(first_cancer_df$cor.est)
-    y_int <- round(
+    # define y outlier threshold as n std devs below of first cancer medoid:
+    cor_std_dev1 <- sd(first_cancer_df$cor.est)
+    y_outlier_bottom <- round(
       cluster_medoids$cor.est[cluster_medoids$type == "first_cancer"] - 
-      (cor_std_dev*y_thresh_multiplier), 3
+      (cor_std_dev1*y_outlier_multiplier), 3
     )
+    y_outlier_top <- round(
+      cluster_medoids$cor.est[cluster_medoids$type == "first_cancer"] +
+      (cor_std_dev1*y_outlier_multiplier), 3
+    )
+
+    # remove outliers based on these thresholds:
+    first_cancer_df$outlier <- TRUE
+    first_cancer_df$outlier[
+      first_cancer_df$CNA_value > x_outlier_left & 
+      first_cancer_df$CNA_value < x_outlier_right &
+      first_cancer_df$cor.est > y_outlier_bottom & 
+      first_cancer_df$cor.est < y_outlier_top
+    ] <- FALSE
+    
+    # define 2nd x-axis threshold as n std devs left of cluster medoid 
+    # without outliers included:
+    CNA_std_dev2 <- sd(first_cancer_df$CNA_value[!(first_cancer_df$outlier)])
+    x_int <- round(
+      cluster_medoids$CNA_value[cluster_medoids$type == "first_cancer"] - 
+      (CNA_std_dev2*x_thresh_multiplier), 3
+    )
+
+    if ("normal" %in% cluster_medoids$type) {
+      # define x and y-axis thresholds as halfway between first cancer 
+      # and normal medoids:
+      y_diff <- cluster_medoids$cor.est[
+        cluster_medoids$type == "first_cancer"
+      ] - cluster_medoids$cor.est[
+        cluster_medoids$type == "normal"
+      ]
+      y_int <- cluster_medoids$cor.est[
+        cluster_medoids$type == "normal"
+      ] + (y_diff)/2
+    } else {
+      # define 1st y-axis threshold as n std devs below of cancer medoid
+      # without outliers included:
+      cor_std_dev2 <- sd(first_cancer_df$cor.est[!(first_cancer_df$outlier)])
+      y_int <- round(
+        cluster_medoids$cor.est[cluster_medoids$type == "first_cancer"] - 
+        (cor_std_dev2*y_thresh_multiplier), 3
+      )
+    }
 
     # define normal and cancer cells:
     temp_metadata$normal_cell_call <- "cancer"
@@ -181,15 +229,31 @@ define_normals <- function(
     p <- p + theme(legend.title = element_blank())
     p <- p + geom_vline(xintercept = x_int)
     p <- p + geom_hline(yintercept = y_int)
-    quad_plot <- p
+
     png(paste0(plot_dir, 
         "normal_quad_plot.png"), 
         width = 450, height = 270)
-        print(quad_plot)
+        print(p)
     dev.off()
   
-    quad_plot
+    p
     ggsave(paste0(plot_dir, "normal_quad_plot.pdf"),
+    width = 18, height = 13, units = c("cm"))
+    dev.off()
+
+    # add outlier lines:
+    p <- p + geom_vline(xintercept = x_outlier_left, colour="red")
+    p <- p + geom_vline(xintercept = x_outlier_right, colour="red")
+    p <- p + geom_hline(yintercept = y_outlier_bottom, colour="red")
+    p <- p + geom_hline(yintercept = y_outlier_top, colour="red")
+    png(paste0(plot_dir, 
+        "normal_quad_plot_outlier_lines.png"), 
+        width = 450, height = 270)
+        print(p)
+    dev.off()
+  
+    p
+    ggsave(paste0(plot_dir, "normal_quad_plot_outlier_lines.pdf"),
     width = 18, height = 13, units = c("cm"))
     dev.off()
   
@@ -204,13 +268,12 @@ define_normals <- function(
     p <- p + theme(legend.title = element_blank())
     p <- p + geom_vline(xintercept = x_int)
     p <- p + geom_hline(yintercept = y_int)
-    quad_plot_clusters <- p
     png(paste0(plot_dir, 
       "normal_quad_plot_clusters.png"), width = 430, height = 250)
-      print(quad_plot_clusters)
+      print(p)
     dev.off()
-  
-    quad_plot_clusters
+    
+    p
     ggsave(paste0(plot_dir, "normal_quad_plot_clusters.pdf"),
     width = 18, height = 13, units = c("cm"))
     dev.off()
@@ -219,92 +282,131 @@ define_normals <- function(
 
   } else {
 
-    CNA_mean <- mean(epithelial_metadata$CNA_value)
-    CNA_std_dev <- sd(epithelial_metadata$CNA_value)
-    cor_mean <- mean(epithelial_metadata$cor.estimate)
-    cor_std_dev <- sd(epithelial_metadata$cor.estimate)
-    x_int1 <- CNA_mean - (x_thresh_multiplier*CNA_std_dev)
-    y_int1 <- cor_mean - (y_thresh_multiplier*cor_std_dev)
-    normal_outliers <- rownames(epithelial_metadata)[
-      epithelial_metadata$cor.estimate < y_int1
-    ]
-    x_int2 <- CNA_mean + (normal_x_threshold_sd_multiplier*cor_std_dev)
-    y_int2 <- cor_mean + (normal_y_threshold_sd_multiplier*cor_std_dev)
-    cancer_outliers <- rownames(epithelial_metadata)[
-      epithelial_metadata$CNA_value > x_int2 & epithelial_metadata$cor.estimate > y_int2
-    ]
-    if (length(normal_outliers) >= length(cancer_outliers)) {
-      x_int <- round(x_int1, 3)
-      y_int <- round(y_int1, 3)
-    } else if (length(normal_outliers) < length(cancer_outliers)) {
-      x_int <- round(x_int2, 3)
-      y_int <- round(y_int2, 3)
-    }
+    # identify the medoid cell of the only cluster, assuming it to be 
+    # cancer:
+    cluster_medoid <- rownames(silhouette_result$medoids)
+
+    # define 1st x-axis threshold as n std devs left of cluster medoid:
+    CNA_std_dev1 <- sd(temp_metadata$CNA_value)
+    x_outlier_left <- round(
+      temp_metadata$CNA_value[temp_metadata$cell_ids %in% cluster_medoid] - 
+      (CNA_std_dev1*x_thresh_multiplier), 3
+    )
+    x_outlier_right <- round(
+      temp_metadata$CNA_value[temp_metadata$cell_ids %in% cluster_medoid] +
+      (CNA_std_dev1*x_thresh_multiplier), 3
+    )
+
+    # define 1st y-axis threshold as n std devs below of cancer medoid:
+    cor_std_dev1 <- sd(temp_metadata$cor.est)
+    y_outlier_bottom <- round(
+      temp_metadata$cor.est[temp_metadata$cell_ids %in% cluster_medoid] - 
+      (cor_std_dev1*y_thresh_multiplier), 3
+    )
+    y_outlier_top <- round(
+      temp_metadata$cor.est[temp_metadata$cell_ids %in% cluster_medoid] + 
+      (cor_std_dev1*y_thresh_multiplier), 3
+    )
+
+    # remove outliers based on these thresholds:
+    temp_metadata$outlier <- TRUE
+    temp_metadata$outlier[
+      temp_metadata$CNA_value > x_outlier_left & 
+      temp_metadata$CNA_value < x_outlier_right &
+      temp_metadata$cor.est > y_outlier_bottom & 
+      temp_metadata$cor.est < y_outlier_top
+    ] <- FALSE
+
+    # define 2nd x-axis threshold as n std devs left of cluster medoid 
+    # without outliers included:
+    CNA_std_dev2 <- sd(temp_metadata$CNA_value[!(temp_metadata$outlier)])
+    x_int <- round(
+      temp_metadata$CNA_value[temp_metadata$cell_ids %in% cluster_medoid] - 
+      (CNA_std_dev2*x_thresh_multiplier), 3
+    )
+
+    # define 1st y-axis threshold as n std devs below of cancer medoid
+    # without outliers included:
+    cor_std_dev2 <- sd(temp_metadata$cor.est[!(temp_metadata$outlier)])
+    y_int <- round(
+      temp_metadata$cor.est[temp_metadata$cell_ids %in% cluster_medoid] - 
+      (cor_std_dev2*y_thresh_multiplier), 3
+    )
+
     # define normal and cancer cells:
-    epithelial_metadata$normal_cell_call <- "cancer"
-    epithelial_metadata$normal_cell_call[
-      epithelial_metadata$CNA_value < x_int & epithelial_metadata$cor.estimate < y_int
+    temp_metadata$normal_cell_call <- "cancer"
+    temp_metadata$normal_cell_call[
+      temp_metadata$CNA_value < x_int & temp_metadata$cor.estimate < y_int
     ] <- "normal"
-    epithelial_metadata$normal_cell_call[
-      epithelial_metadata$CNA_value < x_int & epithelial_metadata$cor.estimate > y_int
+    temp_metadata$normal_cell_call[
+      temp_metadata$CNA_value < x_int & temp_metadata$cor.estimate > y_int
     ] <- "unassigned"
-    epithelial_metadata$normal_cell_call[
-      epithelial_metadata$CNA_value > x_int & epithelial_metadata$cor.estimate < y_int
+    temp_metadata$normal_cell_call[
+      temp_metadata$CNA_value > x_int & temp_metadata$cor.estimate < y_int
     ] <- "unassigned"
-    # create quad plot:
-    if (!("cancer" %in% unique(epithelial_metadata$normal_cell_call))) {
-      p <- ggplot(epithelial_metadata, 
-                  aes(x=CNA_value, y=cor.estimate, color=as.factor(normal_cell_call)))
-      p <- p + geom_point()
-      p <- p + scale_color_manual(values=c("#74add1", "#b2182b"), 
-                                    labels=c("Normal", "Unassigned"))
-      p <- p + xlab("Infercnv level")
-      p <- p + ylab("Corr. with top 5% cancer (p<0.05)")
-      p <- p + theme(legend.title = element_blank())
-      p <- p + geom_vline(xintercept = x_int)
-      p <- p + geom_hline(yintercept = y_int)
-    } else if (!("normal" %in% unique(epithelial_metadata$normal_cell_call))) {
-      p <- ggplot(epithelial_metadata, 
-                  aes(x=CNA_value, y=cor.estimate, color=as.factor(normal_cell_call)))
-      p <- p + geom_point()
-      p <- p + scale_color_manual(values=c("black", "#b2182b"), 
-                                    labels=c("Cancer", "Unassigned"))
-      p <- p + xlab("Infercnv level")
-      p <- p + ylab("Corr. with top 5% cancer (p<0.05)")
-      p <- p + theme(legend.title = element_blank())
-      p <- p + geom_vline(xintercept = x_int)
-      p <- p + geom_hline(yintercept = y_int)
-    } else if (!("unassigned" %in% unique(epithelial_metadata$normal_cell_call))) {
-      p <- ggplot(epithelial_metadata, 
-        aes(x=CNA_value, y=cor.estimate, color=as.factor(normal_cell_call)))
-      p <- p + geom_point()
-      p <- p + scale_color_manual(values=c("black", "#74add1"), 
-                                    labels=c("Cancer", "Normal"))
-      p <- p + xlab("CNA value")
-      p <- p + ylab("Corr. with top 5% cancer")
-      p <- p + theme(legend.title = element_blank())
-      p <- p + geom_vline(xintercept = x_int)
-      p <- p + geom_hline(yintercept = y_int)
-    } else if (length(unique(epithelial_metadata$normal_cell_call)) == 3) {
-      p <- ggplot(epithelial_metadata, 
-          aes(x=CNA_value, y=cor.estimate, color=as.factor(normal_cell_call)))
-      p <- p + geom_point()
-      p <- p + scale_color_manual(values=c("black", "#74add1", "#b2182b"), 
-                                    labels=c("Cancer", "Normal", "Unassigned"))
-      p <- p + xlab("Infercnv level")
-      p <- p + ylab("Corr. with top 5% cancer (p<0.05)")
-      p <- p + theme(legend.title = element_blank())
-      p <- p + geom_vline(xintercept = x_int)
-      p <- p + geom_hline(yintercept = y_int)
-    }
+    
+    # create quad plots:
+    p <- ggplot(temp_metadata, 
+                aes(x=CNA_value, y=cor.estimate, color=as.factor(normal_cell_call)))
+    p <- p + geom_point()
+    p <- p + scale_color_manual(values=c("black", "#74add1", "#b2182b"), 
+                                  labels=c("Cancer", "Normal", "Unassigned"))
+    p <- p + xlab("CNA value")
+    p <- p + ylab("Corr. with top 5% cancer")
+    p <- p + theme(legend.title = element_blank())
+    p <- p + geom_hline(yintercept = y_int)
+    p <- p + geom_vline(xintercept = x_int)
+
     png(paste0(plot_dir, 
-      "normal_call_quad_plot_mean_of_scaled_squares.png"), 
-      width = 450, height = 270)
+        "normal_quad_plot.png"), 
+        width = 450, height = 270)
+        print(p)
+    dev.off()
+  
+    p
+    ggsave(paste0(plot_dir, "normal_quad_plot_outlier_lines.pdf"),
+    width = 18, height = 13, units = c("cm"))
+    dev.off()
+  
+    # add outlier lines:
+    p <- p + geom_vline(xintercept = x_outlier_left, colour="red")
+    p <- p + geom_vline(xintercept = x_outlier_right, colour="red")
+    p <- p + geom_hline(yintercept = y_outlier_bottom, colour="red")
+    p <- p + geom_hline(yintercept = y_outlier_top, colour="red")
+    png(paste0(plot_dir, 
+        "normal_quad_plot_outlier_lines.png"), 
+        width = 450, height = 270)
+        print(p)
+    dev.off()
+  
+    p
+    ggsave(paste0(plot_dir, "normal_quad_plot_outlier_lines.pdf"),
+    width = 18, height = 13, units = c("cm"))
+    dev.off()
+  
+    # create quad plot with clusters marked:
+    temp_metadata$cluster <- "only_cluster"
+    p <- ggplot(temp_metadata, 
+      aes(x=CNA_value, y=cor.estimate, color=as.factor(cluster)))
+    p <- p + geom_point()
+    p <- p + scale_color_manual(values=c("#9B59B6", "#b8e186", "#18ffff", "#ef6c00"), 
+      labels=c("Cluster_1", "Cluster_2", "Cluster_3", "Cluster_4"))
+    p <- p + xlab("CNA value")
+    p <- p + ylab("Corr. with top 5% cancer")
+    p <- p + theme(legend.title = element_blank())
+    p <- p + geom_vline(xintercept = x_int)
+    p <- p + geom_hline(yintercept = y_int)
+    png(paste0(plot_dir, 
+      "normal_quad_plot_clusters.png"), width = 430, height = 250)
       print(p)
     dev.off()
+  
     p
-    ggsave(paste0(plot_dir, "normal_call_quad_plot_mean_of_scaled_squares.pdf"),
-      width = 18, height = 13, units = c("cm"))
+    ggsave(paste0(plot_dir, "normal_quad_plot_clusters.pdf"),
+    width = 18, height = 13, units = c("cm"))
     dev.off()
+  
+    return(temp_metadata)
+
   }
 }

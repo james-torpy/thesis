@@ -713,10 +713,19 @@ for (i in 1:nrow(artefact_only)) {
 
 }
 
-saveRDS(
-  artefact_gene_record,
-  paste0(Robject_dir, "artefact_gene_record.Rdata")
-)
+######
+
+## fetch all genes in artefacts:
+#all_artefact_genes <- lapply(artefact_gene_record, function(x) {
+#  gene_coords$gene_id[
+#    which(gene_coords$gene == x$first_ten[1]):which(gene_coords$gene == x$last_ten[10])
+#  ]
+#})
+#
+#saveRDS(
+#  all_artefact_genes,
+#  paste0(Robject_dir, "artefact_gene_record.Rdata")
+#)
 
 
 #######

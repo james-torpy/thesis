@@ -17,7 +17,7 @@ normals_removed <- as.logical(args[8])
 
 #project_name <- "thesis"
 #subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID4463"
+#sample_name <- "CID4515"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {
@@ -378,7 +378,4 @@ print_subcluster_signal(
   plot_dir,
   include_lengths = TRUE
 )
-
-
-
 
