@@ -12,26 +12,39 @@ if (subcluster_p != "none") {
 }
 coverage_filter <- args[4]
 remove_artefacts <- args[5]
-x_outlier_multiplier <- as.numeric(args[6])
-x_thresh_multiplier <- as.numeric(args[7])
-y_outlier_multiplier <- as.numeric(args[8])
-y_thresh_multiplier <- as.numeric(args[9])
-remove_normals <- as.logical(args[10])
-min_subcluster_cells <- as.numeric(args[11])
-subcluster_merge <- as.logical(args[12])
-merge_thresh <- as.numeric(args[13])
-merge_diff_prop <- as.numeric(args[14])
-order_by <- args[15]
-subcluster_annot <- as.logical(args[16])
-subcluster_legend <- as.logical(args[17])
-normal_in_subcluster_annot <- as.logical(args[18])
-expression_annot <- as.logical(args[19])
-expression_legend <- as.logical(args[20])
-QC_annot <- as.logical(args[21])
-normal_annot <- as.logical(args[22])
-normal_legend <- as.logical(args[23])
-plot_references <- as.logical(args[24])
-array_CNVs <- as.logical(args[25])
+epi_res <- args[6]
+epi_PC <- args[7]
+x_outlier_multiplier <- as.numeric(args[8])
+x_thresh_multiplier <- as.numeric(args[9])
+y_outlier_multiplier <- as.numeric(args[10])
+y_thresh_multiplier <- as.numeric(args[11])
+min_cluster_cells <- as.numeric(args[12])
+subcluster_merge <- as.logical(args[13])
+merge_thresh <- as.numeric(args[14])
+merge_diff_prop <- as.numeric(args[15])
+order_by <- args[16]
+QC_annot <- as.logical(args[17])
+plot_references <- as.logical(args[18])
+array_CNVs <- as.logical(args[19])
+plot_type <- args[20]
+
+if (plot_type == "normals_annotated") {
+  remove_normals <- FALSE
+  subcluster_annot <- FALSE
+  subcluster_legend <- FALSE
+  expression_annot <- FALSE
+  expression_legend <- FALSE
+  normal_annot <- TRUE
+  normal_legend <- TRUE
+} else if (plot_type == "clusters_annotated") {
+  remove_normals <- TRUE
+  subcluster_annot <- TRUE
+  subcluster_legend <- TRUE
+  expression_annot <- TRUE
+  expression_legend <- TRUE
+  normal_annot <- FALSE
+  normal_legend <- FALSE
+}
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -44,14 +57,13 @@ print(paste0("X-axis threshold multiplier = ", x_thresh_multiplier))
 print(paste0("Y-axis outlier threshold multiplier = ", y_outlier_multiplier))
 print(paste0("Y-axis threshold multiplier = ", y_thresh_multiplier))
 print(paste0("Remove normal cells? ", remove_normals))
-print(paste0("Minimum cells required to call CNV subcluster = ", min_subcluster_cells))
+print(paste0("Minimum cells required to call CNV subcluster = ", min_cluster_cells))
 print(paste0("Merge identical subclusters? ", subcluster_merge))
 print(paste0("Minimum correlation required to merge subclusters ", merge_thresh))
 print(paste0("Proportion of less coverage subcluster to more coverage required to merge subclusters ", merge_diff_prop))
 print(paste0("Order cells by = ", order_by))
 print(paste0("Print subcluster annotation? ", subcluster_annot))
 print(paste0("Print subcluster legend? ", subcluster_legend))
-print(paste0("Label normals in subcluster legend? ", normal_in_subcluster_annot))
 print(paste0("Print expression annotation? ", expression_annot))
 print(paste0("Print expression legend? ", expression_legend))
 print(paste0("Print QC annotations? ", QC_annot))
@@ -62,7 +74,7 @@ print(paste0("Array CNVs? ", array_CNVs))
 
 #project_name <- "thesis"
 #subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID45172"
+#sample_name <- "CID4463"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {
@@ -70,26 +82,39 @@ print(paste0("Array CNVs? ", array_CNVs))
 #}
 #coverage_filter <- "filtered"
 #remove_artefacts <- "artefacts_not_removed"
+#epi_res <- "PC_C_res.1"
+#epi_PC <- "C"
 #x_outlier_multiplier <- 1.5
 #x_thresh_multiplier <- 3
 #y_outlier_multiplier <- 1.5
 #y_thresh_multiplier <- 3
-#remove_normals <- TRUE
-#min_subcluster_cells <- 5
+#min_cluster_cells <- 5
 #subcluster_merge <- TRUE
 #merge_thresh <- 0.95
 #merge_diff_prop <- 0.75
 #order_by <- "CNV"
-#subcluster_annot <- TRUE
-#subcluster_legend <- TRUE
-#normal_in_subcluster_annot <- FALSE
-#expression_annot <- TRUE
-#expression_legend <- TRUE
 #QC_annot <- TRUE
-#normal_annot <- FALSE
-#normal_legend <- FALSE
 #plot_references <- FALSE
 #array_CNVs <- FALSE
+#plot_type <- "clusters_annotated"
+#
+#if (plot_type == "normals_annotated") {
+#  remove_normals <- FALSE
+#  subcluster_annot <- FALSE
+#  subcluster_legend <- FALSE
+#  expression_annot <- FALSE
+#  expression_legend <- FALSE
+#  normal_annot <- TRUE
+#  normal_legend <- TRUE
+#} else if (plot_type == "clusters_annotated") {
+#  remove_normals <- TRUE
+#  subcluster_annot <- TRUE
+#  subcluster_legend <- TRUE
+#  expression_annot <- TRUE
+#  expression_legend <- TRUE
+#  normal_annot <- FALSE
+#  normal_legend <- FALSE
+#}
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(scales, lib.loc = lib_loc)
@@ -145,7 +170,7 @@ if (any(c(expression_annot, subcluster_annot, QC_annot, normal_annot))) {
   if (subcluster_annot) {
     filename <- paste0(filename, "_CNV_subclusters")
   }
-  if (normal_annot | normal_in_subcluster_annot) {
+  if (normal_annot) {
     filename <- paste0(filename, "_normals")
   }
   if (QC_annot) {
@@ -180,6 +205,20 @@ col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3"), brewe
   "#A93226", "#E611ED","orange", "#b8bc53", "#5628ce", "#fa909c", "#8ff331")
 col_palette <- col_palette[-7]
 
+expr_cols <- read.table(
+  paste0(ref_dir, "expression_colour_palette.txt"),
+  header = F,
+  stringsAsFactors = F,
+  comment.char = ""
+)[,1]
+
+subcluster_cols <- read.table(
+  paste0(ref_dir, "CNV_colour_palette.txt"),
+  header = F,
+  stringsAsFactors = F,
+  comment.char = ""
+)[,1]
+
 
 ################################################################################
 ### 1. Load InferCNV output and create heatmap and metadata dfs ###
@@ -211,6 +250,26 @@ if (!file.exists(paste0(Robject_dir, "/1b.initial_epithelial_metadata.Rdata"))) 
     "No cells in metadata after filtering for those in heatmap only = ", 
     nrow(epithelial_metadata)
   ))
+
+  # load reclustered epithelial seurat object:
+  seurat_epi <- readRDS(
+    paste0(seurat_dir, "05_seurat_object_epithelial_reclustered.Rdata")
+  )
+  # choose resolution if needed:
+  if (epi_res != "none") {
+    Idents(seurat_epi) <- eval(
+      parse(
+        text = paste0("seurat_epi@meta.data$", epi_res)
+      )
+    )
+  }
+  # add expression cluster column to metadata:
+  epithelial_metadata$expression_id <- paste0(
+    "Expression_",
+    Idents(seurat_epi)[
+      match(epithelial_metadata$cell_ids, names(Idents(seurat_epi)))
+    ]
+  )
 
   saveRDS(epithelial_heatmap, paste0(Robject_dir, 
     "/1a.initial_epithelial_heatmap.Rdata"))
@@ -317,7 +376,7 @@ if (!file.exists(
   )
 
   # if needed, label normals and unassigned in subcluster annotation:
-  if (subcluster_method == "random_trees" & normal_in_subcluster_annot) {
+  if (subcluster_method == "random_trees") {
   	epithelial_metadata$subcluster_id <- as.character(
   	  epithelial_metadata$subcluster_id
   	)
@@ -328,6 +387,17 @@ if (!file.exists(
   	  epithelial_metadata$normal_cell_call == "unassigned"
   	] <- "unassigned"
   }
+
+  # do the same for expression clusters:
+  epithelial_metadata$expression_id <- as.character(
+    epithelial_metadata$expression_id
+  )
+  epithelial_metadata$expression_id[
+    epithelial_metadata$normal_cell_call == "normal"
+  ] <- "normal"
+  epithelial_metadata$expression_id[
+    epithelial_metadata$normal_cell_call == "unassigned"
+  ] <- "unassigned"
 
   saveRDS(
     epithelial_metadata,
@@ -362,13 +432,31 @@ if (remove_normals) {
 ### 4. Filter and merge subclusters ###
 ################################################################################
 
+# remove expression clusters with less than n cells:
+remove_expression_clusters <- names(
+  which(
+    lapply(
+      split(epithelial_metadata, epithelial_metadata$expression_id),
+      nrow
+    ) < min_cluster_cells
+  )
+)
+epithelial_metadata <- epithelial_metadata[
+  !(epithelial_metadata$expression_id %in% remove_expression_clusters),
+]
+# update heatmap:
+temp_heatmap <- epithelial_heatmap %>%
+  rownames_to_column() %>%
+  filter(rownames(epithelial_heatmap) %in% epithelial_metadata$cell_ids) %>%
+  column_to_rownames()
+
 # remove subclusters with less than n cells:
 remove_subclusters <- names(
   which(
     lapply(
       split(epithelial_metadata, epithelial_metadata$subcluster_id),
       nrow
-    ) < min_subcluster_cells
+    ) < min_cluster_cells
   )
 )
 epithelial_metadata <- epithelial_metadata[
@@ -392,7 +480,7 @@ if (subcluster_merge) {
  
 }
 
-if (subcluster_method == "random_trees" & normal_in_subcluster_annot) {
+if (subcluster_method == "random_trees") {
  
   # update subcluster ids:
   no_subclusters <- length(
@@ -428,20 +516,34 @@ if (subcluster_method == "random_trees" & normal_in_subcluster_annot) {
 
 }
 
-
-################################################################################
-### 5. Order metadata ###
-################################################################################
-
-# reassign cluster names in numerical order:
-epithelial_metadata$cell_type <- as.factor(epithelial_metadata$cell_type)
-levels(epithelial_metadata$cell_type) <- paste0(
-  "Epithelial_",
-  1:length(levels(epithelial_metadata$cell_type))
+# reassign expression cluster names in numerical order:
+epithelial_metadata$expression_id <- factor(
+  epithelial_metadata$expression_id,
+  levels = naturalsort(unique(epithelial_metadata$expression_id))
 )
 
+if (!remove_normals) {
+
+  levels(epithelial_metadata$expression_id) <- c(
+    paste0(
+      "Expression_",
+      1:(length(levels(epithelial_metadata$expression_id))-2)
+    ),
+    "normal",
+    "unassigned"
+  )
+
+} else {
+
+  levels(epithelial_metadata$expression_id) <- paste0(
+    "Expression_",
+    1:length(levels(epithelial_metadata$expression_id))
+  )
+
+}
+ 
 epithelial_metadata$subcluster_id <- as.factor(epithelial_metadata$subcluster_id)
-if (normal_in_subcluster_annot) {
+if (!remove_normals) {
   levels(epithelial_metadata$subcluster_id)[
     grep("CNV", levels(epithelial_metadata$subcluster_id))
   ] <- paste0(
@@ -457,6 +559,10 @@ if (normal_in_subcluster_annot) {
   )
 }
 
+
+################################################################################
+### 5. Order metadata ###
+################################################################################
 
 if (order_by == "CNV") {
 
@@ -589,17 +695,13 @@ if (remove_normals) {
 # create expression cluster annotation:
 if (expression_annot) {
 
-  # change factor levels of cell_type column:
-  epithelial_metadata$cell_type <- factor(
-    as.character(epithelial_metadata$cell_type),
-    levels <- naturalsort(unique(epithelial_metadata$cell_type))
-  )
   # define cluster annotation colours:
-  expr_number <- length(unique(epithelial_metadata$cell_type))
-  expr_cols <- col_palette[1:expr_number]
-  names(expr_cols) <- unique(epithelial_metadata$cell_type)
+  expr_number <- length(unique(epithelial_metadata$expression_id))
+  expr_cols <- expr_cols[1:expr_number]
+  names(expr_cols) <- levels(epithelial_metadata$expression_id)
 
-  expr_annot_df <- subset(epithelial_metadata, select = cell_type)
+  expr_annot_df <- subset(epithelial_metadata, select = expression_id)
+
   expr_annot <- Heatmap(
     as.matrix(expr_annot_df), 
     col = expr_cols,
@@ -608,13 +710,14 @@ if (expression_annot) {
     show_row_names = F, show_column_names = F,
     show_heatmap_legend = FALSE
   )
+  
 }
 
 # create CNV subcluster annotation:
 if (subcluster_annot) {
   # create CNV subcluster annotation:
   subcluster_annot_df <- subset(epithelial_metadata, select = subcluster_id)
-  subcluster_cols <- rev(col_palette)[
+  subcluster_cols <- subcluster_cols[
     1:length(unique(subcluster_annot_df$subcluster_id))
   ]
   names(subcluster_cols) <- unique(subcluster_annot_df$subcluster_id)
@@ -902,7 +1005,7 @@ if (plot_references) {
   
       # print expression legend:
       if (expression_legend) {
-        create_legend("Expression", epithelial_metadata$cell_type, expr_cols) 
+        create_legend("Expression", epithelial_metadata$expression_id, expr_cols) 
       }
    
       # label QC annotations:
@@ -966,8 +1069,8 @@ if (plot_references) {
           height = unit(10, "cm"), just="bottom"))
         #grid.rect()
           create_legend(
-            "Expression", 
-            epithelial_metadata$cell_type, 
+            "Expression",
+            epithelial_metadata$expression_id,
             sort_labs = TRUE,
             expr_cols,
             lib_loc

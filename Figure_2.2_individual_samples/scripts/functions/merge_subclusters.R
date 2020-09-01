@@ -51,20 +51,25 @@ merge_subclusters <- function(
     all_cors$R2 >= cor_thresh & all_cors$p_val < 0.05 &
     all_cors$query != all_cors$subject,
   ]
-  final_cors$keep <- TRUE
-  for (f in 1:nrow(final_cors)) {
-    if (f!=1) {
-      if (final_cors$query[f] == final_cors$subject[f-1] &
-        final_cors$subject[f] == final_cors$query[f-1]) {
-        final_cors$keep[f] <- FALSE
+
+  if (nrow(final_cors) > 0) {
+
+    final_cors$keep <- TRUE
+    for (f in 1:nrow(final_cors)) {
+      if (f!=1) {
+        if (final_cors$query[f] == final_cors$subject[f-1] &
+          final_cors$subject[f] == final_cors$query[f-1]) {
+          final_cors$keep[f] <- FALSE
+        }
       }
     }
-  }
-  final_cors <- final_cors[final_cors$keep,]
-  # reduce correlation df to only those subclusters which differ
-  # enough in mean coverage:
-  if (nrow(final_cors > 0)) {
+    final_cors <- final_cors[final_cors$keep,]
+    # reduce correlation df to only those subclusters which differ
+    # enough in mean coverage:
+  
     for (c in 1:nrow(final_cors)) {
+      if (final_cors$query[c] %in% temp_metadata$subcluster_id & 
+        final_cors$subject[c] %in% temp_metadata$subcluster_id)
       # find query and subject nUMI:
       mean_UMI <- c(
         query = round(

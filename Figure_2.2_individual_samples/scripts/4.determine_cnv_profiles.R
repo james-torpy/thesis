@@ -126,14 +126,14 @@ col_palette <- col_palette[-7]
 print("Loading heatmap and metadata dfs...")
 
 epithelial_heatmap <- readRDS(paste0(Robject_dir, 
-  "/4a.final_epithelial_heatmap.Rdata"))
+  "/5a.final_epithelial_heatmap_without_normals.Rdata"))
 
 if (normals_removed) {
   epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "/4b.final_epithelial_metadata_without_normals.Rdata"))
+    "/5b.final_epithelial_metadata_without_normals.Rdata"))
 } else {
   epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "/4b.final_epithelial_metadata_with_normals.Rdata"))
+    "/5b.final_epithelial_metadata_with_normals.Rdata"))
 }
 
 print(paste0(

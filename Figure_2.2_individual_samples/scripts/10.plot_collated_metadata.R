@@ -109,8 +109,12 @@ print(paste0("Plot directory = ", plot_dir))
 
 
 ################################################################################
-### 0. Load colour palette ###
+### 0. Load functions and colour palette ###
 ################################################################################
+
+plot_densities <- dget(
+  paste0(func_dir, "plot_densities.R")
+)
 
 subtype_cols <- read.table(
   paste0(ref_dir, "subtype_colour_palette.txt"),
@@ -120,6 +124,7 @@ subtype_cols <- read.table(
 )
 m <- match(c("ER", "HER2", "TNBC"), subtype_cols$V1)
 subtype_cols <- subtype_cols$V2[m]
+names(subtype_cols) <- c("ER", "HER2", "TNBC")
 
 
 ################################################################################
@@ -218,44 +223,63 @@ write.table(
 
 
 ################################################################################
-### 3. Split by subtype ###
+### 3. Plot data ###
 ################################################################################
 
-# split subtype no by subtype
-split_subpop_no <- split(subpop_no, as.character(subtype_df$subtype))
-names(split_subpop_no) <- c("ER", "HER2", "TNBC")
-
-# use one-tailed t-test to determine whether sig diff between TNBC and rest:
-t_result <- t.test(
-  split_subpop_no$TNBC, 
-  c(split_subpop_no$ER, split_subpop_no$HER2),
-  alternative = "greater"
+plot_densities(
+  CNV_counts,
+  "counts",
+  subtype_df,
+  plot_dir
 )
 
-# determine mean subtype no for TNBC:
-mean_TNBC_subtypes <- mean(split_subpop_no$TNBC)
+mean(CNV_counts)
 
+# collate all lengths and rename each as sample of origin:
+length_vec <- unlist(CNV_lengths)
+for (l in 1:length(CNV_lengths)) {
+  if (l==1) {
+    vec_names <- rep(names(CNV_lengths)[l], length(CNV_lengths[[l]]))
+  } else {
+    vec_names <- c(
+      vec_names, 
+      rep(names(CNV_lengths)[l], length(CNV_lengths[[l]]))
+    )
+  }
+}
+names(length_vec) <- vec_names
 
-################################################################################
-### 4. Plot data ###
-################################################################################
+plot_densities(
+  length_vec,
+  "lengths",
+  subtype_df,
+  plot_dir
+)
 
-# plot distribution of CNV numbers across all:
-count_density_plot <- density(CNV_counts)
-pdf(paste0(plot_dir, "count_density_plot.pdf"))
-  plot(count_density_plot, main=NA, xlab = "CNV count")
-dev.off()
+mean(length_vec)
 
-# plot distribution of CNV lengths across all:
-length_density_plot <- density(unlist(CNV_lengths))
-pdf(paste0(plot_dir, "length_density_plot.pdf"))
-  plot(length_density_plot, main=NA, xlab = "CNV length")
-dev.off()
+# collate all lengths and rename each as sample of origin:
+genomic_length_vec <- unlist(CNV_genomic_lengths)
+for (l in 1:length(CNV_genomic_lengths)) {
+  if (l==1) {
+    vec_names <- rep(names(CNV_genomic_lengths)[l], length(CNV_genomic_lengths[[l]]))
+  } else {
+    vec_names <- c(
+      vec_names, 
+      rep(names(CNV_genomic_lengths)[l], length(CNV_genomic_lengths[[l]]))
+    )
+  }
+}
+names(genomic_length_vec) <- vec_names
 
-genomic_length_density_plot <- density(unlist(CNV_genomic_lengths))
-pdf(paste0(plot_dir, "genomic_length_density_plot.pdf"))
-  plot(genomic_length_density_plot, main=NA, xlab = "CNV length")
-dev.off()
+plot_densities(
+  genomic_length_vec,
+  "genomic_lengths",
+  subtype_df,
+  plot_dir
+)
+
+mean(genomic_length_vec)
 
 p <- ggplot(CNV_dist_data, aes(x=sample_name, y=no_subpops, fill=subtype))
 p <- p + geom_bar(stat = "identity")
@@ -282,6 +306,30 @@ system(paste0("for p in ", plot_dir, "*.pdf; do echo $p; f=$(basename $p); echo 
 "new=$(echo $f | sed 's/.pdf/.png/'); echo $new; ", 
 "convert -density 150 ", plot_dir, "$f -quality 90 ", plot_dir, "$new; done"))
 
+
+################################################################################
+### 4. Determine significant differences ###
+################################################################################
+
+# split subtype no by subtype
+split_subpop_no <- split(subpop_no, as.character(subtype_df$subtype))
+names(split_subpop_no) <- c("ER", "HER2", "TNBC")
+
+# use one-tailed t-test to determine whether sig diff between TNBC subpop no 
+# and rest:
+subpop_t <- t.test(
+  split_subpop_no$TNBC, 
+  c(split_subpop_no$ER, split_subpop_no$HER2),
+  alternative = "greater"
+)
+
+# use one-tailed t-test to determine whether sig diff between ER CNV count no 
+# and rest:
+length_t <- t.test(
+  spl_counts$ER, 
+  c(spl_counts$HER, spl_counts$TNBC),
+  alternative = "less"
+)
 
 
 

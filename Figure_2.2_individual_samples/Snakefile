@@ -1,5 +1,5 @@
 # Run command:
-# snakemake --reason --cores 66 --cluster "qsub -pe smp 3 -N fig2.2.smk -b y -j y -V -P TumourProgression" -j 22
+# snakemake --reason --cores 150 --cluster "qsub -pe smp 3 -N fig2.2.smk -b y -j y -V -P TumourProgression" -j 50
 
 # DAG command:
 # snakemake --dag | dot -Tsvg > dag.svg
@@ -10,18 +10,21 @@
 R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
 
 # following samples need 20 cores:
-SAMPLES = list(["CID3586", "CID3921", "CID3941",
-  "CID3948", "CID3963", "CID4066",
-  "CID4067", "CID4290A", "CID4398", 
-  "CID4461", "CID4463", "CID4465", 
-  "CID4513", "CID4515", "CID4523", 
-  "CID4530N", "CID4535", "CID44041", 
-  "CID44971", "CID44991", "CID45171",
-  "CID45172"
+#SAMPLES = list(["CID3586", "CID3921", "CID3941",
+#  "CID3948", "CID3963", "CID4066",
+#  "CID4067", "CID4290A", 
+#  "CID4461", "CID4463", "CID4465", 
+#  "CID4513", "CID4515", "CID4523", 
+#  "CID4530N", "CID4535", "CID44041", 
+#  "CID44971", "CID44991", "CID45171",
+#  "CID45172"
 ##  , "CID44972",
 ##  "CID44042", "CID43863"
-])
-#SAMPLES = list(["CID3941"])
+#])
+SAMPLES = list(["CID4463", "CID45171", "CID4515"])
+
+# need to locate reclustered seurat for following:
+# "CID4398"
 
 ## samples which did not work at p<0.05:
 #"CID4471", "CID4495"
@@ -47,13 +50,15 @@ exclude_clusters = "none"
 
 # plot parameters:
 remove_artefacts="artefacts_not_removed"
+epi_res="PC_C_res.1"
+epi_PC="C"
 x_outlier_multiplier="1.5"
 x_thresh_multiplier="3"
 y_outlier_multiplier="1.5"
 y_thresh_multiplier="3"
 subcluster_method="random_trees"
 subcluster_p="0.05"
-min_subcluster_cells="5"
+min_cluster_cells="5"
 subcluster_merge="TRUE"
 merge_thresh="0.95"
 merge_diff_prop="0.75"
@@ -75,10 +80,12 @@ min_CNV_length = "20"
 min_CNV_proportion = "0.5"
 
 # DE parameters:
+adj_p_cutoff = "0.1"
 specific_DE = "none"
-specific_features = "ELF5_GATA3_MDK_CXCL17_MGST1_TACSTD2_MUCL1_S100A14_S100A16" + \
-    "_CTSD_ASCL1_SLC9A3R1_TFPI2_TMEM176A_IFI6_AREG_IFITM1_ZFP36_" + \
-    "NDRG1_IGFBP5_MUCL1_PCAT1_KRT15_FTH1"
+#specific_features = "ELF5_GATA3_MDK_CXCL17_MGST1_TACSTD2_MUCL1_S100A14_S100A16" + \
+#    "_CTSD_ASCL1_SLC9A3R1_TFPI2_TMEM176A_IFI6_AREG_IFITM1_ZFP36_" + \
+#    "NDRG1_IGFBP5_MUCL1_PCAT1_KRT15_FTH1"
+specific_features = "MUCL1_IGFBP5_NDRG1_ELF5_ELF3_MDK_CXCL14_LY6D_CCND1_DUSP1_TIMP1_SERPINF1_SERPINB4_S100A6_S100A14_S100A16"
 
 # for CID4463:
 #specific_DE="CNV_1.CNV_2..CNV_3.CNV_4.CNV_5.CNV_6"
@@ -131,6 +138,14 @@ rule all:
             "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/plots/DE/" + 
             "top_subpop_DE_heatmap.png",
+            sample=SAMPLES, coverage_filter=coverage_filter, 
+            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
+            remove_artefacts=remove_artefacts
+        ),
+         expand(
+            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/tables/" + 
+            "all_gene_subpop_DE.txt",
             sample=SAMPLES, coverage_filter=coverage_filter, 
             subcluster_method=subcluster_method, subcluster_p=subcluster_p,
             remove_artefacts=remove_artefacts
@@ -209,26 +224,21 @@ rule plot_normal_annotations:
         " {wildcards.subcluster_p}" +
         " {wildcards.coverage_filter}" +
         " {remove_artefacts}" +
+        " {epi_res}" +
+        " {epi_PC}" +
         " {x_outlier_multiplier}" +
         " {x_thresh_multiplier}" +
         " {y_outlier_multiplier}" +
         " {y_thresh_multiplier}" +
-        " FALSE" + # remove normals
-        " {min_subcluster_cells}" + 
+        " {min_cluster_cells}" + 
         " {subcluster_merge}" +
         " {merge_thresh}" +
         " {merge_diff_prop}" +
         " CNV" + # order by
-        " FALSE" + # subcluster annot
-        " FALSE" + # subcluster legend
-        " TRUE" + # normal in subcluster annot
-        " FALSE" +  # expression_annot
-        " FALSE" + # expression_legend
         " TRUE" + # QC_annot
-        " TRUE" + # normal annot
-        " TRUE" + # normal legend
         " {plot_references}" +
         " FALSE" + # array CNVs
+        " normals_annotated" +
         "' ../../../scripts/2.plot_individual_heatmap.R"
 
 rule plot_subcluster_annotations:
@@ -250,26 +260,21 @@ rule plot_subcluster_annotations:
         " {wildcards.subcluster_p}" +
         " {wildcards.coverage_filter}" +
         " {remove_artefacts}" +
+        " {epi_res}" +
+        " {epi_PC}" +
         " {x_outlier_multiplier}" +
         " {x_thresh_multiplier}" +
         " {y_outlier_multiplier}" +
         " {y_thresh_multiplier}" +
-        " TRUE" + # remove normals
-        " {min_subcluster_cells}" + 
+        " {min_cluster_cells}" + 
         " {subcluster_merge}" +
         " {merge_thresh}" +
         " {merge_diff_prop}" +
         " CNV" + # order by
-        " TRUE" + # subcluster annot
-        " TRUE" + # subcluster legened
-        " FALSE" + # normal in subcluster annot
-        " TRUE" +  # expression_annot
-        " TRUE" + # expression_legend
         " TRUE" + # QC_annot
-        " FALSE" + # normal annot
-        " FALSE" + # normal legend
         " {plot_references}" +
         " FALSE" + # array CNVs
+        " clusters_annotated" +
         "' ../../../scripts/2.plot_individual_heatmap.R"
 
 rule expression_plots:
@@ -335,11 +340,14 @@ rule subcluster_DE:
     input:
          "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/plots/" + 
-            "infercnv_plot_normals_QC_annotated.pdf"
+            "infercnv_plot_exp_clusters_CNV_subclusters_QC_annotated.pdf"
     output:
         "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/plots/DE/" + 
-            "top_subpop_DE_heatmap.png"
+            "top_subpop_DE_heatmap.png",
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/tables/" + 
+            "all_gene_subpop_DE.txt"
     threads: 3
     shell:
         "module load briglo/R/3.6.0; "
@@ -351,6 +359,7 @@ rule subcluster_DE:
         " {wildcards.subcluster_p}" +
         " {wildcards.coverage_filter}" +
         " {remove_artefacts}" + 
+        " {adj_p_cutoff}" +
         " {specific_DE}" +
         " {specific_features} " +
         "' ../../../scripts/5.subcluster_DE.R"

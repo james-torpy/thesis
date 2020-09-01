@@ -11,7 +11,8 @@ if (subcluster_p != "none") {
 }
 coverage_filter <- args[4]
 remove_artefacts <- args[5]
-specific_DE <- args[6]  # DE genes found for subclusters listed first
+adj_p_cutoff <- as.numeric(args[6])
+specific_DE <- args[7]  # DE genes found for subclusters listed first
 # compared to those listed second
 if (specific_DE != "none") {
   strsplit(
@@ -22,7 +23,7 @@ if (specific_DE != "none") {
     "\\."
   )
 }
-specific_features <- args[7]  
+specific_features <- args[8]  
 if (specific_features != "none") {
   specific_features <- strsplit(
     specific_features,
@@ -30,10 +31,9 @@ if (specific_features != "none") {
   )[[1]]
 }
 
-
 #project_name <- "thesis"
 #subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID3586"
+#sample_name <- "CID4463"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {
@@ -41,6 +41,7 @@ if (specific_features != "none") {
 #}
 #coverage_filter <- "filtered"
 #remove_artefacts <- "artefacts_not_removed"
+#adj_p_cutoff <- as.numeric("0.1")
 #specific_DE <- "none"
 ##specific_DE <- "CNV_1.CNV_2..CNV_3.CNV_4.CNV_5.CNV_6"
 #if (specific_DE != "none") {
@@ -53,13 +54,11 @@ if (specific_features != "none") {
 #  )
 #}
 #specific_features <- "none"
-##specific_features <- paste(
-##  c(
-##    "ELF5_GATA3_MDK_CXCL17_MGST1_TACSTD2_MUCL1_S100A14_S100A16_CTSD_ASCL1",
-##    "SLC9A3R1_TFPI2_TMEM176A",
-##    "IFI6_AREG_IFITM1_ZFP36"
-##  ), collapse = "_"
-##)
+#specific_features <- paste(
+# c(
+#    "MUCL1_IGFBP5_NDRG1_ELF5_ELF3_MDK_CXCL14_LY6D_CCND1_DUSP1_TIMP1_SERPINF1_SERPINB4_S100A6_S100A14_S100A16"
+# ), collapse = "_"
+#)
 #if (specific_features != "none") {
 #  specific_features <- strsplit(
 #    specific_features,
@@ -129,6 +128,13 @@ col_palette <- c(brewer.pal(8, "Dark2")[c(3:6,8)], brewer.pal(12, "Set3"), brewe
   "#A93226", "#E611ED","orange", "#b8bc53", "#5628ce", "#fa909c", "#8ff331","#270e26")
 col_palette <- col_palette[-7]
 
+subcluster_cols <- read.table(
+  paste0(ref_dir, "CNV_colour_palette.txt"),
+  header = F,
+  stringsAsFactors = F,
+  comment.char = ""
+)[,1]
+
 
 ################################################################################
 ### 1. Load and format data ###
@@ -141,7 +147,7 @@ seurat_10X <- readRDS(paste0(in_dir, "04_seurat_object_annotated.Rdata"))
 epi_meta <- readRDS(
   paste0(
     Robject_dir, 
-    "4b.final_epithelial_metadata_without_normals.Rdata"
+    "5b.final_epithelial_metadata_without_normals.Rdata"
   )
 )
 
@@ -168,7 +174,34 @@ seurat_sub <- subset(
 ### 2. DE between all subclusters and plot ###
 ################################################################################
 
-if (!file.exists(paste0(table_dir, "subpop_DE.txt"))) {
+if (!file.exists(paste0(table_dir, "all_gene_subpop_DE.txt"))) {
+
+  all_gene_DE <- FindAllMarkers(
+    only.pos = T,
+    object = seurat_sub,
+    min.pct = 0.5, 
+    logfc.threshold = 0, 
+    test.use = 'MAST',
+    return.thresh = 1
+  )
+
+  all_gene_DE_sorted <- arrange(all_gene_DE, cluster, desc(avg_logFC))
+
+  if (nrow(all_gene_DE_sorted) > 0) {
+
+    write.table(
+      all_gene_DE_sorted, 
+      paste0(table_dir, "all_gene_subpop_DE.txt"),
+      col.names = TRUE,
+      row.names = FALSE,
+      quote = FALSE
+    )
+
+  }
+
+}
+
+if (!file.exists(paste0(table_dir, "sig_subpop_DE.txt"))) {
 
   all_DE <- FindAllMarkers(
     only.pos = T,
@@ -180,179 +213,243 @@ if (!file.exists(paste0(table_dir, "subpop_DE.txt"))) {
 
   all_DE_sorted <- arrange(all_DE, cluster, desc(avg_logFC))
 
-  write.table(
-    all_DE_sorted, 
-    paste0(table_dir, "subpop_DE.txt"),
-    col.names = TRUE,
-    row.names = FALSE,
-    quote = FALSE
-  )
+  if (nrow(all_DE_sorted) > 0) {
 
+    write.table(
+      all_DE_sorted, 
+      paste0(table_dir, "subpop_DE.txt"),
+      col.names = TRUE,
+      row.names = FALSE,
+      quote = FALSE
+    )
+
+    # filter for adjusted p-value threshold:
+    filtered_DE <- all_DE_sorted[all_DE_sorted$p_val_adj < 0.1,]
+
+    write.table(
+      filtered_DE, 
+      paste0(table_dir, "sig_subpop_DE.txt"),
+      col.names = TRUE,
+      row.names = FALSE,
+      quote = FALSE
+    )
+
+  }
+  
 } else {
 
-  all_DE_sorted <- read.table(
-    paste0(table_dir, "subpop_DE.txt"),
+  filtered_DE <- read.table(
+    paste0(table_dir, "sig_subpop_DE.txt"),
     header = T
   )
 
 }
 
-heatmap_genes <- all_DE_sorted %>% 
+scaled_genes <- GetAssayData(seurat_sub, slot = "scale.data", assay = "RNA")
+
+if (exists("filtered_DE") & any(filtered_DE$gene %in% scaled_genes)) {
+
+  heatmap_genes <- filtered_DE %>% 
   group_by(cluster) %>% 
   top_n(10, avg_logFC)
 
-if (!file.exists(paste0(plot_dir, "top_subpop_DE_heatmap.png"))) {
-  hmap <- DoHeatmap(
-    seurat_sub,
-    features = heatmap_genes$gene,
-    group.by = "ident"
-  ) + theme(
-    text = element_text(size = 20)
-  )
-  
-  png(
-    paste0(plot_dir, "top_subpop_DE_heatmap.png"),
-    height = 9,
-    width = 15,
-    res = 300,
-    units = "in"
-  )
-    print(hmap)
-  dev.off()
-}
+  if (!file.exists(paste0(plot_dir, "top_subpop_DE_heatmap.png"))) {
 
-
-################################################################################
-### 2. DE between specific subclusters and plot ###
-################################################################################
-
-if (specific_DE != "none") {
-
-  filename <- paste0(
-    "DE_",
-    paste(specific_DE[[1]], collapse = "_"),
-    "_vs_",
-    paste(specific_DE[[2]], collapse = "_")
-  )
-  
-  if (!file.exists(paste0(plot_dir, filename))) {
-  
-    # merge Idents:
-    custom_seurat <- seurat_sub
-    custom_idents <- as.character(Idents(custom_seurat))
-    custom_idents[
-      custom_idents %in% specific_DE[[1]]
-    ] <- "CNV population 1"
-    custom_idents[
-      custom_idents %in% specific_DE[[2]]
-    ] <- "CNV population 2"
-    Idents(custom_seurat) <- factor(custom_idents)
-  
-    # scale all genes:
-    custom_seurat <- ScaleData(
-      custom_seurat, 
-      features = rownames(custom_seurat)
-    )
-  
-    # find DE markers:
-    custom_DE <- FindMarkers(
-      object = custom_seurat,
-      ident.1 = "CNV population 1",
-      ident.2 = "CNV population 2",
-      min.pct = 0.5, 
-      logfc.threshold = 0.75, 
-      test.use = 'MAST'
+    hmap <- DoHeatmap(
+      seurat_sub,
+      features = heatmap_genes$gene,
+      group.by = "ident"
+    ) + theme(
+      text = element_text(size = 20)
     )
     
-    # split into up and downregulated genes and take top 20 of each:
-    custom_DE_split <- split(
-      custom_DE, 
-      custom_DE$avg_logFC >0
+    png(
+      paste0(plot_dir, "top_subpop_DE_heatmap.png"),
+      height = 9,
+      width = 15,
+      res = 300,
+      units = "in"
     )
-    custom_DEs_sorted <- lapply(custom_DE_split, function(x) {
-      return(
-        x %>%
-          rownames_to_column(var = "gene") %>%
-          arrange(desc(avg_logFC)) %>% 
-          top_n(20, avg_logFC)
+      print(hmap)
+    dev.off()
+
+  }
+  
+
+  ################################################################################
+  ### 2. DE between specific subclusters and plot ###
+  ################################################################################
+  
+  if (specific_DE != "none") {
+  
+    filename <- paste0(
+      "DE_",
+      paste(specific_DE[[1]], collapse = "_"),
+      "_vs_",
+      paste(specific_DE[[2]], collapse = "_")
+    )
+    
+    if (!file.exists(paste0(plot_dir, filename))) {
+    
+      # merge Idents:
+      custom_seurat <- seurat_sub
+      custom_idents <- as.character(Idents(custom_seurat))
+      custom_idents[
+        custom_idents %in% specific_DE[[1]]
+      ] <- "CNV population 1"
+      custom_idents[
+        custom_idents %in% specific_DE[[2]]
+      ] <- "CNV population 2"
+      Idents(custom_seurat) <- factor(custom_idents)
+    
+      # scale all genes:
+      custom_seurat <- ScaleData(
+        custom_seurat, 
+        features = rownames(custom_seurat)
       )
-    })
-    custom_DE_sorted <- do.call("rbind", custom_DEs_sorted)
-
-    write.table(
-      custom_DE_sorted, 
-      paste0(table_dir, "custom_pop_DE.txt"),
-      col.names = TRUE,
-      row.names = FALSE,
-      quote = FALSE
-    )
-  
-    hmap <- DoHeatmap(
-      custom_seurat,
-      features = custom_DE_sorted$gene,
-      group.by = "ident"
-    ) + theme(
-      text = element_text(size = 20)
-    )
     
-    png(
-      paste0(plot_dir, "custom_pop_DE_heatmap.png"),
-      height = 9,
-      width = 15,
-      res = 300,
-      units = "in"
-    )
-      print(hmap)
-    dev.off()
+      # find DE markers:
+      custom_DE <- FindMarkers(
+        object = custom_seurat,
+        ident.1 = "CNV population 1",
+        ident.2 = "CNV population 2",
+        min.pct = 0.5, 
+        logfc.threshold = 0.75, 
+        test.use = 'MAST'
+      )
+      
+      # split into up and downregulated genes and take top 20 of each:
+      custom_DE_split <- split(
+        custom_DE, 
+        custom_DE$avg_logFC >0
+      )
+      custom_DEs_sorted <- lapply(custom_DE_split, function(x) {
+        return(
+          x %>%
+            rownames_to_column(var = "gene") %>%
+            arrange(desc(avg_logFC)) %>% 
+            top_n(20, avg_logFC)
+        )
+      })
+      custom_DE_sorted <- do.call("rbind", custom_DEs_sorted)
   
+      write.table(
+        custom_DE_sorted, 
+        paste0(table_dir, "custom_pop_DE.txt"),
+        col.names = TRUE,
+        row.names = FALSE,
+        quote = FALSE
+      )
+    
+      hmap <- DoHeatmap(
+        custom_seurat,
+        features = custom_DE_sorted$gene,
+        group.by = "ident"
+      ) + theme(
+        text = element_text(size = 20)
+      )
+      
+      png(
+        paste0(plot_dir, "custom_pop_DE_heatmap.png"),
+        height = 9,
+        width = 15,
+        res = 300,
+        units = "in"
+      )
+        print(hmap)
+      dev.off()
+    
+    }
+  
+    if (specific_features[1] != "none") {
+  
+      # fetch DE for specific markers:
+      custom_gene_DE <- filtered_DE[
+        filtered_DE$gene %in% specific_features,
+      ]
+       
+      custom_gene_DE_sorted <- custom_gene_DE %>%
+        arrange(desc(avg_logFC)) %>%
+        filter(p_val_adj < 0.1)
+    
+      write.table(
+        custom_gene_DE_sorted, 
+        paste0(table_dir, "custom_gene_pop_DE.txt"),
+        col.names = TRUE,
+        row.names = FALSE,
+        quote = FALSE
+      )
+    
+      hmap <- DoHeatmap(
+        custom_seurat,
+        features = custom_gene_DE_sorted$gene,
+        group.by = "ident"
+      ) + theme(
+        text = element_text(size = 20)
+      )
+      
+      png(
+        paste0(plot_dir, "custom_gene_DE_heatmap.png"),
+        height = 9,
+        width = 15,
+        res = 300,
+        units = "in"
+      )
+        print(hmap)
+      dev.off()
+
+    }
+  
+  } else {
+
+    if (specific_features[1] != "none") {
+  
+      # find DE markers:
+      custom_gene_DE <- filtered_DE[
+        filtered_DE$gene %in% specific_features,
+      ]
+
+      if (nrow(custom_gene_DE) > 0) {
+        custom_gene_DE_sorted <- custom_gene_DE %>%
+        arrange(desc(avg_logFC)) %>%
+        filter(p_val_adj < 0.1)
+    
+      write.table(
+        custom_gene_DE_sorted, 
+        paste0(table_dir, "custom_gene_all_pop_DE.txt"),
+        col.names = TRUE,
+        row.names = FALSE,
+        quote = FALSE
+      )
+    
+      hmap <- DoHeatmap(
+        seurat_sub,
+        features = as.character(custom_gene_DE_sorted$gene),
+        group.by = "ident"
+      ) + theme(
+        text = element_text(size = 20)
+      )
+      
+      png(
+        paste0(plot_dir, "custom_gene_all_DE_heatmap.png"),
+        height = 9,
+        width = 15,
+        res = 300,
+        units = "in"
+      )
+        print(hmap)
+      dev.off()
+      }
+  
+    }
+
   }
 
-  if (specific_features != "none") {
-
-    # find DE markers:
-    custom_gene_DE <- FindMarkers(
-      object = custom_seurat,
-      ident.1 = "CNV population 1",
-      ident.2 = "CNV population 2",
-      features = specific_features,
-      logfc.threshold = 0.2, 
-      test.use = 'MAST'
-    )
-  
-    custom_gene_DE_sorted <- custom_gene_DE %>%
-      rownames_to_column(var = "gene") %>%
-      arrange(desc(avg_logFC)) %>%
-      filter(p_val_adj < 0.1)
-  
-    write.table(
-      custom_gene_DE_sorted, 
-      paste0(table_dir, "custom_gene_pop_DE.txt"),
-      col.names = TRUE,
-      row.names = FALSE,
-      quote = FALSE
-    )
-  
-    hmap <- DoHeatmap(
-      custom_seurat,
-      features = custom_gene_DE_sorted$gene,
-      group.by = "ident"
-    ) + theme(
-      text = element_text(size = 20)
-    )
-    
-    png(
-      paste0(plot_dir, "custom_gene_DE_heatmap.png"),
-      height = 9,
-      width = 15,
-      res = 300,
-      units = "in"
-    )
-      print(hmap)
-    dev.off()
-
-  }
-
+} else {
+  # create dummy file for snakemake:
+  system(paste0("touch ", plot_dir, "top_subpop_DE_heatmap.png"))
 }
 
+ 
 
 

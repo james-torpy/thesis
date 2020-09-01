@@ -27,31 +27,31 @@ minimal_epi_markers <- strsplit(
   "_"
 )[[1]]
 
-project_name <- "thesis"
-subproject_name <- "Figure_2.2_individual_samples"
-sample_name <- "CID45172"
-subcluster_method <- "random_trees"
-subcluster_p <- "0.05"
-if (subcluster_p != "none") {
-  subcluster_p <- as.numeric(subcluster_p)
-}
-coverage_filter <- "filtered"
-remove_artefacts <- "artefacts_not_removed"
-res <- "PC_C_res.1"
-PC <- "C"
-epi_res <- "PC_C_res.1"
-epi_PC <-"C"
-garnett_slot <- "garnett_call_ext_major"
-remove_outliers <- TRUE
-outlier_sd_multiplier <- 3
-epi_markers <- strsplit( 
-  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_PGR_ERBB2_MKI67",
-  "_"
-)[[1]]
-minimal_epi_markers <- strsplit(
-  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_MKI67",
-  "_"
-)[[1]]
+#project_name <- "thesis"
+#subproject_name <- "Figure_2.2_individual_samples"
+#sample_name <- "CID4463"
+#subcluster_method <- "random_trees"
+#subcluster_p <- "0.05"
+#if (subcluster_p != "none") {
+#  subcluster_p <- as.numeric(subcluster_p)
+#}
+#coverage_filter <- "filtered"
+#remove_artefacts <- "artefacts_not_removed"
+#res <- "PC_C_res.1"
+#PC <- "C"
+#epi_res <- "PC_C_res.1"
+#epi_PC <-"C"
+#garnett_slot <- "garnett_call_ext_major"
+#remove_outliers <- TRUE
+#outlier_sd_multiplier <- 3
+#epi_markers <- strsplit( 
+#  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_PGR_ERBB2_MKI67",
+#  "_"
+#)[[1]]
+#minimal_epi_markers <- strsplit(
+#  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_MKI67",
+#  "_"
+#)[[1]]
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -68,8 +68,6 @@ print(paste0("Remove outliers? ", remove_outliers))
 print(paste0("No SDs within which to remove outliers ", outlier_sd_multiplier))
 print(paste0("Epithelial markers ", epi_markers))
 print(paste0("Minimal epithelial markers ", minimal_epi_markers))
-
-
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(naturalsort, lib.loc = lib_loc)
@@ -143,11 +141,6 @@ print("Loading metadata df...")
 epithelial_metadata <- readRDS(paste0(Robject_dir, 
   "/4b.final_epithelial_metadata_with_normals.Rdata"))
 
-subcluster_meta <- subset(
-  epithelial_metadata, 
-  select = c(cell_ids, normal_cell_call, subcluster_id)
-)
-
 print("Loading seurat objects...")
 
 # load all cell object:
@@ -198,6 +191,45 @@ if (
       )
     )
   }
+
+  # only keep cells in metadata:
+  seurat_epi <- subset(
+    seurat_epi,
+    cells = epithelial_metadata$cell_ids
+  )
+
+  # label normal and unassigned cells:
+  temp_idents <- as.character(Idents(seurat_epi))
+  names(temp_idents) <- names(Idents(seurat_epi))
+
+  temp_idents[
+    names(temp_idents) %in% epithelial_metadata$cell_ids[
+      epithelial_metadata$normal_cell_call == "normal"
+    ]
+  ] <- "normal"
+
+  temp_idents[
+    names(temp_idents) %in% epithelial_metadata$cell_ids[
+      epithelial_metadata$normal_cell_call == "unassigned"
+    ]
+  ] <- "unassigned"
+
+  Idents(seurat_epi) <- factor(
+    temp_idents,
+    levels = naturalsort(unique(temp_idents))
+  )
+
+  # reassign levels:
+  levels(Idents(seurat_epi)) <- c(
+    paste0(
+      "Expression_",
+      1:(length(levels(Idents(seurat_epi)))-2)
+    ),
+    "normal",
+    "unassigned"
+  )
+
+
 }
 
 
@@ -275,19 +307,44 @@ if (
   ### 3. Plot UMAP of reclustered epithelial cells ###
   ################################################################################
   
-  # define Idents:
-  epi_idents <- paste0(
-    "Epithelial ", 
-    Idents(seurat_epi)
-  )
-  Idents(seurat_epi) <- factor(
-    as.character(epi_idents),
-    levels = naturalsort(unique(as.character(epi_idents)))
-  )
+  if (
+    !file.exists(paste0(
+      plot_dir, "epithelial_cell_expr_clusters_UMAP_pre_filter.png")
+    )
+  ) {
   
-  # order idents so epithelial cells are printed on top:
-  ident_order <- levels(Idents(seurat_epi))
+    epi_umap <- DimPlot(
+      seurat_epi,
+      cols = expr_cols,
+      pt.size = 1.5,
+      reduction = paste0("UMAP", epi_PC),
+      label = F
+    ) + theme(
+      axis.title.y = element_text(
+        size=25,
+        margin = margin(t = 0, r = 20, b = 0, l = 0)
+      ),
+      axis.text.y = element_text(size=20),
+      axis.title.x = element_text(
+        size=25,
+        margin = margin(t = 20, r = 0, b = 0, l = 0)
+      ),
+      axis.text.x = element_text(size=20),
+      legend.text = element_text(size=20)
+    )
   
+    png(
+      file = paste0(plot_dir, "epithelial_cell_expr_clusters_UMAP_pre_filter.png"), 
+      width = 15, 
+      height = 8, 
+      res = 300, 
+      units = 'in'
+    )
+      print(epi_umap)
+    dev.off()
+  
+  }
+
   # remove outliers - defined as those > 3 standard devs from mean:
   embeddings <- eval(parse(
     text = paste0("seurat_epi@reductions$UMAP", epi_PC, "@cell.embeddings")
@@ -310,9 +367,9 @@ if (
     embeddings[,2] > (mean_embeddings[2] + (3*std_dev_embeddings[2])) | 
     embeddings[,2] < (mean_embeddings[2] - (3*std_dev_embeddings[2]))
   ]
-    no_outlier <- no_outlier[
-      !(no_outlier %in% y_outliers)
-    ]
+  no_outlier <- no_outlier[
+    !(no_outlier %in% y_outliers)
+  ]
   
   if (!exists("no_outlier")) {
     no_outlier <- rownames(embeddings)
@@ -334,14 +391,14 @@ if (
     ]
   ]
   
-  # only include cells in subcluster_meta:
+  # only include cells in epithelial_metadata:
   include_cells <- rownames(seurat_epi@meta.data)
   include_cells <- include_cells[
-    include_cells %in% subcluster_meta$cell_ids
+    include_cells %in% epithelial_metadata$cell_ids
   ]
   
   no_outlier <- no_outlier[
-    no_outlier %in% subcluster_meta$cell_ids
+    no_outlier %in% epithelial_metadata$cell_ids
   ]
   
   # subset seurat object to remove outliers, rename clusters and save:
@@ -349,9 +406,7 @@ if (
     seurat_epi,
     cells = include_cells
   )
-  levels(Idents(filtered_seurat_epi)) <- paste0(
-    "Epithelial ", 1:length(levels(Idents(filtered_seurat_epi)))
-  )
+
   if (!file.exists(
     paste0(seurat_dir, "06_seurat_object_filtered_epithelial.Rdata"))
   ) {
@@ -365,9 +420,7 @@ if (
     seurat_epi,
     cells = no_outlier
   )
-  levels(Idents(no_outlier_seurat_epi)) <- paste0(
-    "Epithelial ", 1:length(levels(Idents(no_outlier_seurat_epi)))
-  )
+
   if (!file.exists(
     paste0(seurat_dir, "07_seurat_object_no_outlier_epithelial.Rdata"))
   ) {
@@ -465,8 +518,8 @@ if (
   
     normal_lab_seurat <- filtered_seurats[[i]]
     normal_lab_seurat@meta.data$normal_cell_call <- NA
-    normal_lab_seurat@meta.data[subcluster_meta$cell_ids,]$normal_cell_call <- 
-      as.character(subcluster_meta$normal_cell_call)
+    normal_lab_seurat@meta.data[epithelial_metadata$cell_ids,]$normal_cell_call <- 
+      as.character(epithelial_metadata$normal_cell_call)
     
     Idents(normal_lab_seurat) <- factor(
       as.character(normal_lab_seurat@meta.data$normal_cell_call),
@@ -599,14 +652,14 @@ if (
   # remove normals:
   if (remove_outliers) {
     no_normal <- include_cells[
-      include_cells %in% subcluster_meta$cell_ids[
-        subcluster_meta$normal_cell_call == "cancer"
+      include_cells %in% epithelial_metadata$cell_ids[
+        epithelial_metadata$normal_cell_call == "cancer"
       ]
     ]
   } else {
     no_normal <- no_outlier[
-      no_outlier %in% subcluster_meta$cell_ids[
-        subcluster_meta$normal_cell_call == "cancer"
+      no_outlier %in% epithelial_metadata$cell_ids[
+        epithelial_metadata$normal_cell_call == "cancer"
       ]
     ]
   }
@@ -619,7 +672,7 @@ if (
     paste0(seurat_dir, "08_seurat_object_no_normal_epithelial.Rdata"))
   ) {
     saveRDS(
-      no_outlier_seurat_epi,
+      seurat_epi_no_normal,
       paste0(seurat_dir, "08_seurat_object_no_normal_epithelial.Rdata")
     )
   }
@@ -681,8 +734,12 @@ if (
   # update idents with subcluster ids:
   seurat_subcluster <- seurat_epi_no_normal
   seurat_subcluster@meta.data$subcluster_id <- NA
-  seurat_subcluster@meta.data[subcluster_meta$cell_ids,]$subcluster_id <- 
-    as.character(subcluster_meta$subcluster_id)
+  temp_meta <- epithelial_metadata[rownames(seurat_subcluster@meta.data),]
+
+
+
+  seurat_subcluster@meta.data$subcluster_id <- 
+    as.character(temp_meta$subcluster_id)
   
   Idents(seurat_subcluster) <- factor(
     as.character(seurat_subcluster@meta.data$subcluster_id),
@@ -699,6 +756,7 @@ if (
   
   epi_umap <- DimPlot(
     seurat_subcluster,
+
     pt.size = 1.5,
     reduction = paste0("UMAP", epi_PC),
     label = F
