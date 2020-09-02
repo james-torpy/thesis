@@ -10,18 +10,18 @@
 R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
 
 # following samples need 20 cores:
-#SAMPLES = list(["CID3586", "CID3921", "CID3941",
-#  "CID3948", "CID3963", "CID4066",
-#  "CID4067", "CID4290A", 
-#  "CID4461", "CID4463", "CID4465", 
-#  "CID4513", "CID4515", "CID4523", 
-#  "CID4530N", "CID4535", "CID44041", 
-#  "CID44971", "CID44991", "CID45171",
-#  "CID45172"
-##  , "CID44972",
-##  "CID44042", "CID43863"
-#])
-SAMPLES = list(["CID4463", "CID45171", "CID4515"])
+SAMPLES = list(["CID3586", "CID3921", "CID3941",
+  "CID3948", "CID3963", "CID4066",
+  "CID4067", "CID4290A", 
+  "CID4461", "CID4463", "CID4465", 
+  "CID4513", "CID4515", "CID4523", 
+  "CID4530N", "CID4535", "CID44041", 
+  "CID44971", "CID44991", "CID45171",
+  "CID45172"
+#  , "CID44972",
+#  "CID44042", "CID43863"
+])
+#SAMPLES = list(["CID4463", "CID45171", "CID4515"])
 
 # need to locate reclustered seurat for following:
 # "CID4398"
@@ -145,7 +145,7 @@ rule all:
          expand(
             "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/tables/" + 
-            "all_gene_subpop_DE.txt",
+            "all_gene_subpop_DE_min_pct_0.1.txt",
             sample=SAMPLES, coverage_filter=coverage_filter, 
             subcluster_method=subcluster_method, subcluster_p=subcluster_p,
             remove_artefacts=remove_artefacts
@@ -347,7 +347,7 @@ rule subcluster_DE:
             "top_subpop_DE_heatmap.png",
         "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/tables/" + 
-            "all_gene_subpop_DE.txt"
+            "all_gene_subpop_DE_min_pct_0.1.txt"
     threads: 3
     shell:
         "module load briglo/R/3.6.0; "

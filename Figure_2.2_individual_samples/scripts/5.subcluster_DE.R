@@ -174,9 +174,9 @@ seurat_sub <- subset(
 ### 2. DE between all subclusters and plot ###
 ################################################################################
 
-if (!file.exists(paste0(table_dir, "all_gene_subpop_DE.txt"))) {
+if (!file.exists(paste0(table_dir, "all_gene_subpop_DE_min_pct_0.1.txt"))) {
 
-  all_gene_DE <- FindAllMarkers(
+  all_gene_DE_pct_0.5 <- FindAllMarkers(
     only.pos = T,
     object = seurat_sub,
     min.pct = 0.5, 
@@ -185,13 +185,36 @@ if (!file.exists(paste0(table_dir, "all_gene_subpop_DE.txt"))) {
     return.thresh = 1
   )
 
-  all_gene_DE_sorted <- arrange(all_gene_DE, cluster, desc(avg_logFC))
+  all_gene_DE_pct_0.5_sorted <- arrange(all_gene_DE_pct_0.5, cluster, desc(avg_logFC))
 
-  if (nrow(all_gene_DE_sorted) > 0) {
+  if (nrow(all_gene_DE_pct_0.5_sorted) > 0) {
 
     write.table(
-      all_gene_DE_sorted, 
-      paste0(table_dir, "all_gene_subpop_DE.txt"),
+      all_gene_DE_pct_0.5_sorted, 
+      paste0(table_dir, "all_gene_subpop_DE_min_pct_0.5.txt"),
+      col.names = TRUE,
+      row.names = FALSE,
+      quote = FALSE
+    )
+
+  }
+
+  all_gene_DE_pct_0.1 <- FindAllMarkers(
+    only.pos = T,
+    object = seurat_sub,
+    min.pct = 0.1, 
+    logfc.threshold = 0, 
+    test.use = 'MAST',
+    return.thresh = 1
+  )
+
+  all_gene_DE_pct_0.1_sorted <- arrange(all_gene_DE_pct_0.1, cluster, desc(avg_logFC))
+
+  if (nrow(all_gene_DE_pct_0.1_sorted) > 0) {
+
+    write.table(
+      all_gene_DE_pct_0.1_sorted, 
+      paste0(table_dir, "all_gene_subpop_DE_min_pct_0.1.txt"),
       col.names = TRUE,
       row.names = FALSE,
       quote = FALSE

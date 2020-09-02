@@ -23,8 +23,9 @@ if (subcluster_p != "none") {
 }
 coverage_filter <- "filtered"
 remove_artefacts <- "artefacts_not_removed"
-subset_samples <- TRUE
+subset_samples <- FALSE
 min_common_prop <- 0.2
+min_pct_all_gene <- 0.5
 
 if (subset_samples) {
 
@@ -68,6 +69,9 @@ if (subset_samples) {
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(ComplexHeatmap, lib.loc = lib_loc)
+library(circlize, lib.loc = lib_loc)
+library(dplyr)
+library(textshape, lib.loc = lib_loc)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", project_name, "/",
@@ -78,7 +82,7 @@ results_dir <- paste0(project_dir, "results/")
 in_path <- paste0(results_dir, "infercnv/")
 out_dir <- paste0(results_dir, "infercnv/common_DE/", 
   coverage_filter, "/", subcluster_method, "/p_", subcluster_p, "/", 
-  remove_artefacts, "/")
+  remove_artefacts, "/", min_pct_all_gene, "_min_pct/")
 
 if (subset_samples) {
   Robject_dir <- paste0(out_dir, "Rdata_sub/")
@@ -139,7 +143,12 @@ if (!file.exists(paste0(Robject_dir, "group_DE_data.Rdata"))) {
 	  )
 
     all_gene_DE_data <- read.table(
-      paste0(sample_table_dir, "all_gene_subpop_DE.txt"),
+      paste0(
+      	sample_table_dir, 
+      	"all_gene_subpop_DE_min_pct_", 
+      	min_pct_all_gene, 
+      	".txt"
+      ),
       header = T
     )
 
@@ -215,6 +224,10 @@ common_DE <- unique(
 
 if (length(common_DE) > 0) {
 
+  if (subset_samples) {
+    common_DE <- common_DE[1:50]
+  }
+
   # filter out non-common genes in all_gene_data:
   common_DE_data <- lapply(all_gene_data, function(x) {
 
@@ -241,12 +254,13 @@ if (length(common_DE) > 0) {
         } else {
   
           if (all(y$sig == TRUE) | all(y$sig == FALSE)) {
+
             return(
               subset(
                 aggregate(
                   .~gene,
-                  common_df, 
-                  mean
+                  y, 
+                  max
                 ),
                 select = c(gene, p_val_adj, avg_logFC, sig)
               )
@@ -254,9 +268,15 @@ if (length(common_DE) > 0) {
   
           } else {
 
+            y <- y[y$sig == TRUE,]
+
             return(
               subset(
-                y[y$sig,],
+                aggregate(
+                  .~gene,
+                  y, 
+                  max
+                ),
                 select = c(gene, p_val_adj, avg_logFC, sig)
               )
             )
@@ -271,22 +291,103 @@ if (length(common_DE) > 0) {
 
   })
 
+  # merge together common DE data:
+  logFC <- data.frame(
+    gene = common_DE
+  )
+
+  for (s in 1:length(common_DE_data)) {
+
+    logFC <- merge(
+      logFC,
+      subset(common_DE_data[[s]], select = c(gene, avg_logFC)),
+      by = "gene",
+      all.x = TRUE
+    )
+    colnames(logFC)[s+1] <- names(common_DE_data)[s]
+
+  }
+
+  logFC <- logFC %>%
+    column_to_rownames(loc = 1)
+
+  p_vals <- data.frame(
+    gene = common_DE
+  )
+
+  for (s in 1:length(common_DE_data)) {
+
+    p_vals <- merge(
+      p_vals,
+      subset(common_DE_data[[s]], select = c(gene, p_val_adj)),
+      by = "gene",
+      all.x = TRUE
+    )
+    colnames(p_vals)[s+1] <- names(common_DE_data)[s]
+
+  }
+
+  p_vals <- p_vals %>%
+    column_to_rownames(loc = 1)
+
+  # change significant values to the ComplexHeatmap code for dots, and all
+  # others to NA:
+  p_val_dots <- p_vals
+  p_val_dots[p_val_dots < 0.1] <- "*"
+  p_val_dots[p_val_dots != "*"] <- " "
+  p_val_dots[is.na(p_val_dots)] <- " "
+
+
+  ################################################################################
+  ### 4. Plot common DE genes ###
+  ################################################################################
+  
+  # define heatmap colours:
+  na_less_vector <- unlist(logFC)
+  na_less_vector <- na_less_vector[!is.na(na_less_vector)]
+  heatmap_cols <- colorRamp2(c(min(na_less_vector), max(na_less_vector)), 
+    c("white", "#870C0C"), space = "sRGB")
+#680700
+  final_heatmap <- Heatmap(
+    as.matrix(logFC), 
+    na_col = "grey",
+    name = paste0("hm"), 
+    col = heatmap_cols,
+    cluster_columns = F, cluster_rows = F,
+    show_row_names = T, show_column_names = T,
+    show_row_dend = T,
+    show_heatmap_legend = T,
+    use_raster = T, raster_device = c("png"),
+    cell_fun = function(j, i, x, y, w, h, heatmap_cols) { # add text to each grid
+        grid.text(p_val_dots[i, j], x, y, gp=gpar(fontsize=30, col = "#1F0B99"))
+    }
+  )
+
+  ht_list <- final_heatmap
+
+  annotated_heatmap <- grid.grabExpr(
+    draw(ht_list
+      #, gap = unit(6, "mm"), heatmap_legend_side = "left"
+    )
+  )
+  dev.off()
+
+  pdf(paste0(plot_dir, "common_gene_DE.pdf"), 
+    height = 13, width = 20) 
+  
+    grid.newpage()
+  
+      # plot heatmap:
+      pushViewport(viewport(x = 0.155, y = 0.04, width = 0.82, height = 0.95, 
+        just = c("left", "bottom")))
+        #grid.rect()
+        grid.draw(annotated_heatmap)
+      popViewport()
+
+  dev.off()
+
 }
 
 
-################################################################################
-### 4. Plot common DE genes ###
-################################################################################
-
-final_heatmap <- Heatmap(
-  as.matrix(plot_object), name = paste0("hm"), 
-  col = heatmap_cols,
-  cluster_columns = F, cluster_rows = F,
-  show_row_names = F, show_column_names = T,
-  column_names_gp = gpar(col = "white"),
-  show_row_dend = F,
-  show_heatmap_legend = F,
-  use_raster = T, raster_device = c("png")
-)
 
 
