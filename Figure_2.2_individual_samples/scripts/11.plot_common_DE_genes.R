@@ -217,6 +217,15 @@ common_DE <- unique(
   )
 )
 
+# save common DE genes to use for looking up articles:
+write.table(
+  data.frame(gene = common_DE),
+  paste0(table_dir, "sig_subpop_DE.txt"),
+  col.names = TRUE,
+  row.names = FALSE,
+  quote = FALSE
+)
+
 
 ################################################################################
 ### 3. Prepare DE genes present in a proportion of samples ###
@@ -347,7 +356,7 @@ if (length(common_DE) > 0) {
   na_less_vector <- na_less_vector[!is.na(na_less_vector)]
   heatmap_cols <- colorRamp2(c(min(na_less_vector), max(na_less_vector)), 
     c("white", "#870C0C"), space = "sRGB")
-#680700
+
   final_heatmap <- Heatmap(
     as.matrix(logFC), 
     na_col = "grey",

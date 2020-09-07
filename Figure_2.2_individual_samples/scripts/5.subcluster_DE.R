@@ -249,6 +249,10 @@ if (!file.exists(paste0(table_dir, "sig_subpop_DE.txt"))) {
     # filter for adjusted p-value threshold:
     filtered_DE <- all_DE_sorted[all_DE_sorted$p_val_adj < 0.1,]
 
+    # calculate and add variances of genes for iDEA:
+    filtered_DE_counts <- seurat_sub@assays$RNA[filtered_DE$gene]
+    filtered_DE$variance <- apply(filtered_DE_counts, 1, function(x) (sd(x))^2)
+
     write.table(
       filtered_DE, 
       paste0(table_dir, "sig_subpop_DE.txt"),
@@ -270,7 +274,7 @@ if (!file.exists(paste0(table_dir, "sig_subpop_DE.txt"))) {
 
 scaled_genes <- GetAssayData(seurat_sub, slot = "scale.data", assay = "RNA")
 
-if (exists("filtered_DE") & any(filtered_DE$gene %in% scaled_genes)) {
+if (exists("filtered_DE") & any(filtered_DE$gene %in% rownames(scaled_genes))) {
 
   heatmap_genes <- filtered_DE %>% 
   group_by(cluster) %>% 
@@ -280,7 +284,7 @@ if (exists("filtered_DE") & any(filtered_DE$gene %in% scaled_genes)) {
 
     hmap <- DoHeatmap(
       seurat_sub,
-      features = heatmap_genes$gene,
+      features = as.character(heatmap_genes$gene),
       group.by = "ident"
     ) + theme(
       text = element_text(size = 20)

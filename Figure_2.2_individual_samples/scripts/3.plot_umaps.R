@@ -27,31 +27,31 @@ minimal_epi_markers <- strsplit(
   "_"
 )[[1]]
 
-#project_name <- "thesis"
-#subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID4463"
-#subcluster_method <- "random_trees"
-#subcluster_p <- "0.05"
-#if (subcluster_p != "none") {
-#  subcluster_p <- as.numeric(subcluster_p)
-#}
-#coverage_filter <- "filtered"
-#remove_artefacts <- "artefacts_not_removed"
-#res <- "PC_C_res.1"
-#PC <- "C"
-#epi_res <- "PC_C_res.1"
-#epi_PC <-"C"
-#garnett_slot <- "garnett_call_ext_major"
-#remove_outliers <- TRUE
-#outlier_sd_multiplier <- 3
-#epi_markers <- strsplit( 
-#  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_PGR_ERBB2_MKI67",
-#  "_"
-#)[[1]]
-#minimal_epi_markers <- strsplit(
-#  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_MKI67",
-#  "_"
-#)[[1]]
+project_name <- "thesis"
+subproject_name <- "Figure_2.2_individual_samples"
+sample_name <- "CID4463"
+subcluster_method <- "random_trees"
+subcluster_p <- "0.05"
+if (subcluster_p != "none") {
+  subcluster_p <- as.numeric(subcluster_p)
+}
+coverage_filter <- "filtered"
+remove_artefacts <- "artefacts_not_removed"
+res <- "PC_C_res.1"
+PC <- "C"
+epi_res <- "PC_C_res.1"
+epi_PC <-"C"
+garnett_slot <- "garnett_call_ext_major"
+remove_outliers <- TRUE
+outlier_sd_multiplier <- 3
+epi_markers <- strsplit( 
+  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_PGR_ERBB2_MKI67",
+  "_"
+)[[1]]
+minimal_epi_markers <- strsplit(
+  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_MKI67",
+  "_"
+)[[1]]
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -702,6 +702,7 @@ if (
     dev.off()
   
   }
+
   
   ################################################################################
   ### 7. Plot feature plots of epithelial marker expression without normals ###
@@ -731,12 +732,11 @@ if (
   ### 7. Plot UMAP with CNV subclusters labelled ###
   ################################################################################
   
+  rownames(epithelial_metadata) <- epithelial_metadata$cell_ids
   # update idents with subcluster ids:
   seurat_subcluster <- seurat_epi_no_normal
   seurat_subcluster@meta.data$subcluster_id <- NA
   temp_meta <- epithelial_metadata[rownames(seurat_subcluster@meta.data),]
-
-
 
   seurat_subcluster@meta.data$subcluster_id <- 
     as.character(temp_meta$subcluster_id)
@@ -756,7 +756,6 @@ if (
   
   epi_umap <- DimPlot(
     seurat_subcluster,
-
     pt.size = 1.5,
     reduction = paste0("UMAP", epi_PC),
     label = F
