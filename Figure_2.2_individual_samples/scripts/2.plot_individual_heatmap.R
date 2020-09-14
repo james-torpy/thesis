@@ -74,7 +74,7 @@ print(paste0("Array CNVs? ", array_CNVs))
 
 #project_name <- "thesis"
 #subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID4463"
+#sample_name <- "CID45152"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {
@@ -251,26 +251,38 @@ if (!file.exists(paste0(Robject_dir, "/1b.initial_epithelial_metadata.Rdata"))) 
     nrow(epithelial_metadata)
   ))
 
-  # load reclustered epithelial seurat object:
-  seurat_epi <- readRDS(
+  if (file.exists(
     paste0(seurat_dir, "05_seurat_object_epithelial_reclustered.Rdata")
-  )
-  # choose resolution if needed:
-  if (epi_res != "none") {
-    Idents(seurat_epi) <- eval(
-      parse(
-        text = paste0("seurat_epi@meta.data$", epi_res)
-      )
+  )) {
+    # load reclustered epithelial seurat object:
+    seurat_epi <- readRDS(
+      paste0(seurat_dir, "05_seurat_object_epithelial_reclustered.Rdata")
     )
-  }
-  # add expression cluster column to metadata:
-  epithelial_metadata$expression_id <- paste0(
-    "Expression_",
-    Idents(seurat_epi)[
-      match(epithelial_metadata$cell_ids, names(Idents(seurat_epi)))
-    ]
-  )
+    # choose resolution if needed:
+    if (epi_res != "none") {
+      Idents(seurat_epi) <- eval(
+        parse(
+          text = paste0("seurat_epi@meta.data$", epi_res)
+        )
+      )
+    }
+    # add expression cluster column to metadata:
+    epithelial_metadata$expression_id <- paste0(
+      "Expression_",
+      Idents(seurat_epi)[
+        match(epithelial_metadata$cell_ids, names(Idents(seurat_epi)))
+      ]
+    )
+  } else {
 
+    epithelial_metadata$expression_id <- gsub(
+      "Expression",
+      "Epithlelial",
+      epithelial_metadata$cell_type
+    )
+
+  }
+  
   saveRDS(epithelial_heatmap, paste0(Robject_dir, 
     "/1a.initial_epithelial_heatmap.Rdata"))
   saveRDS(epithelial_metadata, paste0(Robject_dir, 
@@ -1068,13 +1080,25 @@ if (plot_references) {
         pushViewport(viewport(x = 0.075, y = 0.15, width = unit(6, "cm"), 
           height = unit(10, "cm"), just="bottom"))
         #grid.rect()
-          create_legend(
-            "Expression",
-            epithelial_metadata$expression_id,
-            sort_labs = TRUE,
-            expr_cols,
-            lib_loc
-          ) 
+          if (file.exists(
+            paste0(seurat_dir, "05_seurat_object_epithelial_reclustered.Rdata")
+          )) {
+            create_legend(
+              "Expression",
+              epithelial_metadata$expression_id,
+              sort_labs = TRUE,
+              expr_cols,
+              lib_loc
+            ) 
+          } else {
+            create_legend(
+              "Orig. expression",
+              epithelial_metadata$expression_id,
+              sort_labs = TRUE,
+              expr_cols,
+              lib_loc
+            ) 
+          }
         popViewport()
       }
 

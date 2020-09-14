@@ -17,7 +17,7 @@ normals_removed <- as.logical(args[8])
 
 #project_name <- "thesis"
 #subproject_name <- "Figure_2.2_individual_samples"
-#sample_name <- "CID4515"
+#sample_name <- "CID4463"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {
@@ -42,6 +42,7 @@ library(circlize, lib.loc = lib_loc)
 library(naturalsort, lib.loc = lib_loc)
 library(cowplot)
 library(Seurat)
+library(dplyr)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", project_name, "/",
@@ -349,7 +350,7 @@ print_subcluster_signal(
 
 
 ################################################################################
-### 5. Plot CNV signal without CNV genomic length annotations ###
+### 5. Plot CNV signal with CNV genomic length annotations ###
 ################################################################################
 
 for (i in 1:length(subpop_matrices)) {
@@ -377,5 +378,172 @@ print_subcluster_signal(
   chr_data,
   plot_dir,
   include_lengths = TRUE
+)
+
+
+################################################################################
+### 6. Fetch CNV_associated DE and surrounding genes ###
+################################################################################
+
+# load DE genes:
+DE_genes <- read.table(
+  paste0(
+    table_dir, 
+    "subpop_DE_min_pct_0.5_logfc_0.7_p_val_0.01_CNA_assoc_only.txt"
+  ),
+  header = TRUE
+)
+
+# determine top DE genes:
+top_genes <- DE_genes %>% 
+    group_by(cluster) %>% 
+    top_n(10, avg_logFC)
+
+# load cancer-associated DE genes:
+cancer_DE_genes <- read.table(
+  paste0(
+    table_dir, 
+    "msigdb_cancer_subpop_DE_genes.txt"
+  ),
+  header = TRUE
+)
+cancer_DE_genes <- unique(as.character(cancer_DE_genes$gene))
+
+# keep top cancer DE genes only:
+top_cancer <- top_genes[top_genes$gene %in% cancer_DE_genes,]
+top_cancer <- as.data.frame(top_cancer)
+top_cancer <- subset(top_cancer, select = c(gene, avg_logFC))
+top_cancer$direction[top_cancer$avg_logFC > 0] <- "up"
+top_cancer$direction[top_cancer$avg_logFC < 0] <- "down"
+top_cancer <- top_cancer[order(top_cancer$gene),]
+
+# remove duplicates:
+top_cancer$keep <- TRUE
+for (j in 1:nrow(top_cancer)) {
+  if (j!=1) {
+  	if ( top_cancer$gene[j] == top_cancer$gene[j-1] & 
+  	  top_cancer$direction[j] == top_cancer$direction[j-1] ) {
+  	  top_cancer$keep[j] <- FALSE
+  	}
+  }
+}
+top_cancer <- top_cancer[top_cancer$keep,]
+
+# find closest matching gene in CNV heatmap:
+DE_gene_list <- as.list(top_cancer$gene)
+
+closest_indices <- unlist(
+  lapply(DE_gene_list, function(x) {
+
+    # if gene is in CNV data, record this co-ordinate:
+    if (x %in% colnames(epithelial_heatmap)) {
+      return(which(colnames(epithelial_heatmap) == x))
+    } else {
+  
+      # find where gene lies in gene coords annotation:
+      coord_ind <- which(gene_coords$gene_id == x)
+  
+      # iterate forward to find closest present gene:
+      for (i in (coord_ind+1):nrow(gene_coords)) {
+        if (gene_coords$gene[i] %in% colnames(epithelial_heatmap)) {
+          fwd_ind <- i
+          break()
+        }
+      }
+  
+      # iterate backwards to find closest present gene:
+      for (i in (coord_ind-1):1) {
+        if (gene_coords$gene[i] %in% colnames(epithelial_heatmap)) {
+          rev_ind <- i
+          break()
+        }
+      }
+  
+      # return closest index to the gene:
+      fwd_ind_diff <- fwd_ind - coord_ind
+      rev_ind_diff <- coord_ind - rev_ind
+      if (fwd_ind_diff <= rev_ind_diff) {
+        return(fwd_ind)
+      } else {
+        return(rev_ind)
+      }
+     
+    }
+  
+  })
+
+)
+
+DE_gene_ind <- data.frame(
+  gene = as.character(top_cancer$gene),
+  index = closest_indices,
+  direction = top_cancer$direction
+)
+
+# stagger labels if too close to others:
+DE_gene_ind <- DE_gene_ind[order(DE_gene_ind$index),]
+DE_gene_ind$stagger <- 0
+
+stagger_labels <- function(df, stag_no) {
+  for (i in 1:length(df$index)) {
+    # for each gene, check all preceeding genes:
+    if (i!=1) {
+      if ( (df$index[i] - df$index[i-1]) < 400 ) {
+        df$stagger[i] <- stag_no
+      }
+    }
+  }
+  return(df)
+}
+DE_gene_ind <- stagger_labels(DE_gene_ind, 1)
+
+for (i in 2:10) {
+  split_df <- split(DE_gene_ind, DE_gene_ind$stagger)
+  split_df[[length(split_df)]] <- stagger_labels(split_df[[length(split_df)]], i)
+  DE_gene_ind <- do.call("rbind", split_df)
+  DE_gene_ind <- DE_gene_ind[order(DE_gene_ind$index),]
+}
+
+
+################################################################################
+### 7. Plot CNV signal with CNA-assoc DE gene annotations ###
+################################################################################
+
+for (i in 1:length(subpop_matrices)) {
+  print(i)
+
+  if (i==length(subpop_matrices)) {
+    signal_plot <- subtype_signal_plot(
+      subpop_matrices[[i]],
+      neutral_value,
+      subpop_CNV_data[[i]],
+      include_lengths = FALSE,
+      annotate_genes = DE_gene_ind
+    )
+  } else {
+    signal_plot <- subtype_signal_plot(
+      subpop_matrices[[i]],
+      neutral_value,
+      subpop_CNV_data[[i]],
+      include_lengths = FALSE
+    )
+  }
+
+  if (i==1) {
+    signal_plots_with_DE <- list(signal_plot)
+  } else {
+    signal_plots_with_DE[[i]] <- signal_plot
+  }
+
+}
+names(signal_plots_with_DE) <- names(subpop_matrices)
+
+print_subcluster_signal(
+  signal_plots_with_DE,
+  chr_data,
+  plot_dir,
+  include_lengths = FALSE,
+  annotate_genes = DE_gene_ind,
+  no_genes = ncol(epithelial_heatmap)
 )
 

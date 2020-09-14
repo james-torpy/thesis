@@ -2,7 +2,8 @@ subtype_signal_plot <- function(
   plot_df,
   neutral_score,
   CNV_indices,
-  include_lengths = FALSE
+  include_lengths = FALSE,
+  annotate_genes = NULL
 ) {
 
   average_signal <- round(apply(plot_df, 2, mean), 6)
@@ -59,6 +60,12 @@ subtype_signal_plot <- function(
       breaks = CNV_only$midpoints,
       expand = c(0,0)
     )
+  } else if (!is.null(annotate_genes)) {
+    p <- p + scale_x_continuous(
+      label = annotate_genes$gene,
+      breaks = annotate_genes$index,
+      expand = c(0,0)
+    )
   } else {
     p <- p + scale_x_continuous(
       expand = c(0,0)
@@ -79,6 +86,17 @@ subtype_signal_plot <- function(
       axis.text.x = element_text(size=15),
       axis.title.x = element_blank(),
       axis.ticks.x = element_blank()
+    )
+  } else if (!is.null(annotate_genes)) {
+     p <- p + theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      legend.position = "none",
+      axis.title.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.text.x = element_blank(),
+      axis.title.x = element_blank()
     )
   } else {
     p <- p + theme(

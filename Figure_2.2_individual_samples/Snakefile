@@ -9,7 +9,7 @@
 # define directories:
 R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
 
-# following samples need 20 cores:
+## following samples need 20 cores:
 #SAMPLES = list(["CID3586", "CID3921", "CID3941",
 #  "CID3963", "CID4066",
 #  "CID4067", "CID4290A", 
@@ -21,7 +21,7 @@ R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/b
 ##  , "CID44972",
 ##  "CID44042", "CID43863"
 #])
-SAMPLES = list(["CID44991"])
+SAMPLES = list(["CID45171"])
 
 # need to locate reclustered seurat for following:
 # "CID4398"
@@ -137,20 +137,27 @@ rule all:
         expand(
             "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/plots/DE/" + 
-            "top_subpop_DE_heatmap.png",
+            "subpop_DE_min_pct_0.5_logfc_0.7_p_val_0.01_DE_heatmap_CNA_assoc_only.png",
             sample=SAMPLES, coverage_filter=coverage_filter, 
             subcluster_method=subcluster_method, subcluster_p=subcluster_p,
             remove_artefacts=remove_artefacts
         ),
-         expand(
+        expand(
             "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/tables/" + 
-            "all_gene_subpop_DE_min_pct_0.1.txt",
+            "subpop_DE_min_pct_0.1_logfc_0_p_val_1_CNA_assoc_only.txt",
+            sample=SAMPLES, coverage_filter=coverage_filter, 
+            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
+            remove_artefacts=remove_artefacts
+        ),
+        expand(
+            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/tables/" + 
+            "subpop_DE_min_pct_0.5_logfc_0.7_p_val_0.01_CNA_assoc_only.txt",
             sample=SAMPLES, coverage_filter=coverage_filter, 
             subcluster_method=subcluster_method, subcluster_p=subcluster_p,
             remove_artefacts=remove_artefacts
         )
-####
 
 #######
 #rule all:
@@ -308,34 +315,6 @@ rule expression_plots:
         " {minimal_epi_markers}" +
         "' ../../../scripts/3.plot_umaps.R"
 
-rule subcluster_signal:
-    input:
-        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
-            "{subcluster_p}/{remove_artefacts}/plots/" + 
-            "infercnv_plot_normals_QC_annotated.pdf",
-        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
-            "{subcluster_p}/artefacts_not_removed/plots/" + 
-            "infercnv_plot_exp_clusters_CNV_subclusters_QC_annotated.pdf"
-    output:
-        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
-            "{subcluster_p}/{remove_artefacts}/plots/" + 
-            "CNV_signal_plots_with_lengths.pdf"
-    threads: 3
-    shell:
-        "module load briglo/R/3.6.0; "
-        "mkdir -p logs/subcluster_signal/{wildcards.sample}/; " +
-        "cd logs/subcluster_signal/{wildcards.sample}; " + 
-        "{R_dir}/R CMD BATCH  --no-save '--args" + 
-        " {wildcards.sample}" + 
-        " {wildcards.subcluster_method}" +
-        " {wildcards.subcluster_p}" +
-        " {wildcards.coverage_filter}" +
-        " {remove_artefacts}" +
-        " {min_CNV_length}" +
-        " {min_CNV_proportion}" +
-        " TRUE" + # remove normals
-        "' ../../../scripts/4.determine_cnv_profiles.R"
-
 rule subcluster_DE:
     input:
          "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
@@ -344,10 +323,13 @@ rule subcluster_DE:
     output:
         "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/plots/DE/" + 
-            "top_subpop_DE_heatmap.png",
+            "subpop_DE_min_pct_0.5_logfc_0.7_p_val_0.01_DE_heatmap_CNA_assoc_only.png",
         "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
             "{subcluster_p}/{remove_artefacts}/tables/" + 
-            "all_gene_subpop_DE_min_pct_0.1.txt"
+            "subpop_DE_min_pct_0.1_logfc_0_p_val_1_CNA_assoc_only.txt",
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/tables/" + 
+            "subpop_DE_min_pct_0.5_logfc_0.7_p_val_0.01_CNA_assoc_only.txt"
     threads: 3
     shell:
         "module load briglo/R/3.6.0; "
@@ -362,5 +344,60 @@ rule subcluster_DE:
         " {adj_p_cutoff}" +
         " {specific_DE}" +
         " {specific_features} " +
-        "' ../../../scripts/5.subcluster_DE.R"
+        "' ../../../scripts/4.subcluster_DE.R"
 
+rule identify_cancer_genes:
+    input:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/plots/DE/" + 
+            "subpop_DE_min_pct_0.5_logfc_0.7_p_val_0.01_DE_heatmap_CNA_assoc_only.png"
+    output:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/artefacts_not_removed/tables/" +
+            "msigdb_cancer_subpop_DE_genes.txt"
+    threads: 3
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/subcluster_signal/{wildcards.sample}/; " +
+        "cd logs/subcluster_signal/{wildcards.sample}; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" + 
+        " {wildcards.subcluster_method}" +
+        " {wildcards.subcluster_p}" +
+        " {wildcards.coverage_filter}" +
+        " {remove_artefacts}" +
+        " {min_CNV_length}" +
+        " {min_CNV_proportion}" +
+        " TRUE" + # remove normals
+        "' ../../../scripts/7.plot_DE_CNA_cancer_genes.R"
+
+rule DE_gene_plot:
+    input:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/plots/" + 
+            "infercnv_plot_normals_QC_annotated.pdf",
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/artefacts_not_removed/plots/" + 
+            "infercnv_plot_exp_clusters_CNV_subclusters_QC_annotated.pdf",
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/artefacts_not_removed/tables/" +
+            "msigdb_cancer_subpop_DE_genes.txt"
+    output:
+        "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/plots/" + 
+            "CNV_signal_plots_with_DE_genes.pdf"
+    threads: 3
+    shell:
+        "module load briglo/R/3.6.0; "
+        "mkdir -p logs/subcluster_signal/{wildcards.sample}/; " +
+        "cd logs/subcluster_signal/{wildcards.sample}; " + 
+        "{R_dir}/R CMD BATCH  --no-save '--args" + 
+        " {wildcards.sample}" + 
+        " {wildcards.subcluster_method}" +
+        " {wildcards.subcluster_p}" +
+        " {wildcards.coverage_filter}" +
+        " {remove_artefacts}" +
+        " {min_CNV_length}" +
+        " {min_CNV_proportion}" +
+        " TRUE" + # remove normals
+        "' ../../../scripts/7.plot_DE_CNA_cancer_genes.R"

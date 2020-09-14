@@ -13,6 +13,7 @@ def scholar_scrape(
     import re
     import time
     import sys
+    import random
     
     # remove any existing DE gene article file:
     if os.path.isfile(out_dir + sample_id + '_DE_gene_articles.txt'):
@@ -20,14 +21,19 @@ def scholar_scrape(
     # scrape google scholar for articles on genes containing key terms:
     print("Finding articles on DE genes from sample " + sample_id)
     
-    for de_gene in genes:
-        print('\nWaiting for 120 sec to avoid bot detection...\n')
-        time.sleep(120)
-        print('\nScraping Google Scholar for articles on ' + de_gene + \
+    for i in range(1, len(genes)):
+        # determine waiting time at random, or wait 30 min every 20 entries:
+        if i % 20 == 0:
+            wait_time = 1800
+        else:
+            wait_time = random.randint(120,300)
+        print('\nWaiting for ' + str(wait_time) + ' sec to avoid bot detection...\n')
+        time.sleep(wait_time)
+        print('\nScraping Google Scholar for articles on ' + genes[i] + \
             ' containing key search terms...')
         headers = {'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/601.3.9 (KHTML, like Gecko) Version/9.0.2 Safari/601.3.9'}
         url = 'https://scholar.google.com.au/scholar?hl=en&as_sdt=0%2C5&q=' + \
-            de_gene + '&btnG='
+            genes[i] + '&btnG='
         response=requests.get(url,headers=headers)
         soup=BeautifulSoup(response.content,'lxml')
     
@@ -80,7 +86,7 @@ def scholar_scrape(
                 out_dir + sample_id + '_DE_gene_articles.txt', mode='at', encoding='utf-8'
             ) as myfile:
                 myfile.write('\n\n----------------------------------------')
-                myfile.write('\n' + de_gene + ':\n\n')
+                myfile.write('\n' + genes[i] + ':\n\n')
                 myfile.write(final_cites)
     
             print('\n----------------------------------------\n')

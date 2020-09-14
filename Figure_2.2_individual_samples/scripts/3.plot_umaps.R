@@ -27,31 +27,31 @@ minimal_epi_markers <- strsplit(
   "_"
 )[[1]]
 
-project_name <- "thesis"
-subproject_name <- "Figure_2.2_individual_samples"
-sample_name <- "CID4463"
-subcluster_method <- "random_trees"
-subcluster_p <- "0.05"
-if (subcluster_p != "none") {
-  subcluster_p <- as.numeric(subcluster_p)
-}
-coverage_filter <- "filtered"
-remove_artefacts <- "artefacts_not_removed"
-res <- "PC_C_res.1"
-PC <- "C"
-epi_res <- "PC_C_res.1"
-epi_PC <-"C"
-garnett_slot <- "garnett_call_ext_major"
-remove_outliers <- TRUE
-outlier_sd_multiplier <- 3
-epi_markers <- strsplit( 
-  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_PGR_ERBB2_MKI67",
-  "_"
-)[[1]]
-minimal_epi_markers <- strsplit(
-  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_MKI67",
-  "_"
-)[[1]]
+#project_name <- "thesis"
+#subproject_name <- "Figure_2.2_individual_samples"
+#sample_name <- "CID4463"
+#subcluster_method <- "random_trees"
+#subcluster_p <- "0.05"
+#if (subcluster_p != "none") {
+#  subcluster_p <- as.numeric(subcluster_p)
+#}
+#coverage_filter <- "filtered"
+#remove_artefacts <- "artefacts_not_removed"
+#res <- "PC_C_res.1"
+#PC <- "C"
+#epi_res <- "PC_C_res.1"
+#epi_PC <-"C"
+#garnett_slot <- "garnett_call_ext_major"
+#remove_outliers <- TRUE
+#outlier_sd_multiplier <- 3
+#epi_markers <- strsplit( 
+#  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_PGR_ERBB2_MKI67",
+#  "_"
+#)[[1]]
+#minimal_epi_markers <- strsplit(
+#  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_MKI67",
+#  "_"
+#)[[1]]
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))

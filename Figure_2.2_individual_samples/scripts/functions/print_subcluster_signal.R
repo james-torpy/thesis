@@ -2,7 +2,9 @@ print_subcluster_signal <- function(
   s_plots,
   chr_coords,
   plot_dir,
-  include_lengths = FALSE
+  include_lengths = FALSE,
+  annotate_genes = NULL,
+  no_genes
 ) {
 
   if (include_lengths) {
@@ -11,7 +13,12 @@ print_subcluster_signal <- function(
       height = 14, 
       width = 20
     )   
-
+  } else if (!is.null(annotate_genes)) {
+    pdf(
+      paste0(plot_dir, "CNV_signal_plots_with_DE_genes.pdf"), 
+      height = 14, 
+      width = 20
+    )
   } else {
     pdf(
       paste0(plot_dir, "CNV_signal_plots.pdf"), 
@@ -26,6 +33,7 @@ print_subcluster_signal <- function(
     for (p in 1:length(s_plots)) {
   
       if (include_lengths) {
+
         # plot:
         pushViewport(viewport(
           x = 0.52, y = 0.91-(0.15*(p-1)), 
@@ -44,7 +52,56 @@ print_subcluster_signal <- function(
             , gp=gpar(fontsize=18)
           )
         popViewport()
+
+      } else if (!is.null(annotate_genes)) {
+
+        if (p == length(s_plots)) {
+
+          # plot:
+          pushViewport(viewport(
+            x = 0.52, y = 0.91-(0.15*(p-1)), 
+            width = 0.94, height = 0.13
+          ))
+            grid.draw(s_plots[[p]])
+          popViewport()
+      
+          # title:
+          pushViewport(viewport(
+            x = 0.03, y = 0.937-(0.15*(p-1)), 
+            width = 0.1, height = 0.1
+          ))
+            grid.text(
+              gsub("_", " ", names(s_plots)[p])
+              , gp=gpar(fontsize=18)
+            )
+          popViewport()
+          
+
+        } else {
+
+          # plot:
+          pushViewport(viewport(
+            x = 0.52, y = 0.91-(0.15*(p-1)), 
+            width = 0.94, height = 0.13
+          ))
+            grid.draw(s_plots[[p]])
+          popViewport()
+      
+          # title:
+          pushViewport(viewport(
+            x = 0.03, y = 0.927-(0.15*(p-1)), 
+            width = 0.1, height = 0.1
+          ))
+            grid.text(
+              gsub("_", " ", names(s_plots)[p])
+              , gp=gpar(fontsize=18)
+            )
+          popViewport()
+
+        }
+        
       } else {
+
         # plot:
         pushViewport(viewport(
           x = 0.52, y = 0.9-(0.16*(p-1)), 
@@ -65,6 +122,36 @@ print_subcluster_signal <- function(
         popViewport()
       }  
   
+    }
+
+    # annotate genes if needed:
+    if (!is.null(annotate_genes)) {
+
+      pushViewport(viewport(
+        x = 0.521, y = 0.06, 
+        width = 0.931, height = 0.07
+      ))
+        grid.rect()
+
+      for (j in 1:nrow(annotate_genes)) {
+        # adjust x and y for stagger value:
+        pushViewport(viewport(
+          x = (annotate_genes$index[j]/no_genes), 
+          y = 1 - (0.2*annotate_genes$stagger[j]), 
+          width = 0.01, 
+          height = 1
+        ))          
+            if (annotate_genes$direction[j] == "up") {
+              grid.text(annotate_genes$gene[j], gp=gpar(fontsize=16, col="red"))
+            } else {
+              grid.text(annotate_genes$gene[j], gp=gpar(fontsize=16, col="blue"))
+            }
+
+          popViewport()
+        }
+        
+      popViewport()
+
     }
 
     # draw chromosome labels:
@@ -97,11 +184,15 @@ print_subcluster_signal <- function(
 
     if (include_lengths) {
       # draw x-axis label:
-      pushViewport(viewport(x = 0.5, y = 0.03, width = 0.05, height = 0.05, 
+      pushViewport(viewport(x = 0.5, y = 0.05, width = 0.05, height = 0.05, 
         just = c("left", "bottom")))
         grid.text("CNV length (kb)", gp=gpar(fontsize=20))
       popViewport()
-
+    } else if (!is.null(annotate_genes)) {
+      pushViewport(viewport(x = 0.52, y = 0.035, width = 0.05, height = 0.05, 
+        just = c("top")))
+        grid.text("DE CNA assoc. genes", gp=gpar(fontsize=20))
+      popViewport()
     }
    
   dev.off()

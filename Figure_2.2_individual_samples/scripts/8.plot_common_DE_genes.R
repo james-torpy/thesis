@@ -82,7 +82,7 @@ results_dir <- paste0(project_dir, "results/")
 in_path <- paste0(results_dir, "infercnv/")
 out_dir <- paste0(results_dir, "infercnv/common_DE/", 
   coverage_filter, "/", subcluster_method, "/p_", subcluster_p, "/", 
-  remove_artefacts, "/", min_pct_all_gene, "_min_pct/")
+  remove_artefacts, "/tables/")
 
 if (subset_samples) {
   Robject_dir <- paste0(out_dir, "Rdata_sub/")
@@ -91,7 +91,7 @@ if (subset_samples) {
 } else {
   Robject_dir <- paste0(out_dir, "Rdata/")
   plot_dir <- paste0(out_dir, "plots/")
-  table_dir <- paste0(out_dir, "tables/")
+  table_dir <- out_dir
 }
 
 system(paste0("mkdir -p ", Robject_dir))
@@ -125,7 +125,7 @@ names(subtype_cols) <- c("ER", "HER2", "TNBC")
 ### 1. Load DE data ###
 ################################################################################
 
-if (!file.exists(paste0(Robject_dir, "group_DE_data.Rdata"))) {
+if (!file.exists(paste0(Robject_dir, "common_subpop_DE_data.Rdata"))) {
 
   for (s in 1:length(sample_names)) {
 
@@ -138,16 +138,17 @@ if (!file.exists(paste0(Robject_dir, "group_DE_data.Rdata"))) {
     )
 
     DE_data <- read.table(
-  		paste0(sample_table_dir, "subpop_DE.txt"),
+  		paste0(
+        sample_table_dir, 
+        "subpop_DE_min_pct_0.5_logfc_0.7_p_val_0.01_CNA_assoc_only.txt"
+      ),
       header = T
 	  )
 
     all_gene_DE_data <- read.table(
       paste0(
       	sample_table_dir, 
-      	"all_gene_subpop_DE_min_pct_", 
-      	min_pct_all_gene, 
-      	".txt"
+      	"subpop_DE_min_pct_0.1_logfc_0_p_val_1_CNA_assoc_only.txt"
       ),
       header = T
     )
@@ -175,13 +176,23 @@ if (!file.exists(paste0(Robject_dir, "group_DE_data.Rdata"))) {
 
   }
 
-  saveRDS(all_DE_data, paste0(Robject_dir, "group_DE_data.Rdata"))
-  saveRDS(all_gene_data, paste0(Robject_dir, "group_all_gene_DE_data.Rdata"))
+  saveRDS(
+    all_DE_data, 
+    paste0(Robject_dir, "common_subpop_DE_data.Rdata")
+  )
+  saveRDS(
+    all_gene_data, 
+    paste0(Robject_dir, "common_all_gene_subpop DE_data.Rdata")
+  )
 
 } else {
 
-  all_DE_data <- readRDS(paste0(Robject_dir, "group_DE_data.Rdata"))
-  all_gene_data <- readRDS(paste0(Robject_dir, "group_all_gene_DE_data.Rdata"))
+  all_DE_data <- readRDS(
+    paste0(Robject_dir, "common_subpop_DE_data.Rdata")
+  )
+  all_gene_data <- readRDS(
+    paste0(Robject_dir, "common_all_gene_subpop DE_data.Rdata")
+  )
   
 }
 
@@ -220,7 +231,7 @@ common_DE <- unique(
 # save common DE genes to use for looking up articles:
 write.table(
   data.frame(gene = common_DE),
-  paste0(table_dir, "sig_subpop_DE.txt"),
+  paste0(table_dir, "sig_subpop_DE_CNA_assoc_only.txt"),
   col.names = TRUE,
   row.names = FALSE,
   quote = FALSE
@@ -241,15 +252,16 @@ if (length(common_DE) > 0) {
   common_DE_data <- lapply(all_gene_data, function(x) {
 
     common_df <- x[x$gene %in% common_DE,]
+    common_df$gene <- as.character(common_df$gene)
     common_df$sig <- FALSE
     common_df$sig[common_df$p_val_adj < 0.1] <- TRUE
 
     # split by gene:
-    split_df <- split(common_df, as.character(common_df$gene))
+    split_by_gene <- split(common_df, as.character(common_df$gene))
 
-    # deal with duplicate genes:
+    # keep only values with largest distance from 0:
     res_df <- do.call(
-      "rbind",lapply(split_df, function(y) {
+      "rbind",lapply(split_by_gene, function(y) {
 
         if (nrow(y) == 1) {
   
@@ -264,13 +276,12 @@ if (length(common_DE) > 0) {
   
           if (all(y$sig == TRUE) | all(y$sig == FALSE)) {
 
+            # determine difference of each logFC from 0:
+            y$diff <- abs(0-y$avg_logFC)
+
             return(
               subset(
-                aggregate(
-                  .~gene,
-                  y, 
-                  max
-                ),
+                merge(aggregate(diff ~ gene, max, data = y), y),
                 select = c(gene, p_val_adj, avg_logFC, sig)
               )
             )
@@ -281,11 +292,7 @@ if (length(common_DE) > 0) {
 
             return(
               subset(
-                aggregate(
-                  .~gene,
-                  y, 
-                  max
-                ),
+                merge(aggregate(diff ~ gene, max, data = y), y),
                 select = c(gene, p_val_adj, avg_logFC, sig)
               )
             )
@@ -295,14 +302,15 @@ if (length(common_DE) > 0) {
         }
       })
     )
-
-    return(res_df)
+    
+    return(combined_df)
 
   })
 
   # merge together common DE data:
   logFC <- data.frame(
-    gene = common_DE
+    gene = common_DE,
+    stringsAsFactors = FALSE
   )
 
   for (s in 1:length(common_DE_data)) {
@@ -354,8 +362,8 @@ if (length(common_DE) > 0) {
   # define heatmap colours:
   na_less_vector <- unlist(logFC)
   na_less_vector <- na_less_vector[!is.na(na_less_vector)]
-  heatmap_cols <- colorRamp2(c(min(na_less_vector), max(na_less_vector)), 
-    c("white", "#870C0C"), space = "sRGB")
+  heatmap_cols <- colorRamp2(c(min(na_less_vector), 0, max(na_less_vector)), 
+    c("#0D3084", "white", "#870C0C"), space = "sRGB")
 
   final_heatmap <- Heatmap(
     as.matrix(logFC), 
@@ -381,7 +389,7 @@ if (length(common_DE) > 0) {
   )
   dev.off()
 
-  pdf(paste0(plot_dir, "common_gene_DE.pdf"), 
+  pdf(paste0(plot_dir, "common_gene_DE_CNA_assoc_only.pdf"), 
     height = 13, width = 20) 
   
     grid.newpage()
