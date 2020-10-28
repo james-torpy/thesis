@@ -27,31 +27,31 @@ minimal_epi_markers <- strsplit(
   "_"
 )[[1]]
 
-#project_name <- "thesis"
-#subproject_name <- "chapter_4"
-#sample_name <- "CID4463"
-#subcluster_method <- "random_trees"
-#subcluster_p <- "0.05"
-#if (subcluster_p != "none") {
-#  subcluster_p <- as.numeric(subcluster_p)
-#}
-#coverage_filter <- "filtered"
-#remove_artefacts <- "artefacts_not_removed"
-#res <- "PC_C_res.1"
-#PC <- "C"
-#epi_res <- "PC_C_res.1"
-#epi_PC <-"C"
-#garnett_slot <- "garnett_call_ext_major"
-#remove_outliers <- TRUE
-#outlier_sd_multiplier <- 3
-#epi_markers <- strsplit( 
-#  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_PGR_ERBB2_MKI67_CD44_ZEB1",
-#  "_"
-#)[[1]]
-#minimal_epi_markers <- strsplit(
-#  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_MKI67",
-#  "_"
-#)[[1]]
+project_name <- "thesis"
+subproject_name <- "chapter_4"
+sample_name <- "CID45172"
+subcluster_method <- "random_trees"
+subcluster_p <- "0.05"
+if (subcluster_p != "none") {
+  subcluster_p <- as.numeric(subcluster_p)
+}
+coverage_filter <- "filtered"
+remove_artefacts <- "artefacts_not_removed"
+res <- "PC_C_res.1"
+PC <- "C"
+epi_res <- "PC_C_res.1"
+epi_PC <-"C"
+garnett_slot <- "garnett_call_ext_major"
+remove_outliers <- TRUE
+outlier_sd_multiplier <- 3
+epi_markers <- strsplit( 
+  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_PGR_ERBB2_MKI67_CD44_ZEB1",
+  "_"
+)[[1]]
+minimal_epi_markers <- strsplit(
+  "EPCAM_KRT18_ESR1_KRT5_KRT14_ELF5_GATA3_MKI67",
+  "_"
+)[[1]]
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -220,16 +220,31 @@ if (
   )
 
   # reassign levels:
-  levels(Idents(seurat_epi)) <- c(
-    paste0(
+  if ("normal" %in% levels(Idents(seurat_epi)) & 
+  	"unassigned" %in% levels(Idents(seurat_epi))) {
+  	levels(Idents(seurat_epi)) <- c(
+      paste0(
+        "Expression_",
+        1:(length(levels(Idents(seurat_epi)))-2)
+      ),
+      "normal",
+      "unassigned"
+    )
+  } else if ("normal" %in% levels(Idents(seurat_epi))) {
+  	levels(Idents(seurat_epi)) <- c(
+      paste0(
+        "Expression_",
+        1:(length(levels(Idents(seurat_epi)))-1)
+      ),
+      "normal"
+    )
+  } else {
+  	levels(Idents(seurat_epi)) <- paste0(
       "Expression_",
-      1:(length(levels(Idents(seurat_epi)))-2)
-    ),
-    "normal",
-    "unassigned"
-  )
-
-
+      1:(length(levels(Idents(seurat_epi))))
+    )
+  }
+  
 }
 
 

@@ -234,7 +234,7 @@ write.table(
 # bind loss and gain dfs together:
 both_df <- rbind(loss_df, gain_df)
 
-# create copy number distribtuion boxplot:
+# create copy number distribution boxplot:
 my_comparisons = list( c("0", "0.5"), c("1.5", "2"), c("2", "3") )
 
 p <- ggboxplot(

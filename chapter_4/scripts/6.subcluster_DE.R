@@ -1,5 +1,8 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
+### This script performs DE between each CNV-based subpopulation and plots top DE results, and top CNA-associated
+# results ###
+
 project_name <- "thesis"
 subproject_name <- "chapter_4"
 args = commandArgs(trailingOnly=TRUE)
@@ -31,30 +34,31 @@ if (specific_features != "none") {
   )[[1]]
 }
 
-#project_name <- "thesis"
-#subproject_name <- "chapter_4"
-#sample_name <- "CID4515"
-#subcluster_method <- "random_trees"
-#subcluster_p <- "0.05"
-#if (subcluster_p != "none") {
-#  subcluster_p <- as.numeric(subcluster_p)
-#}
-#coverage_filter <- "filtered"
-#remove_artefacts <- "artefacts_not_removed"
-#adj_p_cutoff <- as.numeric("0.1")
-##specific_DE <- "none"
-#specific_DE <- "CNV_2.CNV_3.CNV_4..CNV_1"
-#if (specific_DE != "none") {
-#  specific_DE <- strsplit(
-#    strsplit(
-#      specific_DE,
-#      "\\.\\."
-#    )[[1]],
-#    "\\."
-#  )
-#  names(specific_DE) <- c("non-met", "met")
-#}
-#specific_features <- "none"
+project_name <- "thesis"
+subproject_name <- "chapter_4"
+sample_name <- "CID4463"
+subcluster_method <- "random_trees"
+subcluster_p <- "0.05"
+if (subcluster_p != "none") {
+  subcluster_p <- as.numeric(subcluster_p)
+}
+coverage_filter <- "filtered"
+remove_artefacts <- "artefacts_not_removed"
+adj_p_cutoff <- as.numeric("0.1")
+#specific_DE <- "none"
+specific_DE <- "CNV_3.CNV_4.CNV_5.CNV_6..CNV_1.CNV_2"
+if (specific_DE != "none") {
+  specific_DE <- strsplit(
+    strsplit(
+      specific_DE,
+      "\\.\\."
+    )[[1]],
+    "\\."
+  )
+  names(specific_DE) <- c("ELF5", "non-ELF5")
+}
+specific_features <- "none"
+
 #specific_features <- paste(
 # c(
 #    "MUCL1_IGFBP5_NDRG1_ELF5_ELF3_MDK_CXCL14_LY6D_CCND1_DUSP1_TIMP1_SERPINF1_SERPINB4_S100A6_S100A14_S100A16"
@@ -93,6 +97,7 @@ ref_dir <- paste0(project_dir, "/refs/")
 func_dir <- paste0(project_dir, "/scripts/functions/")
 seurat_dir <- paste0(project_dir, "raw_files/seurat_objects/")
 in_dir <- paste0(seurat_dir, sample_name, "/")
+raw_dir <- paste0(project_dir, "raw_files/seurat_objects/")
 results_dir <- paste0(project_dir, "results/")
 out_path <- paste0(
   results_dir, "infercnv/", sample_name, "/",
@@ -177,9 +182,7 @@ seurat_sub <- subset(
 ### 2. DE between all subclusters and plot ###
 ################################################################################
 
-# stringent DE with only top significant DE CNV-assoc genes (to be used for
-# main DE heatmaps):
-
+# stringent DE with only top significant DE genes:
 plot_DE(
   seurat_object = seurat_sub,
   min_pct = 0.5,
@@ -188,12 +191,13 @@ plot_DE(
   only.pos = FALSE,
   plot_dir,
   filter_sig = TRUE,
-  CNA_assoc_only = TRUE,
+  CNA_assoc_plot = TRUE,
   raw_dir,
   table_dir,
   Robject_dir,
   ref_dir,
-  file_prefix = "top_CNA_assoc_subpop_DE"
+  func_dir,
+  file_prefix = "top_subpop_DE"
 )
 
 # loose DE with all reported CNA-assoc genes (to be used for common gene DE
@@ -206,15 +210,16 @@ plot_DE(
   only.pos = FALSE,
   plot_dir,
   filter_sig = FALSE,
-  CNA_assoc_only = TRUE,
+  CNA_assoc_plot = TRUE,
   raw_dir,
   table_dir,
   Robject_dir,
   ref_dir,
-  file_prefix = "all_CNA_assoc_subpop_DE"
+  func_dir,
+  file_prefix = "all_subpop_DE"
 )
 
-# stringent DE with all top significant DE genes:
+# stringent DE between specified groups:
 plot_DE(
   seurat_object = seurat_sub,
   min_pct = 0.5,
@@ -223,28 +228,33 @@ plot_DE(
   only.pos = FALSE,
   plot_dir,
   filter_sig = TRUE,
-  CNA_assoc_only = FALSE,
+  CNA_assoc_plot = TRUE,
   raw_dir,
   table_dir,
   Robject_dir,
   ref_dir,
-  file_prefix = "top_subpop_DE"
+  func_dir,
+  file_prefix = paste0(names(specific_DE)[2], "_vs_", names(specific_DE)[2]),
+  specific_DE = specific_DE,
+  group1 = names(specific_DE)[1],
+  group2 = names(specific_DE)[2]
 )
 
-# loose DE for use with iDEA:
-plot_DE(
-  seurat_object = seurat_sub,
-  min_pct = 0,
-  logfc_thresh = 0,
-  return_thresh = 1,
-  only.pos = FALSE,
-  plot_dir,
-  filter_sig = FALSE,
-  CNA_assoc_only = FALSE,
-  raw_dir,
-  table_dir,
-  Robject_dir,
-  ref_dir,
-  file_prefix = "all_subpop_DE"
-)
+
+## loose DE for use with iDEA:
+#plot_DE(
+#  seurat_object = seurat_sub,
+#  min_pct = 0,
+#  logfc_thresh = 0,
+#  return_thresh = 1,
+#  only.pos = FALSE,
+#  plot_dir,
+#  filter_sig = FALSE,
+#  CNA_assoc_only = FALSE,
+#  raw_dir,
+#  table_dir,
+#  Robject_dir,
+#  ref_dir,
+#  file_prefix = "all_subpop_DE"
+#)
 
