@@ -36,7 +36,7 @@ if (specific_features != "none") {
 
 project_name <- "thesis"
 subproject_name <- "chapter_4"
-sample_name <- "CID4515"
+sample_name <- "CID45152"
 subcluster_method <- "random_trees"
 subcluster_p <- "0.05"
 if (subcluster_p != "none") {

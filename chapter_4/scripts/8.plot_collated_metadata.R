@@ -44,7 +44,7 @@ if (subset_samples) {
 } else {
 
   # determine order of samples by subtype:
-  ER <- c("CID3941", "CID3948", "CID4067", "CID4290A", "CID4461", 
+  ER <- c("CID3941", "CID3948", "CID4067", "CID4290A", 
   	"CID4463", "CID4530N", "CID4535")
   HER2 <- c("CID3921", "CID3586", "CID3963", "CID4066", "CID45171")
   TNBC <- c("CID44971", "CID44991", "CID4513",

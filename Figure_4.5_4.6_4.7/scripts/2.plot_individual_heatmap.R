@@ -1,7 +1,7 @@
 #! /share/ClusterShare/software/contrib/CTP_single_cell/tools/R_developers/config_R-3.5.0/bin/Rscript
 
 project_name <- "thesis"
-subproject_name <- "chapter_4"
+subproject_name <- "Figure_4.5_4.6_4.7"
 args = commandArgs(trailingOnly=TRUE)
 
 sample_name <- args[1]
@@ -28,9 +28,53 @@ plot_references <- as.logical(args[18])
 array_CNVs <- as.logical(args[19])
 plot_type <- args[20]
 
+if (plot_type == "normals_annotated") {
+  remove_normals <- FALSE
+  subcluster_annot <- FALSE
+  subcluster_legend <- FALSE
+  expression_annot <- FALSE
+  expression_legend <- FALSE
+  normal_annot <- TRUE
+  normal_legend <- TRUE
+} else if (plot_type == "clusters_annotated") {
+  remove_normals <- TRUE
+  subcluster_annot <- TRUE
+  subcluster_legend <- TRUE
+  expression_annot <- TRUE
+  expression_legend <- TRUE
+  normal_annot <- FALSE
+  normal_legend <- FALSE
+}
+
+print(paste0("Subproject name = ", subproject_name))
+print(paste0("Sample name = ", sample_name))
+print(paste0("Subclustered by ", subcluster_method))
+print(paste0("Subclustered by pval ", subcluster_p))
+print(paste0("Filter by coverage? ", coverage_filter))
+print(paste0("Remove artefacts? ", remove_artefacts))
+print(paste0("X-axis outlier multiplier = ", x_outlier_multiplier))
+print(paste0("X-axis threshold multiplier = ", x_thresh_multiplier))
+print(paste0("Y-axis outlier threshold multiplier = ", y_outlier_multiplier))
+print(paste0("Y-axis threshold multiplier = ", y_thresh_multiplier))
+print(paste0("Remove normal cells? ", remove_normals))
+print(paste0("Minimum cells required to call CNV subcluster = ", min_cluster_cells))
+print(paste0("Merge identical subclusters? ", subcluster_merge))
+print(paste0("Minimum correlation required to merge subclusters ", merge_thresh))
+print(paste0("Proportion of less coverage subcluster to more coverage required to merge subclusters ", merge_diff_prop))
+print(paste0("Order cells by = ", order_by))
+print(paste0("Print subcluster annotation? ", subcluster_annot))
+print(paste0("Print subcluster legend? ", subcluster_legend))
+print(paste0("Print expression annotation? ", expression_annot))
+print(paste0("Print expression legend? ", expression_legend))
+print(paste0("Print QC annotations? ", QC_annot))
+print(paste0("Print normal annotation? ", normal_annot))
+print(paste0("Print normal legend? ", normal_legend))
+print(paste0("Plot reference cells? ", plot_references))
+print(paste0("Array CNVs? ", array_CNVs))
+
 #project_name <- "thesis"
-#subproject_name <- "chapter_4"
-#sample_name <- "CID45171"
+#subproject_name <- "Figure_4.5_4.6_4.7"
+#sample_name <- "CID44971"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {
@@ -71,33 +115,6 @@ if (plot_type == "normals_annotated") {
   normal_annot <- FALSE
   normal_legend <- FALSE
 }
-
-
-print(paste0("Subproject name = ", subproject_name))
-print(paste0("Sample name = ", sample_name))
-print(paste0("Subclustered by ", subcluster_method))
-print(paste0("Subclustered by pval ", subcluster_p))
-print(paste0("Filter by coverage? ", coverage_filter))
-print(paste0("Remove artefacts? ", remove_artefacts))
-print(paste0("X-axis outlier multiplier = ", x_outlier_multiplier))
-print(paste0("X-axis threshold multiplier = ", x_thresh_multiplier))
-print(paste0("Y-axis outlier threshold multiplier = ", y_outlier_multiplier))
-print(paste0("Y-axis threshold multiplier = ", y_thresh_multiplier))
-print(paste0("Remove normal cells? ", remove_normals))
-print(paste0("Minimum cells required to call CNV subcluster = ", min_cluster_cells))
-print(paste0("Merge identical subclusters? ", subcluster_merge))
-print(paste0("Minimum correlation required to merge subclusters ", merge_thresh))
-print(paste0("Proportion of less coverage subcluster to more coverage required to merge subclusters ", merge_diff_prop))
-print(paste0("Order cells by = ", order_by))
-print(paste0("Print subcluster annotation? ", subcluster_annot))
-print(paste0("Print subcluster legend? ", subcluster_legend))
-print(paste0("Print expression annotation? ", expression_annot))
-print(paste0("Print expression legend? ", expression_legend))
-print(paste0("Print QC annotations? ", QC_annot))
-print(paste0("Print normal annotation? ", normal_annot))
-print(paste0("Print normal legend? ", normal_legend))
-print(paste0("Plot reference cells? ", plot_references))
-print(paste0("Array CNVs? ", array_CNVs))
 
 lib_loc <- "/share/ScratchGeneral/jamtor/R/3.6.0/"
 library(scales, lib.loc = lib_loc)
@@ -556,7 +573,135 @@ if (!remove_normals) {
 
 
 ################################################################################
-### 5. Order metadata ###
+### 5. Redefine epithelial subclusters pre and post-normal calling ###
+################################################################################
+
+epithelial_metadata$exp_id_pre_normal_call <- factor(epithelial_metadata$cell_type)
+
+if ("Epithelial_outlier" %in% epithelial_metadata$cell_type) {
+  levels(epithelial_metadata$exp_id_pre_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_pre_normal_call))-1)
+    ),
+    "Epithelial_outlier"
+  )
+} else {
+  levels(epithelial_metadata$exp_id_pre_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_pre_normal_call)))
+    )
+  )
+}
+
+epithelial_metadata$exp_id_post_normal_call <- epithelial_metadata$cell_type
+epithelial_metadata$exp_id_post_normal_call[
+  epithelial_metadata$normal_cell_call == "normal"
+] <- "normal"
+epithelial_metadata$exp_id_post_normal_call[
+  epithelial_metadata$normal_cell_call == "unassigned"
+] <- "unassigned"
+epithelial_metadata$exp_id_post_normal_call <- factor(
+  epithelial_metadata$exp_id_post_normal_call
+)
+
+if ("Epithelial_outlier" %in% epithelial_metadata$cell_type &
+  "normal" %in% epithelial_metadata$normal_cell_call &
+  "unassigned"  %in% epithelial_metadata$normal_cell_call) {
+  levels(epithelial_metadata$exp_id_post_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_post_normal_call))-3)
+    ),
+    "Epithelial_outlier",
+    "Normal",
+    "Unassigned"
+  )
+} else if (!("Epithelial_outlier" %in% epithelial_metadata$cell_type) &
+  "normal" %in% epithelial_metadata$normal_cell_call &
+  "unassigned"  %in% epithelial_metadata$normal_cell_call) {
+  levels(epithelial_metadata$exp_id_post_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_post_normal_call))-2)
+    ),
+    "Normal",
+    "Unassigned"
+  )
+} else if ("Epithelial_outlier" %in% epithelial_metadata$cell_type &
+  !("normal" %in% epithelial_metadata$normal_cell_call) &
+  "unassigned"  %in% epithelial_metadata$normal_cell_call) {
+  levels(epithelial_metadata$exp_id_post_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_post_normal_call))-2)
+    ),
+    "Epithelial_outlier",
+    "Unassigned"
+  )
+} else if ("Epithelial_outlier" %in% epithelial_metadata$cell_type &
+  "normal" %in% epithelial_metadata$normal_cell_call &
+  !("unassigned"  %in% epithelial_metadata$normal_cell_call)) {
+  levels(epithelial_metadata$exp_id_post_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_post_normal_call))-2)
+    ),
+    "Epithelial_outlier",
+    "Normal"
+  )
+} else if (!("Epithelial_outlier" %in% epithelial_metadata$cell_type) &
+  !("normal" %in% epithelial_metadata$normal_cell_call) &
+  "unassigned"  %in% epithelial_metadata$normal_cell_call) {
+  levels(epithelial_metadata$exp_id_post_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_post_normal_call))-1)
+    ),
+    "Unassigned"
+  )
+} else if (!("Epithelial_outlier" %in% epithelial_metadata$cell_type) &
+  "normal" %in% epithelial_metadata$normal_cell_call &
+  !("unassigned"  %in% epithelial_metadata$normal_cell_call)) {
+  levels(epithelial_metadata$exp_id_post_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_post_normal_call))-1)
+    ),
+    "Normal"
+  )
+} else if ("Epithelial_outlier" %in% epithelial_metadata$cell_type &
+  !("normal" %in% epithelial_metadata$normal_cell_call) &
+  !("unassigned"  %in% epithelial_metadata$normal_cell_call)) {
+  levels(epithelial_metadata$exp_id_post_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_post_normal_call))-1)
+    ),
+    "Epithelial_outlier"
+  )
+} else if (!("Epithelial_outlier" %in% epithelial_metadata$cell_type) &
+  !("normal" %in% epithelial_metadata$normal_cell_call) &
+  !("unassigned"  %in% epithelial_metadata$normal_cell_call)) {
+  levels(epithelial_metadata$exp_id_post_normal_call) <- c(
+    paste0(
+      "Expression_", 
+      1:(length(levels(epithelial_metadata$exp_id_post_normal_call)))
+    )
+  )
+}
+
+# remove cells from epithelial clusters with < 5 cells:
+split_metadata <- split(
+  epithelial_metadata,
+  epithelial_metadata$exp_id_post_normal_call
+)
+keep_clusters <- 
+
+
+################################################################################
+### 6. Order metadata ###
 ################################################################################
 
 if (order_by == "CNV") {
@@ -684,18 +829,18 @@ if (remove_normals) {
 
 
 ################################################################################
-### 6. Create heatmap and annotations ###
+### 7. Create heatmap and annotations ###
 ################################################################################
 
 # create expression cluster annotation:
 if (expression_annot) {
 
   # define cluster annotation colours:
-  expr_number <- length(unique(epithelial_metadata$expression_id))
+  expr_number <- length(unique(epithelial_metadata$exp_id_post_normal_call))
   expr_cols <- expr_cols[1:expr_number]
-  names(expr_cols) <- levels(epithelial_metadata$expression_id)
+  names(expr_cols) <- levels(epithelial_metadata$exp_id_post_normal_call)
 
-  expr_annot_df <- subset(epithelial_metadata, select = expression_id)
+  expr_annot_df <- subset(epithelial_metadata, select = exp_id_post_normal_call)
 
   expr_annot <- Heatmap(
     as.matrix(expr_annot_df), 
@@ -831,7 +976,7 @@ if (array_CNVs) {
 
 
 ################################################################################
-### 7. Create epithelial and reference heatmap ###
+### 8. Create epithelial and reference heatmap ###
 ################################################################################
 
 # determine heatmap colours
@@ -926,7 +1071,7 @@ names(chr_labels) <- gsub("21", "\n21", names(chr_labels))
 
 
 ################################################################################
-### 8. Create and plot annotated heatmap ###
+### 9. Create and plot annotated heatmap ###
 ################################################################################
 
 if (subcluster_annot) {
@@ -1028,12 +1173,12 @@ if (plot_references) {
 
       # print subcluster legend:
       if (subcluster_legend) {
-        create_legend("CNV subcluster", epithelial_metadata$subcluster_id, subcluster_cols) 
+        create_legend("CNV", epithelial_metadata$subcluster_id, subcluster_cols) 
       }
   
       # print expression legend:
       if (expression_legend) {
-        create_legend("Expression", epithelial_metadata$expression_id, expr_cols) 
+        create_legend("Expression", epithelial_metadata$exp_id_post_normal_call, expr_cols) 
       }
    
       # label QC annotations:
@@ -1082,7 +1227,7 @@ if (plot_references) {
         pushViewport(viewport(x = 0.075, y = 0.476, width = unit(6, "cm"), 
           height = unit(10, "cm"), just="bottom"))
           create_legend(
-            "CNV subcluster", 
+            "CNV", 
             epithelial_metadata$subcluster_id,
             sort_labs = FALSE,
             subcluster_cols,
@@ -1101,15 +1246,15 @@ if (plot_references) {
           )) {
             create_legend(
               "Expression",
-              epithelial_metadata$expression_id,
+              epithelial_metadata$exp_id_post_normal_call,
               sort_labs = TRUE,
               expr_cols,
               lib_loc
             ) 
           } else {
             create_legend(
-              "Orig. expression",
-              epithelial_metadata$expression_id,
+              "Expression",
+              epithelial_metadata$exp_id_post_normal_call,
               sort_labs = TRUE,
               expr_cols,
               lib_loc
@@ -1133,22 +1278,33 @@ if (plot_references) {
       }
    
       # label annotations:
-      pushViewport(viewport(x=0.86, y=0.08, width = 0.1, height = 0.1, 
-        just = "top"))
-        grid.text("nUMI", rot=65, gp=gpar(fontsize=18))
-      popViewport()
-      pushViewport(viewport(x=0.89, y=0.08, width = 0.1, height = 0.1, 
-        just = "top"))
-        grid.text("nGene", rot=65, gp=gpar(fontsize=18))
-      popViewport()
-      pushViewport(viewport(x=0.92, y=0.08, width = 0.1, height = 0.1, 
-        just = "top"))
-        grid.text("CNA", rot=65, gp=gpar(fontsize=18))
-      popViewport()
-      pushViewport(viewport(x=0.95, y=0.08, width = 0.1, height = 0.1, 
-        just = "top"))
-        grid.text("Corr.", rot=65, gp=gpar(fontsize=18))
-      popViewport()
+      if (plot_type == "normals_annotated") {
+        pushViewport(viewport(x=0.86, y=0.08, width = 0.1, height = 0.1, 
+          just = "top"))
+          grid.text("nUMI", rot=65, gp=gpar(fontsize=18))
+        popViewport()
+        pushViewport(viewport(x=0.89, y=0.08, width = 0.1, height = 0.1, 
+          just = "top"))
+          grid.text("nGene", rot=65, gp=gpar(fontsize=18))
+        popViewport()
+        pushViewport(viewport(x=0.92, y=0.08, width = 0.1, height = 0.1, 
+          just = "top"))
+          grid.text("CNA", rot=65, gp=gpar(fontsize=18))
+        popViewport()
+        pushViewport(viewport(x=0.95, y=0.08, width = 0.1, height = 0.1, 
+          just = "top"))
+          grid.text("Corr.", rot=65, gp=gpar(fontsize=18))
+        popViewport()
+      } else {
+        pushViewport(viewport(x=0.92, y=0.08, width = 0.1, height = 0.1, 
+          just = "top"))
+          grid.text("nUMI", rot=65, gp=gpar(fontsize=18))
+        popViewport()
+        pushViewport(viewport(x=0.95, y=0.08, width = 0.1, height = 0.1, 
+          just = "top"))
+          grid.text("nGene", rot=65, gp=gpar(fontsize=18))
+        popViewport()
+      }
 
       # draw array CNV heatmap:
       if (array_CNVs) {

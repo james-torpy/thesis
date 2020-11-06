@@ -23,7 +23,7 @@ script_dir="$home_dir/projects/thesis/chapter_4/scripts/"
 args = commandArgs(trailingOnly=TRUE)
 
 project_name <- "thesis"
-subproject_name <- "chapter_4"
+subproject_name <- "Figure_4.5_4.6_4.7"
 sample_name <- args[1]
 file_name <- args[2]
 numcores <- as.numeric(args[3])
@@ -51,7 +51,7 @@ exclude_clusters <- unlist(
 )
 
 #project_name <- "thesis"
-#subproject_name <- "chapter_4"
+#subproject_name <- "Figure_4.5_4.6_4.7"
 #sample_name <- "CID45152"
 #file_name <- "03_seurat_object_processed.Rdata"
 #numcores <- 20
@@ -130,292 +130,279 @@ print(paste0("Table directory = ", table_dir))
 
 # if p values specified with no subclustering or no p values specified with 
 # subclustering, abort to prevent multiple instances of one job:
-if (subcluster_method == "none" & subcluster_p != "none") {
-  print("Aborting as no subcluster method specified but p-value given...")
-  system(paste0("touch ", out_dir, "infercnv.12_denoised.png"))
-} else if (subcluster_method != "none" & subcluster_p == "none") {
-  print("Aborting as subcluster method specified but no p-value given...")
-  system(paste0("touch ", out_dir, "infercnv.12_denoised.png"))
-} else {
 
-  print(paste0("Running InferCNV subcluster pipeline on ", sample_name))
-  
-  
-  ################################################################################
-  ### 0. Define functions ###
-  ################################################################################
-  
-  prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"))
-  
-  
-  ################################################################################
-  ### 1. Generate input matrix and metadata files ###
-  ################################################################################
-  
-  # load seurat object:
-  seurat_10X <- readRDS(paste0(in_dir, file_name))
-  
-  # choose resolution if needed:
-  if (res != "none") {
-    Idents(seurat_10X) <- eval(
-      parse(
-        text = paste0("seurat_10X@meta.data$", res)
-      )
-    )
-  }
-  
-  # create raw matrix input file:
-  count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
-  if (sample_name == "CID45151") {
-    colnames(count_df) <- gsub(
-      "CID4515", "CID45151",
-      colnames(count_df)
-    )
-  }
-  print(
-    paste0(
-      "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
+print(paste0("Running InferCNV subcluster pipeline on ", sample_name))
+
+
+################################################################################
+### 0. Define functions ###
+################################################################################
+
+prepare_infercnv_metadata <- dget(paste0(func_dir, "prepare_infercnv_metadata.R"))
+
+
+################################################################################
+### 1. Generate input matrix and metadata files ###
+################################################################################
+
+# load seurat object:
+seurat_10X <- readRDS(paste0(in_dir, file_name))
+
+# choose resolution if needed:
+if (res != "none") {
+  Idents(seurat_10X) <- eval(
+    parse(
+      text = paste0("seurat_10X@meta.data$", res)
     )
   )
-  
-  # create metadata df:
-  print("Creating inferCNV metadata file...")
-  infercnv_metadata <- prepare_infercnv_metadata(
-    seurat_10X, 
-    count_df, 
-    for_infercnv=T, 
-    garnett=garnett_slot,
-    manual_epithelial=manual_epithelial,
-    exclude_clusters=exclude_clusters
-  )
-  seurat_10X <- infercnv_metadata$seurat
-  print(paste0("Cell types are: ", unique(infercnv_metadata$metadata$cell_type)))
-  
-  # write original cell numbers to table:
-  write.table(
-    infercnv_metadata$number_per_group, 
-    paste0(input_dir, "original_number_per_group.txt"), 
-    quote=F, 
-    sep="\t", 
-    col.names=F, 
-    row.names=F
-  )
-  
-  # generate cluster metric plots for original epithelial clusters:
-  epithelial_clusters <- grep("pithelial", unique(infercnv_metadata$metadata$cell_type), value=T)
-  print(paste0("Epithelial cluster = ", epithelial_clusters))
-  if (!file.exists(paste0(plot_dir, "metrics_by_original_epithelial_clusters.png"))) {
-    png(paste0(plot_dir, "metrics_by_epithelial_cluster.png"),
-      width=14, height=8, res=300, units='in')
-      temp_violinplot <- VlnPlot(
-        object = seurat_10X,
-        features = c("nFeature_RNA", "nCount_RNA", "percent.mito"),
-        pt.size = 1.5,
-        idents = epithelial_clusters
-      )
-      print(temp_violinplot)
-    dev.off()
-  }
-  
-  # add nUMI and nGene columns to metadata:
-  coverages <- data.frame(
-    cell_ids = rownames(seurat_10X@meta.data),
-    nUMI = seurat_10X@meta.data$nCount_RNA,
-    nGene = seurat_10X@meta.data$nFeature_RNA
-  )
-  infercnv_metadata$metadata <- merge(
-    infercnv_metadata$metadata, 
-    coverages, 
-    by = "cell_ids",
-    sort = F
-  )
-  
-  
-  ################################################################################
-  ### 2. Filter input matrix and metadata files ###
-  ################################################################################
-  
-  # establish cell count record:
-  count_record <- c(
-    pre_metadata_filtering = ncol(count_df),
-    post_metadata_filtering = NA,
-    post_coverage_filtering = NA
-  )
-  
-  # only keep cells in metadata df:
-  print(paste0("No cells in count df before filtering for those in metadata df = ", 
-    count_record["pre_metadata_filtering"]))
+}
 
-  count_df <- count_df[,colnames(count_df) %in% infercnv_metadata$metadata$cell_ids]
-  count_record["post_metadata_filtering"] <- ncol(count_df)
-
-  print(paste0("No cells in count df after filtering for those in metadata df = ", 
-   count_record["post_metadata_filtering"]))
-  
-  # filter out cells below coverage thresholds:
-  if (coverage_filter == "filtered") {
-    print(paste0(
-      "No cells before filtering out low coverage = ", 
-      count_record["post_metadata_filtering"]
-    ))
-
-    to_remove <- infercnv_metadata$metadata$cell_ids[
-      infercnv_metadata$metadata$nUMI < nUMI_threshold |
-      infercnv_metadata$metadata$nUMI < nGene_threshold
-    ]
-    infercnv_metadata$metadata <- infercnv_metadata$metadata[
-      !(infercnv_metadata$metadata$cell_ids %in% to_remove),
-    ]
-    count_record["post_coverage_filtering"] <- nrow(infercnv_metadata$metadata)
-
-    print(paste0(
-      "No cells after filtering out low coverage = ", 
-      count_record["post_coverage_filtering"]
-    ))
-  }
-
-  # save metadata for plotting:
-  saveRDS(infercnv_metadata$metadata, paste0(Robject_dir, "initial_metadata.Rdata"))
-
-  # write filtered cell numbers to table:
-  write.table(
-    data.frame(
-      type = names(count_record),
-      count = count_record
-    ),
-    paste0(table_dir, "/cell_count_record.txt"),
-    sep = "\t",
-    row.names = F,
-    col.names = F,
-    quote = F
+# create raw matrix input file:
+count_df <- as.matrix(GetAssayData(seurat_10X , slot = "counts"))
+if (sample_name == "CID45151") {
+  colnames(count_df) <- gsub(
+    "CID4515", "CID45151",
+    colnames(count_df)
   )
-  
-  # generate cluster metric plots for post-filtered epithelial clusters:
-  filtered_seurat <- subset(
-    seurat_10X,
-    cells = infercnv_metadata$metadata$cell_ids
+}
+print(
+  paste0(
+    "Dimensions of count df = ", paste(as.character(dim(count_df)), collapse=",")
   )
-  epithelial_clusters <- grep("pithelial", unique(infercnv_metadata$metadata$cell_type), value=T)
-  if (!file.exists(paste0(plot_dir, "metrics_by_post_filtered_epithelial_clusters.png"))) {
-    png(paste0(plot_dir, "metrics_by_post_filtered_epithelial_cluster.png"),
-      width=14, height=8, res=300, units='in')
-      temp_violinplot <- VlnPlot(
-        object = filtered_seurat,
-        features = c("nFeature_RNA", "nCount_RNA", "percent.mito"),
-        pt.size = 1.5,
-        idents = epithelial_clusters,
+)
 
-      )
-      print(temp_violinplot)
-    dev.off()
-  }
-  
-  # remove cluster information for epithelial cells:
-  infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)] <- 
-  gsub("_[0-9].*$", "", 
-    infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)])
-  
-  # collapse all stromal cells into 'stromal' cell type:
-  infercnv_metadata$metadata$cell_type[
-    grep("pithelial|Excluded", infercnv_metadata$metadata$cell_type, invert=T)
-  ] <- "Stromal"
-  
-  # remove cells in count_df not in metadata:
-  count_df <- count_df[
-    ,colnames(count_df) %in% infercnv_metadata$metadata$cell_ids
+# create metadata df:
+print("Creating inferCNV metadata file...")
+infercnv_metadata <- prepare_infercnv_metadata(
+  seurat_10X, 
+  count_df, 
+  for_infercnv=T, 
+  garnett=garnett_slot,
+  manual_epithelial=manual_epithelial,
+  exclude_clusters=exclude_clusters
+)
+seurat_10X <- infercnv_metadata$seurat
+print(paste0("Cell types are: ", unique(infercnv_metadata$metadata$cell_type)))
+
+# write original cell numbers to table:
+write.table(
+  infercnv_metadata$number_per_group, 
+  paste0(input_dir, "original_number_per_group.txt"), 
+  quote=F, 
+  sep="\t", 
+  col.names=F, 
+  row.names=F
+)
+
+# generate cluster metric plots for original epithelial clusters:
+epithelial_clusters <- grep("pithelial", unique(infercnv_metadata$metadata$cell_type), value=T)
+print(paste0("Epithelial cluster = ", epithelial_clusters))
+if (!file.exists(paste0(plot_dir, "metrics_by_original_epithelial_clusters.png"))) {
+  png(paste0(plot_dir, "metrics_by_epithelial_cluster.png"),
+    width=14, height=8, res=300, units='in')
+    temp_violinplot <- VlnPlot(
+      object = seurat_10X,
+      features = c("nFeature_RNA", "nCount_RNA", "percent.mito"),
+      pt.size = 1.5,
+      idents = epithelial_clusters
+    )
+    print(temp_violinplot)
+  dev.off()
+}
+
+# add nUMI and nGene columns to metadata:
+coverages <- data.frame(
+  cell_ids = rownames(seurat_10X@meta.data),
+  nUMI = seurat_10X@meta.data$nCount_RNA,
+  nGene = seurat_10X@meta.data$nFeature_RNA
+)
+infercnv_metadata$metadata <- merge(
+  infercnv_metadata$metadata, 
+  coverages, 
+  by = "cell_ids",
+  sort = F
+)
+
+
+################################################################################
+### 2. Filter input matrix and metadata files ###
+################################################################################
+
+# establish cell count record:
+count_record <- c(
+  pre_metadata_filtering = ncol(count_df),
+  post_metadata_filtering = NA,
+  post_coverage_filtering = NA
+)
+
+# only keep cells in metadata df:
+print(paste0("No cells in count df before filtering for those in metadata df = ", 
+  count_record["pre_metadata_filtering"]))
+count_df <- count_df[,colnames(count_df) %in% infercnv_metadata$metadata$cell_ids]
+count_record["post_metadata_filtering"] <- ncol(count_df)
+print(paste0("No cells in count df after filtering for those in metadata df = ", 
+ count_record["post_metadata_filtering"]))
+
+# filter out cells below coverage thresholds:
+if (coverage_filter == "filtered") {
+  print(paste0(
+    "No cells before filtering out low coverage = ", 
+    count_record["post_metadata_filtering"]
+  ))
+  to_remove <- infercnv_metadata$metadata$cell_ids[
+    infercnv_metadata$metadata$nUMI < nUMI_threshold |
+    infercnv_metadata$metadata$nUMI < nGene_threshold
   ]
+  infercnv_metadata$metadata <- infercnv_metadata$metadata[
+    !(infercnv_metadata$metadata$cell_ids %in% to_remove),
+  ]
+  count_record["post_coverage_filtering"] <- nrow(infercnv_metadata$metadata)
+  print(paste0(
+    "No cells after filtering out low coverage = ", 
+    count_record["post_coverage_filtering"]
+  ))
+}
+# save metadata for plotting:
+saveRDS(infercnv_metadata$metadata, paste0(Robject_dir, "initial_metadata.Rdata"))
+
+# write filtered cell numbers to table:
+write.table(
+  data.frame(
+    type = names(count_record),
+    count = count_record
+  ),
+  paste0(table_dir, "/cell_count_record.txt"),
+  sep = "\t",
+  row.names = F,
+  col.names = F,
+  quote = F
+)
+
+# generate cluster metric plots for post-filtered epithelial clusters:
+filtered_seurat <- subset(
+  seurat_10X,
+  cells = infercnv_metadata$metadata$cell_ids
+)
+epithelial_clusters <- grep("pithelial", unique(infercnv_metadata$metadata$cell_type), value=T)
+if (!file.exists(paste0(plot_dir, "metrics_by_post_filtered_epithelial_clusters.png"))) {
+  png(paste0(plot_dir, "metrics_by_post_filtered_epithelial_cluster.png"),
+    width=14, height=8, res=300, units='in')
+    temp_violinplot <- VlnPlot(
+      object = filtered_seurat,
+      features = c("nFeature_RNA", "nCount_RNA", "percent.mito"),
+      pt.size = 1.5,
+      idents = epithelial_clusters,
+    )
+    print(temp_violinplot)
+  dev.off()
+}
+
+# remove cluster information for epithelial cells:
+infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)] <- 
+gsub("_[0-9].*$", "", 
+  infercnv_metadata$metadata$cell_type[grep("pithelial", infercnv_metadata$metadata$cell_type)])
+
+# collapse all stromal cells into 'stromal' cell type:
+infercnv_metadata$metadata$cell_type[
+  grep("pithelial|Excluded", infercnv_metadata$metadata$cell_type, invert=T)
+] <- "Stromal"
+
+# remove cells in count_df not in metadata:
+count_df <- count_df[
+  ,colnames(count_df) %in% infercnv_metadata$metadata$cell_ids
+]
+
+# if no epithelial clusters present, abort:
+if (length(epithelial_clusters) < 1) {
+  print(paste0("No epithelial/myoepithelial clusters detected, aborting..."))
+} else {
+  # write count, metadata files and new seurat object:
+  if (!file.exists(paste0(input_dir, "input_matrix.txt"))) {
+    print("Creating inferCNV raw counts file...")
+    write.table(count_df, paste0(input_dir, "input_matrix.txt"), quote=F,
+    sep="\t", col.names=T, row.names=T)
+  }
+
+  if (!file.exists(paste0(input_dir, "metadata.txt"))) {
+    write.table(infercnv_metadata$metadata, paste0(input_dir, "metadata.txt"), 
+      quote=F, sep="\t", col.names=F, row.names=F)
+    write.table(infercnv_metadata$number_per_group, paste0(input_dir, 
+      "number_per_group.txt"), quote=F, col.names=F, row.names=F, sep="\t")
+    saveRDS(seurat_10X, paste0(in_dir, "04_seurat_object_annotated.Rdata"))
+  }
+
+
+  ################################################################################
+  ### 3. Define normals and run InferCNV ###
+  ################################################################################
   
-  # if no epithelial clusters present, abort:
-  if (length(epithelial_clusters) < 1) {
-    print(paste0("No epithelial/myoepithelial clusters detected, aborting..."))
+  # define normals which will act as InferCNV reference cells:
+  normals <- grep(
+    "[e,E]pithelial|[m,M]yoepithelial|CAF|[u,U]nassigned|[u,U]nknown|[t,T]umour|[t,T]umor", 
+    unique(infercnv_metadata$metadata$cell_type[
+      infercnv_metadata$metadata$cell_ids %in% colnames(count_df)
+    ]), value=T, 
+    invert=T
+  )
+
+  print("Normals are: ")
+  print(normals)
+
+  print("Creating inferCNV object...")
+  raw_path <- paste0(input_dir, "input_matrix.txt")
+  annotation_path <- paste0(input_dir, "metadata.txt")
+  gene_path <- paste0(ref_dir, "infercnv_gene_order.txt")
+  initial_infercnv_object <- CreateInfercnvObject(
+    raw_counts_matrix=raw_path,
+    annotations_file=annotation_path,
+    delim="\t",
+    gene_order_file=gene_path,
+    ref_group_names=normals
+  )
+
+  print("InferCNV object created, running inferCNV...")
+
+  if (subcluster_method != "none") {
+    system.time(
+      infercnv_output <- try(
+        infercnv::run(
+          initial_infercnv_object,
+          num_threads=numcores-1,
+          out_dir=out_dir,
+          cutoff=0.1,
+          window_length=101,
+          max_centered_threshold=3,
+          cluster_by_groups=F,
+          plot_steps=F,
+          denoise=T,
+          sd_amplifier=1.3,
+          analysis_mode = "subclusters",
+          tumor_subcluster_partition_method = subcluster_method,
+          tumor_subcluster_pval = subcluster_p
+        )
+      )
+    )
   } else {
-    # write count, metadata files and new seurat object:
-    if (!file.exists(paste0(input_dir, "input_matrix.txt"))) {
-      print("Creating inferCNV raw counts file...")
-      write.table(count_df, paste0(input_dir, "input_matrix.txt"), quote=F,
-      sep="\t", col.names=T, row.names=T)
-    }
-  
-    if (!file.exists(paste0(input_dir, "metadata.txt"))) {
-      write.table(infercnv_metadata$metadata, paste0(input_dir, "metadata.txt"), 
-        quote=F, sep="\t", col.names=F, row.names=F)
-      write.table(infercnv_metadata$number_per_group, paste0(input_dir, 
-        "number_per_group.txt"), quote=F, col.names=F, row.names=F, sep="\t")
-      saveRDS(seurat_10X, paste0(in_dir, "04_seurat_object_annotated.Rdata"))
-    }
-  
-  
-    ################################################################################
-    ### 3. Define normals and run InferCNV ###
-    ################################################################################
-    
-    # define normals which will act as InferCNV reference cells:
-    normals <- grep(
-      "[e,E]pithelial|[m,M]yoepithelial|CAF|[u,U]nassigned|[u,U]nknown|[t,T]umour|[t,T]umor", 
-      unique(infercnv_metadata$metadata$cell_type[
-        infercnv_metadata$metadata$cell_ids %in% colnames(count_df)
-      ]), value=T, 
-      invert=T
-    )
-  
-    print("Normals are: ")
-    print(normals)
-  
-    print("Creating inferCNV object...")
-    raw_path <- paste0(input_dir, "input_matrix.txt")
-    annotation_path <- paste0(input_dir, "metadata.txt")
-    gene_path <- paste0(ref_dir, "infercnv_gene_order.txt")
-    initial_infercnv_object <- CreateInfercnvObject(
-      raw_counts_matrix=raw_path,
-      annotations_file=annotation_path,
-      delim="\t",
-      gene_order_file=gene_path,
-      ref_group_names=normals
-    )
-  
-    print("InferCNV object created, running inferCNV...")
-  
-    if (subcluster_method != "none") {
-      system.time(
-        infercnv_output <- try(
-          infercnv::run(
-            initial_infercnv_object,
-            num_threads=numcores-1,
-            out_dir=out_dir,
-            cutoff=0.1,
-            window_length=101,
-            max_centered_threshold=3,
-            cluster_by_groups=F,
-            plot_steps=F,
-            denoise=T,
-            sd_amplifier=1.3,
-            analysis_mode = "subclusters",
-            tumor_subcluster_partition_method = subcluster_method,
-            tumor_subcluster_pval = subcluster_p
-          )
+    system.time(
+      infercnv_output <- try(
+        infercnv::run(
+          initial_infercnv_object,
+          num_threads=numcores-2,
+          out_dir=out_dir,
+          cutoff=0.1,
+          window_length=101,
+          max_centered_threshold=3,
+          cluster_by_groups=F,
+          plot_steps=F,
+          denoise=T,
+          sd_amplifier=1.3,
+          analysis_mode = "samples"
         )
       )
-    } else {
-      system.time(
-        infercnv_output <- try(
-          infercnv::run(
-            initial_infercnv_object,
-            num_threads=numcores-2,
-            out_dir=out_dir,
-            cutoff=0.1,
-            window_length=101,
-            max_centered_threshold=3,
-            cluster_by_groups=F,
-            plot_steps=F,
-            denoise=T,
-            sd_amplifier=1.3,
-            analysis_mode = "samples"
-          )
-        )
-      )
-    }
+    )
   }
 }
+
 
 
 #################################################################################

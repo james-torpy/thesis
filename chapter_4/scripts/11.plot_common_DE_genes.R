@@ -264,38 +264,49 @@ if (!file.exists(paste0(Robject_dir, "common_subpop_DE_data.Rdata"))) {
 ################################################################################
 
 # split by down and upregulated genes:
-both_DE_data <- list(
-  down_all = lapply(all_DE_data, function(x) {
+down_DE_data <- list(
+  all = lapply(all_DE_data, function(x) {
     return(x[x$avg_logFC < 0,])
   }),
-  down_CNA = lapply(all_CNA_only_DE_data, function(x) {
+  CNA = lapply(all_CNA_only_DE_data, function(x) {
     return(x[x$avg_logFC < 0,])
-  }),
-  up_all = lapply(all_DE_data, function(x) {
+  })
+)
+
+up_DE_data <- list(
+  all = lapply(all_DE_data, function(x) {
     return(x[x$avg_logFC > 0,])
   }),
-  up_CNA = lapply(all_CNA_only_DE_data, function(x) {
+  CNA = lapply(all_CNA_only_DE_data, function(x) {
     return(x[x$avg_logFC > 0,])
   })
 )
 
 # find DE genes present in all elements of all_DE_data list:
-common_DE_data <- lapply(
-  both_DE_data,
+common_down_genes <- lapply(
+  down_DE_data,
+  find_common_DE,
+  min_common_prop,
+  max_common_no
+)
+
+common_up_genes <- lapply(
+  up_DE_data,
   find_common_DE,
   min_common_prop,
   max_common_no
 )
 
 # merge together DE data:
-print("Merging common DE genes from all samples...")
+print("Merging common downregulated genes from all samples...")
 
-DE_final <- lapply(common_DE_data, function(x) {
+down_final <- lapply(common_down_genes, function(x) {
   
   merged_DE <- lapply(
-    all_gene_data, 
+    all_gene_data,
     filter_common_DE_genes, 
     x,
+    direction = "down",
     func_dir,
     ref_dir,
     Robject_dir
@@ -319,22 +330,104 @@ DE_final <- lapply(common_DE_data, function(x) {
 
 })
 
-plot_data_list <- lapply(
-  DE_final,
+print("Merging common upregulated genes from all samples...")
+
+up_final <- lapply(common_up_genes, function(x) {
+  
+  merged_DE <- lapply(
+    all_gene_data,
+    filter_common_DE_genes, 
+    x,
+    direction = "up",
+    func_dir,
+    ref_dir,
+    Robject_dir
+  )
+
+  # keep only common_DE genes:
+  empty_df <- data.frame(
+    gene = sort(x),
+    stringsAsFactors = FALSE
+  )
+
+  return(
+    list(
+      merged_DE = merged_DE,
+      plot_data = list(
+        avg_logFC = empty_df,
+        p_val_adj = empty_df
+      )
+    )
+  )
+
+})
+
+# prepare plot data:
+print("Preparing plot data...")
+down_plot_list <- lapply(
+  down_final,
   prepare_common_plot_data
 )
+# make positive values = NA and remove signifcance stars from NA squares:
+down_plot_list <- lapply(down_plot_list, function(x) {
+  x$plot_data$avg_logFC[x$plot_data$avg_logFC > 0] <- NA
+  x$plot_data$p_val_dots[is.na(x$plot_data$avg_logFC)] <- ""
+  return(x)
+})
+# cap gene numbers:
+down_plot_list$all$plot_data <- lapply(down_plot_list$all$plot_data, function(x) {
+  if (nrow(x) > 100) {
+    return(x[1:100,])    
+  } else {
+    return(x)
+  }
+})
+down_plot_list$CNA$plot_data <- lapply(down_plot_list$CNA$plot_data, function(x) {
+  return(x[rownames(x) %in% rownames(down_plot_list$all$plot_data$avg_logFC),])
+})
+
+# prepare plot data:
+up_plot_list <- lapply(
+  up_final,
+  prepare_common_plot_data
+)
+# make positive values = NA and remove signifcance stars from NA squares:
+up_plot_list <- lapply(up_plot_list, function(x) {
+  x$plot_data$avg_logFC[x$plot_data$avg_logFC < 0] <- NA
+  x$plot_data$p_val_dots[is.na(x$plot_data$avg_logFC)] <- ""
+  return(x)
+})
+
+# cap gene numbers:
+up_plot_list$all$plot_data <- lapply(up_plot_list$all$plot_data, function(x) {
+  if (nrow(x) > 100) {
+    return(x[1:100,])    
+  } else {
+    return(x)
+  }
+})
+up_plot_list$CNA$plot_data <- lapply(up_plot_list$CNA$plot_data, function(x) {
+  return(x[rownames(x) %in% rownames(up_plot_list$all$plot_data$avg_logFC),])
+})
 
 
 ################################################################################
 ### 3. Plot common DE genes ###
 ################################################################################
 
-for (p in 1:length(plot_data_list)) {
-
-  plot_common_DE(plot_data_list[[p]]$plot_data, names(plot_data_list))
-
+for (p in 1:length(down_plot_list)) {
+  plot_common_DE(
+    down_plot_list[[p]]$plot_data, 
+    paste0("down_", names(down_plot_list)[p])
+  )
 }
 
+for (p in 1:length(up_plot_list)) {
+  plot_common_DE(
+    up_plot_list[[p]]$plot_data, 
+    paste0("up_", names(up_plot_list)[p])
+  )
+}
 
 
 

@@ -10,20 +10,12 @@
 R_dir = "/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/"
 
 ## following samples need 20 cores:
-#SAMPLES = list([
-#  "CID3941", "CID4067", "CID4290A", 
-#  "CID4463", "CID4530N", "CID4535",
-#  "CID3921", "CID3586", "CID3963", "CID4066", "CID45171",
-#  "CID44971", "CID44991", "CID4513",
-#  "CID4515", "CID4523"
-#])
 #SAMPLES = list(["CID45152", "CID45172"])
 SAMPLES = list([
-  "CID4066", "CID44971",
-  "CID45152", "CID45172",
-  
+  "CID4066", "CID44971", "CID45171", 
+  "CID45172", "CID4515", "CID45152",
+  "CID4463"
 ])
-
 
 # infercnv parameters:
 file_name="03_seurat_object_processed.Rdata"
@@ -37,8 +29,8 @@ exclude_clusters = "none"
 
 # plot parameters:
 remove_artefacts="artefacts_not_removed"
-epi_res="PC_C_res.1"
-epi_PC="C"
+res="PC_C_res.1"
+PC="C"
 x_outlier_multiplier="1.5"
 x_thresh_multiplier="3"
 y_outlier_multiplier="1.5"
@@ -53,14 +45,12 @@ plot_references="FALSE"
 array_CNVs = "FALSE"
 
 # expression plot parameters:
-met=FALSE
-res="PC_C_res.1"
-PC="C"
+met="FALSE"
 remove_outliers="TRUE"
 outlier_sd_multiplier=3
-normal_markers="EPCAM_KRT18_ESR1_KRT5_KRT14_PGR_ERBB2_MKI67"
-epi_markers="EPCAM_KRT18_ESR1_KRT5_KRT14_PGR_ERBB2_MKI67"
-custom_epi_markers="ELF5_GATA3_CD44_ZEB1_MUCL1_NDRG1_IGFBP5"
+normal_markers="EPCAM_KRT18_ESR1_KRT5_KRT14_ERBB2_MKI67"
+epi_markers="EPCAM_KRT18_ESR1_KRT5_KRT14_ERBB2_MKI67"
+custom_epi_markers="PGR_ELF5_GATA3_CD44_ZEB1_MUCL1_NDRG1_IGFBP5"
 
 # signal plot parameters:
 min_CNV_length = "20"
@@ -70,9 +60,6 @@ min_CNV_proportion = "0.5"
 adj_p_cutoff = "0.1"
 specific_DE = "none"
 specific_features = "none"
-
-# collated heatmap parameters:
-gene_proportion_threshold = "0.5"
 
 ######
 #rule all:
@@ -96,15 +83,15 @@ rule all:
             subcluster_method=subcluster_method, subcluster_p=subcluster_p,
             remove_artefacts=remove_artefacts
         )
-#        ,
-#        expand(
-#            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
-#            "{subcluster_p}/{remove_artefacts}/plots/expression_plots/" + 
-#            "all_cells_UMAP.png",
-#            sample=SAMPLES, coverage_filter=coverage_filter, 
-#            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
-#            remove_artefacts=remove_artefacts
-#        )
+        ,
+        expand(
+            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
+            "{subcluster_p}/{remove_artefacts}/plots/expression_plots/" + 
+            "all_cells_UMAP.png",
+            sample=SAMPLES, coverage_filter=coverage_filter, 
+            subcluster_method=subcluster_method, subcluster_p=subcluster_p,
+            remove_artefacts=remove_artefacts
+        )
 #        ,
 #        expand(
 #            "results/infercnv/{sample}/{coverage_filter}/{subcluster_method}/p_" + 
@@ -190,8 +177,8 @@ rule plot_normal_annotations:
         " {wildcards.subcluster_p}" +
         " {wildcards.coverage_filter}" +
         " {remove_artefacts}" +
-        " {epi_res}" +
-        " {epi_PC}" +
+        " {res}" +
+        " {PC}" +
         " {x_outlier_multiplier}" +
         " {x_thresh_multiplier}" +
         " {y_outlier_multiplier}" +
@@ -226,8 +213,8 @@ rule plot_subcluster_annotations:
         " {wildcards.subcluster_p}" +
         " {wildcards.coverage_filter}" +
         " {remove_artefacts}" +
-        " {epi_res}" +
-        " {epi_PC}" +
+        " {res}" +
+        " {PC}" +
         " {x_outlier_multiplier}" +
         " {x_thresh_multiplier}" +
         " {y_outlier_multiplier}" +
@@ -266,8 +253,6 @@ rule expression_plots:
         " {met}" + 
         " {res}" + 
         " {PC}" +
-        " {epi_res}" +
-        " {epi_PC}" +
         " {garnett_slot}" +
         " {remove_outliers}" +
         " {outlier_sd_multiplier}" +

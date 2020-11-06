@@ -8,20 +8,7 @@ define_normals <- function(
   plot_dir, 
   Robject_dir
 ) {
-
-  # redefine epithelial subclusters pre-normal calling:
-  temp_metadata$exp_id_pre_normal_call <- factor(
-    epithelial_metadata$cell_type,
-    levels = naturalsort(unique(epithelial_metadata$cell_type))
-  )
-  levels(temp_metadata$exp_id_pre_normal_call) <- c(
-      paste0(
-      "Epithelial_", 
-      1:(length(levels(temp_metadata$exp_id_pre_normal_call))-1)
-    ),
-    "Epithelial_outlier"
-  )
-
+  
   # determine CNA values and add to temp_metadata:
   print("Determining CNA values and adding to epithelial metadata df...")
   # scale infercnv values to -1:1, square values and take the mean:
@@ -418,28 +405,6 @@ define_normals <- function(
     dev.off()
 
   }
-
-  # redefine epithelial subclusters post-normal calling:
-  temp_metadata$exp_id_post_normal_call <- epithelial_metadata$cell_type
-  temp_metadata$exp_id_post_normal_call[
-    temp_metadata$normal_cell_call == "normal"
-  ] <- "normal"
-  temp_metadata$exp_id_post_normal_call[
-    temp_metadata$normal_cell_call == "unassigned"
-  ] <- "unassigned"
-
-  temp_metadata$exp_id_post_normal_call <- factor(
-    temp_metadata$exp_id_post_normal_call
-  )
-  levels(temp_metadata$exp_id_post_normal_call) <- c(
-    paste0(
-      "Epithelial_", 
-      1:(length(levels(temp_metadata$exp_id_post_normal_call))-3)
-    ),
-    "Epithelial_outlier",
-    "Normal",
-    "Unassigned"
-  )
 
   return(temp_metadata)
 }

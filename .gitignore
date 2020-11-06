@@ -21,3 +21,4 @@ dag.svg
 *infercnv_obj
 *.dag
 *.gistic
+*.RData

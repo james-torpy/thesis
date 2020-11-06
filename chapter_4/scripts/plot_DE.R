@@ -7,7 +7,7 @@ plot_DE <- function(
   plot_dir,
   filter_sig = TRUE,
   CNA_assoc_plot = TRUE,
-  min_dist = diff_CNA_min_distance,
+  min_dist = 100,
   raw_dir,
   table_dir,
   Robject_dir,
@@ -45,9 +45,13 @@ plot_DE <- function(
       file.exists(paste0(table_dir, file_prefix, "_CNA_assoc.txt"))) {
       plots_done <- TRUE
     }
+  } else {
+    if (file.exists(paste0(table_dir, file_prefix, ".txt"))) {
+      plots_done <- TRUE
+    }
   }
-
-  if (!(file.exists(paste0(Robject_dir, file_prefix, "_initial_DE.Rdata")))) {
+  
+  if (!plots_done) {
 
     # find DE genes using MAST:
     if (specific_DE[1] == "none") {
@@ -71,16 +75,6 @@ plot_DE <- function(
       )
       DE_res$gene <- rownames(DE_res)
     }
-
-    saveRDS(DE_res, paste0(Robject_dir, file_prefix, "_initial_DE.Rdata"))
-
-  } else {
-
-    DE_res <- readRDS(paste0(Robject_dir, file_prefix, "_initial_DE.Rdata"))
-
-  }
-
-  if (!plots_done) {
 
     # write table:
     if (nrow(DE_res) > 0) {
@@ -117,7 +111,6 @@ plot_DE <- function(
         CNA_data <- readRDS(paste0(Robject_dir, "CNV_indices_and_lengths.Rdata"))
 
         # remove artefacts:
-        CNA_data_and_artefacts <- CNA_data
         CNA_data <- lapply(CNA_data, function(x) {
           return(x[grep("artefact", x$call, invert = T),])
         })
@@ -125,6 +118,9 @@ plot_DE <- function(
         # load CNV matrix to retrieve containing genes:
         CNV_matrix <- readRDS(paste0(Robject_dir, "5a.final_epithelial_heatmap_without_normals.Rdata")) 
         epithelial_genes <- colnames(CNV_matrix)
+
+        # trim gene_coords to only include epithelial genes:
+        gene_coords <- gene_coords[gene_coords$gene %in% epithelial_genes,]
             
         # identify genes within CNA areas in at least one subpopulation, in the same direction as DE:
         # collate all gain and loss genes:
@@ -139,47 +135,87 @@ plot_DE <- function(
 
             for (i in 1:nrow(y)) {
               gene_seg <- gene_coords$gene[
-                (which(gene_coords$gene == y$start_gene[i])):(which(gene_coords$gene == y$end_gene[i]))
+                (which(
+                  gene_coords$gene == y$start_gene[i])
+                ):(which(
+                  gene_coords$gene == y$end_gene[i]
+                  )
+                )
               ]
-              gene_seg <- gene_seg[gene_seg %in% epithelial_genes]
+
+              # add 100 genes either side for CNA genes plus:
+              gene_seg_plus <- gene_coords$gene[
+                (which(
+                  gene_coords$gene == y$start_gene[i]
+                )-100):(which(
+                  gene_coords$gene == y$end_gene[i]
+                )+100)
+              ]
+
               if (i==1) {
                 exp_CNA_genes <- list(one = as.character(gene_seg))
+                exp_CNA_genes_plus <- list(one = as.character(gene_seg_plus))
               } else {
                 exp_CNA_genes[[i]] <- as.character(gene_seg)
+                exp_CNA_genes_plus[[i]] <- as.character(gene_seg)
               }
             }
 
             names(exp_CNA_genes) <- seq(1, length(exp_CNA_genes), 1)
-            return(exp_CNA_genes) 
+            names(exp_CNA_genes_plus) <- seq(1, length(exp_CNA_genes_plus), 1)
+            
+            return(
+              list(
+                genes = exp_CNA_genes,
+                genes_plus = exp_CNA_genes_plus
+              ) 
+            )
 
           })
 
+          # collate CNA genes and coords:
           CNA_res <- c(
-            CNA_gene_vecs,
+            list(
+              losses = CNA_gene_vecs$losses$genes,
+              gains = CNA_gene_vecs$gains$genes
+            ),
             CNAs
           )
           names(CNA_res)[3:4] <- c("loss_coords", "gain_coords") 
 
-          return(CNA_res)
+          # collate CNA genes and coords:
+          CNA_res_plus <- c(
+            list(
+              losses = CNA_gene_vecs$losses$genes_plus,
+              gains = CNA_gene_vecs$gains$genes_plus
+            ),
+            CNAs
+          )
+          names(CNA_res_plus)[3:4] <- c("loss_coords", "gain_coords") 
+
+          return(
+            list(
+              genes = CNA_res,
+              genes_plus = CNA_res_plus
+            )
+          )
 
         }
 
         CNA_genes <- lapply(CNA_data, collate_CNA_genes)
-        CNA_genes_and_artefacts <- lapply(CNA_data_and_artefacts, collate_CNA_genes)
 
         # fetch lists of all gain and loss associated genes for each subpopulation:
         all_loss_genes <- lapply(CNA_genes, function(x) {
-          return(unique(unlist(x$losses)))
+          return(unique(unlist(x$genes$losses)))
         })
         all_gain_genes <- lapply(CNA_genes, function(x) {
-          return(unique(unlist(x$gains)))
+          return(unique(unlist(x$genes$gains)))
         })
-
-        all_loss_genes_and_artefacts <- lapply(CNA_genes_and_artefacts, function(x) {
-          return(unique(unlist(x$losses)))
+        all_loss_genes_plus <- lapply(CNA_genes, function(x) {
+          return(unique(unlist(x$genes_plus$losses)))
         })
-        all_gain_genes_and_artefacts <- lapply(CNA_genes_and_artefacts, function(x) {
-          return(unique(unlist(x$gains)))
+        all_gain_genes_plus <- lapply(CNA_genes, function(x) {
+          return(unique(unlist(x$genes_plus$gains)))
         })
 
         # filter out genes not in CNAs:
@@ -201,7 +237,11 @@ plot_DE <- function(
             }
            
             # find corresponding CNA genes and coords:
-            spec_CNA_genes <- eval(parse(text = paste0("CNA_genes$", names(split_DE)[i])))
+            spec_CNA_genes <- eval(
+              parse(
+                text = paste0("CNA_genes$", names(split_DE)[i], "$genes")
+              )
+            )
             spec_data <- list(
               loss_data = list(
                 CNA = spec_CNA_genes$losses,
@@ -230,11 +270,11 @@ plot_DE <- function(
 
             # fetch lists of all gain and loss associated genes from all other
             # subpopulations:
-            other_loss_genes <- all_loss_genes_and_artefacts[
-              !(names(all_loss_genes_and_artefacts) %in% names(split_DE)[i])
+            other_loss_genes <- all_loss_genes_plus[
+              !(names(all_loss_genes_plus) %in% names(split_DE)[i])
             ]
-            other_gain_genes <- all_gain_genes_and_artefacts[
-              !(names(all_gain_genes_and_artefacts) %in% names(split_DE)[i])
+            other_gain_genes <- all_gain_genes_plus[
+              !(names(all_gain_genes_plus) %in% names(split_DE)[i])
             ]
 
             # keep only genes not in CNAs from at least one other subpopulation:
@@ -279,7 +319,6 @@ plot_DE <- function(
           }
           
           if (exists("CNA_assoc_DE")) {
-            test <- do.call("rbind", CNA_assoc_DE)
             CNA_assoc_DE <- do.call("rbind", CNA_assoc_DE)
           }
 
@@ -438,8 +477,8 @@ plot_DE <- function(
 
     # plot DE results:
     DE_results <- DE_heatmap(
-      DE = DE_sorted,
-      seurat_object = seurat_object,
+      DE_sorted,
+      seurat_object,
       file_prefix,
       Robject_dir,
       no_genes_returned
@@ -450,8 +489,8 @@ plot_DE <- function(
 
         # plot DE results:
         CNA_assoc_DE_results <- DE_heatmap(
-          DE = CNA_assoc_DE,
-          seurat_object = seurat_object,
+          CNA_assoc_DE,
+          seurat_object,
           file_prefix,
           Robject_dir,
           no_genes_returned,
@@ -463,7 +502,7 @@ plot_DE <- function(
           return(
             list(
               all = DE_sorted,
-              CNA_assoc = CNA_assoc_DE[CNA_assoc_DE$gene %in% CNA_assoc_DE_results,]
+              CNA_assoc = CNA_assoc_DE
             )
           )
         }
