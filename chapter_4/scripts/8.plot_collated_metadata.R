@@ -23,6 +23,7 @@ if (subcluster_p != "none") {
 coverage_filter <- "filtered"
 remove_artefacts <- "artefacts_not_removed"
 subset_samples <- FALSE
+out_suffix <- "14_tumours"
 
 if (subset_samples) {
 
@@ -43,13 +44,21 @@ if (subset_samples) {
 
 } else {
 
-  # determine order of samples by subtype:
-  ER <- c("CID3941", "CID3948", "CID4067", "CID4290A", 
-  	"CID4463", "CID4530N", "CID4535")
-  HER2 <- c("CID3921", "CID3586", "CID3963", "CID4066", "CID45171")
-  TNBC <- c("CID44971", "CID44991", "CID4513",
-  	"CID4515", "CID4523")
-  sample_names <- c(ER, HER2, TNBC)
+  if (out_suffix == "14_tumours") {
+    # determine order of samples by subtype:
+    ER <- c("CID4067", "CID4290A", "CID4463", "CID4530N", "CID4535")
+    HER2 <- c("CID3921", "CID3586", "CID4066", "CID45171")
+    TNBC <- c("CID44971", "CID44991", "CID4513", "CID4515", "CID4523")
+    sample_names <- c(ER, HER2, TNBC)
+  } else if (out_suffix == "18_tumours") {
+    # determine order of samples by subtype:
+    ER <- c("CID3941", "CID3948", "CID4067", "CID4290A",
+      "CID4463", "CID4530N", "CID4535")
+    HER2 <- c("CID3921", "CID3586", "CID3963", "CID4066", "CID45171")
+    TNBC <- c("CID44041", "CID44971", "CID44991", "CID4513",
+      "CID4515", "CID4523")
+    sample_names <- c(ER, HER2, TNBC)
+  }
 
   subtype_df <- data.frame(
     subtype = c(
@@ -80,7 +89,7 @@ results_dir <- paste0(project_dir, "results/")
 in_path <- paste0(results_dir, "infercnv/")
 out_dir <- paste0(results_dir, "infercnv/combined_CNV_stats/", 
   coverage_filter, "/", subcluster_method, "/p_", subcluster_p, "/", 
-  remove_artefacts, "/")
+  remove_artefacts, "/", out_suffix, "/")
 
 if (subset_samples) {
   Robject_dir <- paste0(out_dir, "Rdata_sub/")
@@ -417,6 +426,7 @@ all_data_types <- list(
   lengths = CNV_lengths,
   genomic_lengths = CNV_genomic_lengths
 )
+all_data_nos <- lapply(all_data_types, function(x) round(mean(x), 2))
 
 t_tests <- lapply(all_data_types, function(x) {
 

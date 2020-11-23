@@ -32,7 +32,7 @@ custom_epi_markers <- strsplit(
 
 project_name <- "thesis"
 subproject_name <- "Figure_4.5_4.6_4.7"
-sample_name <- "CID4515"
+sample_name <- "CID45152"
 subcluster_method <- "random_trees"
 subcluster_p <- "0.05"
 if (subcluster_p != "none") {
@@ -40,7 +40,7 @@ if (subcluster_p != "none") {
 }
 coverage_filter <- "filtered"
 remove_artefacts <- "artefacts_not_removed"
-met <- FALSE
+met <- TRUE
 res <- "PC_C_res.1"
 PC <- "C"
 garnett_slot <- "garnett_call_ext_major"
@@ -54,10 +54,22 @@ epi_markers <- strsplit(
   "EPCAM_KRT18_ESR1_KRT5_KRT14_PGR_ERBB2_MKI67",
   "_"
 )[[1]]
+
+##CID4517:
+#custom_epi_markers <- strsplit(
+#  "GGCT_MUCL1_EMP1_IGFBP5_NDRG1_TRPS1_FOLR1_LY6D_LY6E",
+#  "_"
+#)[[1]]
+#CID4515:
 custom_epi_markers <- strsplit(
-  "BST2_CRABP2_LRRC32_MAFB_MMP7_NUPR1_SPLI_S100A4_SCGB2A2_S100P_TMSB10_WFDC2_MALAT1_S100A9",
+  "BST2_CRABP2_LRRC32_MAFB_MMP7_NUPR1_SDC4_SLPI_S100A4_SCGB2A2_S100P_TMSB10_WFDC2_MALAT1_S100A9",
   "_"
 )[[1]]
+##CID4463:
+#custom_epi_markers <- strsplit(
+#  "BST2_IFI6_IFITM1_MDK_MGST1_MUCL1_S100A14_S100A16_TACSTD2_TFF3_TMEM176B_GPRC5A_TFPI2_ZFP36",
+#  "_"
+#)[[1]]
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample name = ", sample_name))
@@ -145,13 +157,8 @@ remove_UMAP_outliers <- dget(paste0(func_dir, "remove_UMAP_outliers.R"))
 
 print("Loading metadata df...")
 
-if (met) {
-  epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "/5b.final_epithelial_metadata_without_normals.Rdata"))
-} else {
-  epithelial_metadata <- readRDS(paste0(Robject_dir, 
-    "/4b.final_epithelial_metadata_with_normals.Rdata"))
-}
+epithelial_metadata <- readRDS(paste0(Robject_dir, 
+  "/4b.final_epithelial_metadata_with_normals.Rdata"))
 
 print("Loading seurat objects...")
 
@@ -408,6 +415,7 @@ if (
 ################################################################################
 
 if (met) {
+  
   filtered_seurats <- list(filtered_seurat_epi, no_outlier_seurat_epi)
 
   # update idents with subcluster ids:
@@ -416,7 +424,15 @@ if (met) {
       object = filtered_seurats[[i]],
       pt.size = 1.5,
       reduction = paste0("UMAP", PC),
-      features = c(epi_markers, custom_epi_markers),
+      features = epi_markers,
+      order = T
+    )
+    dev.off()
+    custom_epi_feature <- FeaturePlot(
+      object = filtered_seurats[[i]],
+      pt.size = 1.5,
+      reduction = paste0("UMAP", PC),
+      features = custom_epi_markers,
       order = T
     )
     dev.off()
@@ -424,6 +440,13 @@ if (met) {
     if (i==1) {
       png(
         file = paste0(plot_dir, "epithelial_feature_UMAPs.png"), 
+        width = 15, 
+        height = 8, 
+        res = 300, 
+        units = 'in'
+      )
+      png(
+        file = paste0(plot_dir, "custom_feature_UMAPs.png"), 
         width = 15, 
         height = 8, 
         res = 300, 
@@ -437,11 +460,22 @@ if (met) {
         res = 300, 
         units = 'in'
       )
+        print(epi_feature)
+      dev.off()
+      png(
+        file = paste0(plot_dir, "custom_feature_UMAPs_no_outlier.png"), 
+        width = 15, 
+        height = 8, 
+        res = 300, 
+        units = 'in'
+      )
+        print(custom_epi_feature)
+      dev.off()
     }
-      print(epi_feature)
-    dev.off()
   }
+
 } else {
+  
   filtered_seurats <- list(filtered_seurat_epi, no_outlier_seurat_epi)
 
   # update idents with subcluster ids:
@@ -544,34 +578,38 @@ if (met) {
       print(normal_feature)
     dev.off()
 
-    epi_feature <- FeaturePlot(
+    custom_epi_feature <- FeaturePlot(
       object = normal_lab_seurat,
       pt.size = 1.5,
       reduction = paste0("UMAP", PC),
-      features = c(epi_markers, custom_epi_markers),
+      features = custom_epi_markers,
       order = T
     )
     dev.off()
     
     if (i==1) {
       png(
-        file = paste0(plot_dir, "epithelial_feature_UMAPs.png"), 
+        file = paste0(plot_dir, "custom_feature_UMAPs.png"), 
         width = 15, 
         height = 8, 
         res = 300, 
         units = 'in'
       )
+        print(custom_epi_feature)
+      dev.off()
+
     } else {
       png(
-        file = paste0(plot_dir, "epithelial_feature_UMAPs_no_outlier.png"), 
+        file = paste0(plot_dir, "custom_feature_UMAPs_no_outlier.png"), 
         width = 15, 
         height = 8, 
         res = 300, 
         units = 'in'
       )
+        print(custom_epi_feature)
+      dev.off()
+
     }
-      print(epi_feature)
-    dev.off()
   
   }
   
@@ -621,6 +659,32 @@ if (met) {
   
   if (
     !file.exists(paste0(
+      plot_dir, "epithelial_feature_UMAPs_no_normal.png")
+    )
+  ) {
+    epi_feature <- FeaturePlot(
+      object = normal_lab_seurat,
+      pt.size = 1.5,
+      reduction = paste0("UMAP", PC),
+      features = normal_markers,
+      order = T
+    )
+    dev.off()
+      
+    png(
+      file = paste0(plot_dir, "epithelial_feature_UMAPs_no_normal.png"), 
+      width = 15, 
+      height = 8, 
+      res = 300, 
+      units = 'in'
+    )
+      print(epi_feature)
+    dev.off()
+ 
+  }
+
+  if (
+    !file.exists(paste0(
       plot_dir, "epithelial_cell_expr_clusters_UMAP_no_normal.png")
     )
   ) {
@@ -654,17 +718,25 @@ if (met) {
     object = seurat_epi_no_normal_filtered,
     pt.size = 1.5,
     reduction = paste0("UMAP", PC),
-    features = c(epi_markers, custom_epi_markers),
+    features = custom_epi_markers,
     order = T
   )
   dev.off()
   
   png(
-    file = paste0(plot_dir, "epithelial_feature_UMAPs_no_normal.png"), 
+    file = paste0(plot_dir, "custom_feature_UMAPs_no_normal.png"), 
     width = 15, 
     height = 8, 
     res = 300, 
     units = 'in'
+  )
+    print(epi_feature)
+  dev.off()
+
+  pdf(
+    file = paste0(plot_dir, "custom_feature_UMAPs_no_normal.pdf"), 
+    width = 15, 
+    height = 8
   )
     print(epi_feature)
   dev.off()

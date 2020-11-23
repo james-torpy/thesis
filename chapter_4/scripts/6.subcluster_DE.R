@@ -18,7 +18,7 @@ adj_p_cutoff <- as.numeric(args[6])
 specific_DE <- args[7]  # DE genes found for subclusters listed first
 # compared to those listed second
 if (specific_DE != "none") {
-  strsplit(
+  specific_DE <- strsplit(
     strsplit(
       specific_DE,
       "\\.\\."
@@ -36,7 +36,7 @@ if (specific_features != "none") {
 
 project_name <- "thesis"
 subproject_name <- "chapter_4"
-sample_name <- "CID4515"
+sample_name <- "CID44041"
 subcluster_method <- "random_trees"
 subcluster_p <- "0.05"
 if (subcluster_p != "none") {
@@ -48,7 +48,9 @@ adj_p_cutoff <- as.numeric("0.1")
 diff_CNA_min_distance <- 100
 specific_DE <- "none"
 specific_features <- "none"
-#specific_DE <- "CNV_1..CNV_2.CNV_3.CNV_4"
+merge_subclusters <- "none"
+#merge_subclusters <- c("CNV_3", "CNV_4", "CNV_5", "CNV_6")
+#specific_DE <- "CNV_3.CNV_4.CNV_5.CNV_6...CNV_1.CNV_2"
 #if (specific_DE != "none") {
 #  specific_DE <- strsplit(
 #    strsplit(
@@ -57,7 +59,7 @@ specific_features <- "none"
 #    )[[1]],
 #    "\\."
 #  )
-#  names(specific_DE) <- c("met_seed", "non_met_seed")
+#  names(specific_DE) <- c("elf5", "non_elf5")
 #}
 #specific_features <- paste(
 # c(
@@ -89,6 +91,8 @@ library(dplyr)
 library(ggplot2)
 library(searcher, lib.loc=lib_loc)
 library(tibble)
+library(edgeR)
+library(org.Hs.eg.db)
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", project_name, "/",
@@ -160,7 +164,16 @@ epi_meta <- readRDS(
   )
 )
 
-subcluster_meta <- subset(epi_meta, select = c("cell_ids", "subcluster_id"))
+subcluster_meta <- subset(
+  epi_meta, 
+  select = c("cell_ids", "subcluster_id")
+)
+
+# merge subclusters where necessary:
+temp_id <- as.character(subcluster_meta$subcluster_id)
+replacement_id <- paste(merge_subclusters, collapse="_")
+temp_id[temp_id %in% merge_subclusters] <- replacement_id
+subcluster_meta$subcluster_id <- temp_id
 
 # change seurat object Idents to subcluster ids:
 temp_idents <- as.character(Idents(seurat_10X))
@@ -184,28 +197,54 @@ seurat_sub <- subset(
 ################################################################################
 
 # stringent DE with only top significant DE genes:
-DE_result <- plot_DE(
-  seurat_object = seurat_sub,
-  min_pct = 0.5,
-  logfc_thresh = 0.7,
-  return_thresh = 0.01,
-  only.pos = FALSE,
-  plot_dir,
-  filter_sig = TRUE,
-  CNA_assoc_plot = TRUE,
-  min_dist = diff_CNA_min_distance,
-  raw_dir,
-  table_dir,
-  Robject_dir,
-  ref_dir,
-  func_dir,
-  file_prefix = "top_subpop_DE",
-  return_table = TRUE
-)
+if (merge_subclusters != "none") {
+
+  DE_result <- plot_DE(
+    seurat_object = seurat_sub,
+    min_pct = 0.5,
+    logfc_thresh = 0.7,
+    return_thresh = 0.01,
+    only.pos = FALSE,
+    plot_dir,
+    filter_sig = TRUE,
+    CNA_assoc_plot = TRUE,
+    min_dist = diff_CNA_min_distance,
+    raw_dir,
+    table_dir,
+    Robject_dir,
+    ref_dir,
+    func_dir,
+    file_prefix = "top_subpop_DE",
+    return_table = TRUE,
+    merge_subclusters = merge_subclusters
+  )
+
+} else {
+
+  DE_result <- plot_DE(
+    seurat_object = seurat_sub,
+    min_pct = 0.5,
+    logfc_thresh = 0.7,
+    return_thresh = 0.01,
+    only.pos = FALSE,
+    plot_dir,
+    filter_sig = TRUE,
+    CNA_assoc_plot = TRUE,
+    min_dist = diff_CNA_min_distance,
+    raw_dir,
+    table_dir,
+    Robject_dir,
+    ref_dir,
+    func_dir,
+    file_prefix = "top_subpop_DE",
+    return_table = TRUE
+  )
+
+}
 
 # loose DE with all reported CNA-assoc genes (to be used for common gene DE
 # heatmap):
-plot_DE(
+all_DE_result <- plot_DE(
   seurat_object = seurat_sub,
   min_pct = 0.1,
   logfc_thresh = 0,
@@ -220,7 +259,8 @@ plot_DE(
   Robject_dir,
   ref_dir,
   func_dir,
-  file_prefix = "all_subpop_DE"
+  file_prefix = "all_subpop_DE",
+  return_table = TRUE
 )
 
 # stringent DE between specified groups:
@@ -247,6 +287,36 @@ if (specific_DE[1] != "none") {
       names(specific_DE)[2]
     ),
     return_table = TRUE,
+    merge_subclusters = "none",
+    specific_DE = specific_DE,
+    group1 = names(specific_DE)[1],
+    group2 = names(specific_DE)[2],
+    specific_genes = "none"
+  )
+
+  all_spec_DE_res <- plot_DE(
+    seurat_object = seurat_sub,
+    min_pct = 0.1,
+    logfc_thresh = 0,
+    return_thresh = 1,
+    only.pos = FALSE,
+    plot_dir,
+    filter_sig = TRUE,
+    CNA_assoc_plot = TRUE,
+    min_dist = diff_CNA_min_distance,
+    raw_dir,
+    table_dir,
+    Robject_dir,
+    ref_dir,
+    func_dir,
+    file_prefix = paste0(
+      names(specific_DE)[1], 
+      "_vs_", 
+      names(specific_DE)[2],
+      "_all"
+    ),
+    return_table = TRUE,
+    merge_subclusters = "none",
     specific_DE = specific_DE,
     group1 = names(specific_DE)[1],
     group2 = names(specific_DE)[2],
@@ -303,6 +373,43 @@ if (!is.null(DE_result$CNA_assoc)) {
   
   }
 }
+
+
+################################################################################
+### 4. GO/KEGG ###
+################################################################################
+
+if (exists("spec_DE_res")) {
+  if (!is.null(spec_DE_res$all)) {
+
+  # convert to entrez ids:
+  egSYMBOL <- toTable(org.Hs.egSYMBOL)
+
+  m <- match(spec_DE_res$all$gene, egSYMBOL$symbol)
+  spec_DE_res$all$entrez_id <- egSYMBOL$gene_id[m]
+
+  # separate up from downregulated genes:
+  elf5_DE <- spec_DE_res$all[spec_DE_res$all$avg_logFC > 0,]
+  non_elf5_DE <- spec_DE_res$all[spec_DE_res$all$avg_logFC < 0,]
+
+  GO_elf5 <- goana(elf5_DE$entrez_id)
+  GO_elf5 <- GO_elf5[GO_elf5$P.DE < 0.05,]
+  GO_elf5 <- GO_elf5[order(GO_elf5$DE, decreasing = T),]
+
+  GO_non_elf5 <- goana(non_elf5_DE$entrez_id)
+  GO_non_elf5 <- GO_non_elf5[GO_non_elf5$P.DE < 0.05,]
+  GO_non_elf5 <- GO_non_elf5[order(GO_non_elf5$DE, decreasing = T),]
+
+
+  KEGG_elf5 <- kegga(elf5_DE$entrez_id)
+  KEGG_elf5 <- KEGG_elf5[KEGG_elf5$P.DE < 0.05,]
+  KEGG_elf5 <- KEGG_elf5[order(KEGG_elf5$DE, decreasing = T),]
+
+  KEGG_non_elf5 <- kegga(non_elf5_DE$entrez_id)
+  KEGG_non_elf5 <- KEGG_non_elf5[KEGG_non_elf5$P.DE < 0.05,]
+  KEGG_non_elf5 <- KEGG_non_elf5[order(KEGG_non_elf5$DE, decreasing = T),]
+
+
 
 
 #  # label direction of DE genes:

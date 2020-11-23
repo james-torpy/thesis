@@ -15,6 +15,7 @@ plot_DE <- function(
   func_dir,
   file_prefix,
   return_table = FALSE,
+  merge_subclusters = "none",
   specific_DE = "none",
   group1 = "none",
   group2 = "none",
@@ -101,6 +102,10 @@ plot_DE <- function(
       DE_sorted_counts <- seurat_object@assays$RNA[DE_sorted$gene]
       DE_sorted$variance <- apply(DE_sorted_counts, 1, function(x) (sd(x))^2)
 
+      # round values and calculate average FC:
+      DE_sorted$avg_logFC <- round(DE_sorted$avg_logFC, 3)
+      DE_sorted$avg_FC <- round(exp(DE_sorted$avg_logFC), 1)
+
       write.table(
         DE_sorted, 
         paste0(table_dir, file_prefix, ".txt"),
@@ -115,6 +120,21 @@ plot_DE <- function(
         gene_coords <- read.table(paste0(ref_dir, "infercnv_gene_order.txt"))
         colnames(gene_coords) <- c("gene", "chr", "start", "end")
         CNA_data <- readRDS(paste0(Robject_dir, "CNV_indices_and_lengths.Rdata"))
+
+        # merge CNA data if necessary:
+        if (merge_subclusters[1] != "none") {
+          to_merge <- CNA_data[merge_subclusters]
+          temp_merged <- do.call("rbind", to_merge)
+          new_CNA_data <- append(
+            CNA_data[!(names(CNA_data) %in% merge_subclusters)],
+            list(temp_merged)
+          )
+          names(new_CNA_data) <- c(
+            names(CNA_data)[!(names(CNA_data) %in% merge_subclusters)],
+            paste(merge_subclusters, collapse = "_")
+          )
+          CNA_data <- new_CNA_data
+        }
 
         # remove artefacts:
         CNA_data_and_artefacts <- CNA_data
@@ -279,12 +299,12 @@ plot_DE <- function(
           }
           
           if (exists("CNA_assoc_DE")) {
-            test <- do.call("rbind", CNA_assoc_DE)
             CNA_assoc_DE <- do.call("rbind", CNA_assoc_DE)
+            # remove DE genes not in areas of differential CNAs:
+            CNA_assoc_DE <- CNA_assoc_DE[CNA_assoc_DE$in_diff_CNA,]
           }
 
-          # remove DE genes not in areas of differential CNAs:
-          CNA_assoc_DE <- CNA_assoc_DE[CNA_assoc_DE$in_diff_CNA,]
+
 
         } else {
 

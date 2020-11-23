@@ -28,31 +28,31 @@ plot_references <- as.logical(args[18])
 array_CNVs <- as.logical(args[19])
 plot_type <- args[20]
 
-#project_name <- "thesis"
-#subproject_name <- "chapter_4"
-#sample_name <- "CID45171"
-#subcluster_method <- "random_trees"
-#subcluster_p <- "0.05"
-#if (subcluster_p != "none") {
-#  subcluster_p <- as.numeric(subcluster_p)
-#}
-#coverage_filter <- "filtered"
-#remove_artefacts <- "artefacts_not_removed"
-#epi_res <- "PC_C_res.1"
-#epi_PC <- "C"
-#x_outlier_multiplier <- 1.5
-#x_thresh_multiplier <- 3
-#y_outlier_multiplier <- 1.5
-#y_thresh_multiplier <- 3
-#min_cluster_cells <- 5
-#subcluster_merge <- TRUE
-#merge_thresh <- 0.95
-#merge_diff_prop <- 0.75
-#order_by <- "CNV"
-#QC_annot <- TRUE
-#plot_references <- FALSE
-#array_CNVs <- FALSE
-#plot_type <- "normals_annotated"
+project_name <- "thesis"
+subproject_name <- "chapter_4"
+sample_name <- "CID3948"
+subcluster_method <- "random_trees"
+subcluster_p <- "0.05"
+if (subcluster_p != "none") {
+  subcluster_p <- as.numeric(subcluster_p)
+}
+coverage_filter <- "filtered"
+remove_artefacts <- "artefacts_not_removed"
+epi_res <- "PC_C_res.1"
+epi_PC <- "C"
+x_outlier_multiplier <- 1.5
+x_thresh_multiplier <- 3
+y_outlier_multiplier <- 1.5
+y_thresh_multiplier <- 3
+min_cluster_cells <- 5
+subcluster_merge <- TRUE
+merge_thresh <- 0.95
+merge_diff_prop <- 0.75
+order_by <- "CNV"
+QC_annot <- TRUE
+plot_references <- FALSE
+array_CNVs <- FALSE
+plot_type <- "normals_annotated"
 
 if (plot_type == "normals_annotated") {
   remove_normals <- FALSE
@@ -417,9 +417,9 @@ if (remove_normals) {
   ]
 
   saveRDS(
-      epithelial_metadata,
-      paste0(Robject_dir, "/3.epithelial_metadata_without_normals.Rdata")
-    )
+    epithelial_metadata,
+    paste0(Robject_dir, "/3.epithelial_metadata_without_normals.Rdata")
+  )
 }
 
 

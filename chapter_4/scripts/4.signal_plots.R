@@ -17,7 +17,7 @@ normals_removed <- as.logical(args[8])
 
 #project_name <- "thesis"
 #subproject_name <- "chapter_4"
-#sample_name <- "CID45172"
+#sample_name <- "CID44041"
 #subcluster_method <- "random_trees"
 #subcluster_p <- "0.05"
 #if (subcluster_p != "none") {

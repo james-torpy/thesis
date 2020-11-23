@@ -50,34 +50,34 @@ exclude_clusters <- unlist(
   )
 )
 
-#project_name <- "thesis"
-#subproject_name <- "chapter_4"
-#sample_name <- "CID45152"
-#file_name <- "03_seurat_object_processed.Rdata"
-#numcores <- 20
-#subcluster_method <- "random_trees"
-#subcluster_p <- "0.05"
-#if (subcluster_p != "none") {
-#  subcluster_p <- as.numeric(subcluster_p)
-#}
-#res <- "PC_A_res.1"
-#coverage_filter <- "filtered"
-#nUMI_threshold <- as.numeric("3200")
-#nGene_threshold <- as.numeric("700")
-#garnett_slot <- "garnett_call_ext_major"
-##garnett_slot <- "none"
-#manual_epithelial <- unlist(
-#  strsplit(
-#    "none",
-#    "_"
-#  )
-#)
-#exclude_clusters <- unlist(
-#  strsplit(
-#    "none",
-#    "_"
-#  )
-#)
+project_name <- "thesis"
+subproject_name <- "chapter_4"
+sample_name <- "CID3948"
+file_name <- "03_seurat_object_processed.Rdata"
+numcores <- 20
+subcluster_method <- "random_trees"
+subcluster_p <- "0.05"
+if (subcluster_p != "none") {
+  subcluster_p <- as.numeric(subcluster_p)
+}
+res <- "PC_A_res.1"
+coverage_filter <- "filtered"
+nUMI_threshold <- as.numeric("3200")
+nGene_threshold <- as.numeric("700")
+garnett_slot <- "garnett_call_ext_major"
+#garnett_slot <- "none"
+manual_epithelial <- unlist(
+  strsplit(
+    "none",
+    "_"
+  )
+)
+exclude_clusters <- unlist(
+  strsplit(
+    "none",
+    "_"
+  )
+)
 
 print(paste0("Project name = ", project_name))
 print(paste0("Subproject name = ", subproject_name))

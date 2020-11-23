@@ -31,38 +31,7 @@ max_common_no <- 70
 lower_min_common_prop <- 0.1
 external_list <- "none"
 external_list_name <- "none"
-#external_list <- c("ANGPT1", "CASP1", "FGFR1", "GM19589", "Il1R1",
-#  "MGP", "MFSS1", "NEURL1B", "PHEX", "PLSCR4", "SERPINE2", "SLPI")
-#external_list_name <- "Wagenblast"
-
-up_met_sets <- c(
-  "LIAO_METASTASIS", "NAKAMURA_METASTASIS",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_1",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_3",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_4",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_5",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_6",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_7",
-  "TAVAZOIE_METASTASIS"
-)
-down_met_sets <- c(
-  "GILDEA_METASTASIS",
-  "WANG_METASTASIS_OF_BREAST_CANCER"
-)
-
-msig_brca_met_sets <- c(
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_1",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_3",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_4",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_5",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_6",
-  "PEDERSEN_METASTASIS_BY_ERBB2_ISOFORM_7",
-  "TAVAZOIE_METASTASIS", "VANTVEER_BREAST_CANCER_METASTASIS_DN", 
-  "VANTVEER_BREAST_CANCER_METASTASIS_UP",
-  "WANG_METASTASIS_OF_BREAST_CANCER",
-  "WANG_METASTASIS_OF_BREAST_CANCER_ESR1_UP",
-  "WANG_METASTASIS_OF_BREAST_CANCER_ESR1_DN"
-)
+out_suffix <- "18_tumours"
 
 if (subset_samples) {
 
@@ -79,15 +48,21 @@ if (subset_samples) {
 
 } else {
 
-  # determine order of samples by subtype:
-#  ER <- c("CID3941", "CID4067", "CID4290A", 
-#    "CID4463", "CID4530N", "CID4535")
-  ER <- c("CID3941", "CID4067", "CID4290A", 
-    "CID4530N", "CID4535")
-  HER2 <- c("CID3921", "CID3586", "CID3963", "CID4066", "CID45171")
-  TNBC <- c("CID44971", "CID44991", "CID4513",
-    "CID4515", "CID4523")
-  sample_names <- c(ER, HER2, TNBC)
+  if (out_suffix == "14_tumours") {
+    # determine order of samples by subtype:
+    ER <- c("CID4067", "CID4290A", "CID4463", "CID4530N", "CID4535")
+    HER2 <- c("CID3921", "CID3586", "CID4066", "CID45171")
+    TNBC <- c("CID44971", "CID44991", "CID4513", "CID4515", "CID4523")
+    sample_names <- c(ER, HER2, TNBC)
+  } else if (out_suffix == "18_tumours") {
+    # determine order of samples by subtype:
+    ER <- c("CID3941", "CID3948", "CID4067", "CID4290A",
+      "CID4463", "CID4530N", "CID4535")
+    HER2 <- c("CID3921", "CID3586", "CID3963", "CID4066", "CID45171")
+    TNBC <- c("CID44041", "CID44971", "CID44991", "CID4513",
+      "CID4515", "CID4523")
+    sample_names <- c(ER, HER2, TNBC)
+  }
 
   subtype_df <- data.frame(
     subtype = c(
@@ -115,7 +90,7 @@ results_dir <- paste0(project_dir, "results/")
 in_path <- paste0(results_dir, "infercnv/")
 out_dir <- paste0(results_dir, "infercnv/common_gene_expression/", 
   coverage_filter, "/", subcluster_method, "/p_", subcluster_p, "/", 
-  remove_artefacts, "/")
+  remove_artefacts, "/", out_suffix, "/")
 
 if (subset_samples) {
   Robject_dir <- paste0(out_dir, "Rdata_sub/")
@@ -183,14 +158,19 @@ if (!file.exists(paste0(Robject_dir, "common_subpop_DE_data.Rdata"))) {
       header = T
     )
 
-    CNA_only_DE_data <- read.table(
-      paste0(
-        sample_table_dir, 
-        "top_subpop_DE_CNA_assoc.txt"
-      ),
-      header = T
-    )
-
+    if (file.exists(paste0(
+      sample_table_dir, 
+      "top_subpop_DE_CNA_assoc.txt"
+    ))) {
+      CNA_only_DE_data <- read.table(
+        paste0(
+          sample_table_dir, 
+          "top_subpop_DE_CNA_assoc.txt"
+        ),
+        header = T
+      )
+    }
+    
     all_gene_DE_data <- read.table(
       paste0(
       	sample_table_dir, 
@@ -208,9 +188,14 @@ if (!file.exists(paste0(Robject_dir, "common_subpop_DE_data.Rdata"))) {
       all_DE_data <- list(filtered_DE)
       names(all_DE_data) <- sample_names[s]
 
-      all_CNA_only_DE_data <- list(CNA_only_DE_data)
-      names(all_CNA_only_DE_data) <- sample_names[s]
-
+      if (exists("CNA_only_DE_data")) {
+        all_CNA_only_DE_data <- list(CNA_only_DE_data)
+        names(all_CNA_only_DE_data) <- sample_names[s]
+      } else {
+        all_CNA_only_DE_data <- list(NULL)
+        names(all_CNA_only_DE_data) <- sample_names[s]
+      }
+      
       all_gene_data <- list(all_gene_DE_data)
       names(all_gene_data) <- sample_names[s]
 
@@ -337,7 +322,7 @@ up_final <- lapply(common_up_genes, function(x) {
   merged_DE <- lapply(
     all_gene_data,
     filter_common_DE_genes, 
-    x,
+    selected_genes = x,
     direction = "up",
     func_dir,
     ref_dir,

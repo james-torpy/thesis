@@ -33,6 +33,7 @@ na_colour <- "white"
 gene_proportion_threshold <- 0.5
 QC_annot <- TRUE
 include_metabric <- TRUE
+out_suffix <- "18_tumours"
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Subclustered by ", subcluster_method))
@@ -52,15 +53,23 @@ if (subset_samples) {
 
 } else {
 
-  # determine order of samples by subtype:
-  ER <- c("CID3941", "CID3948", "CID4067", "CID4290A", "CID4398", "CID4461", 
-  	"CID4463", "CID4530N", "CID4535")
-  HER2 <- c("CID3921", "CID3586", "CID3963", "CID4066", "CID45171")
-  TNBC <- c("CID44041", "CID4465", "CID44971", "CID44991", "CID4513",
-  	"CID4515", "CID4523")
-  sample_names <- c(ER, HER2, TNBC)
+  if (out_suffix == "14_tumours") {
+    # determine order of samples by subtype:
+    ER <- c("CID4067", "CID4290A", "CID4463", "CID4530N", "CID4535")
+    HER2 <- c("CID3921", "CID3586", "CID4066", "CID45171")
+    TNBC <- c("CID44971", "CID44991", "CID4513", "CID4515", "CID4523")
+    sample_names <- c(ER, HER2, TNBC)
+  } else if (out_suffix == "18_tumours") {
+    # determine order of samples by subtype:
+    ER <- c("CID3941", "CID3948", "CID4067", "CID4290A",
+      "CID4463", "CID4530N", "CID4535")
+    HER2 <- c("CID3921", "CID3586", "CID3963", "CID4066", "CID45171")
+    TNBC <- c("CID44041", "CID44971", "CID44991", "CID4513",
+      "CID4515", "CID4523")
+    sample_names <- c(ER, HER2, TNBC)
+  }
 
- }
+}
 
 print(paste0("Subproject name = ", subproject_name))
 print(paste0("Sample names = ", sample_names))
@@ -86,7 +95,7 @@ results_dir <- paste0(project_dir, "results/")
 in_path <- paste0(results_dir, "infercnv/")
 out_dir <- paste0(results_dir, "infercnv/combined_infercnv/", 
   coverage_filter, "/", subcluster_method, "/p_", subcluster_p, "/", 
-  remove_artefacts, "/")
+  remove_artefacts, "/", out_suffix, "/")
 
 if (subset_data & subset_samples) {
   Robject_dir <- paste0(out_dir, "Rdata_double_sub/")
