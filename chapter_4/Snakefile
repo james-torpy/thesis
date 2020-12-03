@@ -53,7 +53,7 @@ plot_references="FALSE"
 array_CNVs = "FALSE"
 
 # expression plot parameters:
-met=FALSE
+met="FALSE"
 res="PC_C_res.1"
 PC="C"
 remove_outliers="TRUE"
